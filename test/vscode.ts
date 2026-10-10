@@ -1,22 +1,22 @@
 // Stands in for the `vscode` module, which only exists inside the VS Code extension host (mocked
 // in test/setup.ts). It covers the slice of the API the extension uses and behaves like VS Code where
 // that matters to a test: a command id can be registered only once and disposing frees it, events
-// reach their listeners until they are disposed, files are read from the disk.
-import { readFile } from 'node:fs/promises'
+// reach their listeners until they are disposed, files are read from the disk, documents and editors
+// keep their text in memory (test/vscode/).
+import {
+  completionProviders,
+  diagnosticCollections,
+  type MarkdownString,
+} from './vscode/languages.ts'
+import { type Disposable, resetWorkbench } from './vscode/workbench.ts'
 
-import { vi } from 'vitest'
+export * from './vscode/languages.ts'
+export * from './vscode/text.ts'
+export * from './vscode/uri.ts'
+export * from './vscode/webviews.ts'
+export * from './vscode/workbench.ts'
 
 type CommandHandler = (...args: unknown[]) => unknown
-type Listener<T> = (event: T) => unknown
-type ProgressTask<T> = (
-  progress: { report: () => void },
-  token: { isCancellationRequested: boolean },
-) => Promise<T>
-
-export interface Disposable {
-  dispose: () => void
-}
-
 const handlers = new Map<string, CommandHandler>()
 // Commands VS Code itself provides: they answer without a handler from the extension.
 const BUILT_IN_COMMANDS: ReadonlySet<string> = new Set(['setContext'])
@@ -46,29 +46,6 @@ export const ProgressLocation = {
   Notification: 15,
 } as const
 
-export class EventEmitter<T> {
-  readonly #listeners = new Set<Listener<T>>()
-
-  readonly event = (listener: Listener<T>): Disposable => {
-    this.#listeners.add(listener)
-    return {
-      dispose: () => {
-        this.#listeners.delete(listener)
-      },
-    }
-  }
-
-  fire(data: T): void {
-    for (const listener of [...this.#listeners]) {
-      listener(data)
-    }
-  }
-
-  dispose(): void {
-    this.#listeners.clear()
-  }
-}
-
 export class ThemeColor {
   readonly id: string
 
@@ -92,7 +69,7 @@ export class TreeItem {
   collapsibleState: number
   id?: string
   description?: string
-  tooltip?: string
+  tooltip?: string | MarkdownString
   iconPath?: ThemeIcon
   contextValue?: string
   command?: { command: string; title: string; arguments?: unknown[] }
@@ -101,16 +78,6 @@ export class TreeItem {
     this.label = label
     this.collapsibleState = collapsibleState
   }
-}
-
-interface FakeUri {
-  readonly scheme: string
-  readonly path: string
-  readonly fsPath: string
-}
-
-export const Uri = {
-  file: (path: string): FakeUri => ({ scheme: 'file', path, fsPath: path }),
 }
 
 export const commands = {
@@ -138,66 +105,11 @@ export const commands = {
   },
 }
 
-export interface FakeTreeView {
-  readonly viewId: string
-  readonly options: { treeDataProvider: unknown }
-  message: string | undefined
-  readonly dispose: () => void
-}
-
-export const treeViews: FakeTreeView[] = []
-
-export interface FakeOutputChannel {
-  readonly name: string
-  readonly debug: ReturnType<typeof vi.fn>
-  readonly info: ReturnType<typeof vi.fn>
-  readonly warn: ReturnType<typeof vi.fn>
-  readonly error: ReturnType<typeof vi.fn>
-  readonly show: ReturnType<typeof vi.fn>
-  readonly dispose: ReturnType<typeof vi.fn>
-}
-
-export const outputChannels: FakeOutputChannel[] = []
-
-export const window = {
-  showInformationMessage: vi.fn(),
-  showWarningMessage: vi.fn(),
-  showErrorMessage: vi.fn(),
-  showQuickPick: vi.fn(),
-  showInputBox: vi.fn(),
-  showOpenDialog: vi.fn(),
-  createTreeView: (viewId: string, options: { treeDataProvider: unknown }): FakeTreeView => {
-    const view: FakeTreeView = { viewId, options, message: undefined, dispose: vi.fn() }
-    treeViews.push(view)
-    return view
-  },
-  createOutputChannel: (name: string): FakeOutputChannel => {
-    const channel = {
-      name,
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      show: vi.fn(),
-      dispose: vi.fn(),
-    }
-    outputChannels.push(channel)
-    return channel
-  },
-  withProgress: async <T>(...[, task]: [unknown, ProgressTask<T>]): Promise<T> =>
-    task({ report: vi.fn() }, { isCancellationRequested: false }),
-}
-
-export const workspace = {
-  fs: {
-    readFile: async (uri: { fsPath: string }): Promise<Uint8Array> => readFile(uri.fsPath),
-  },
-}
-
 // Brings the fake back to a fresh VS Code between tests.
 export function resetVscode(): void {
   handlers.clear()
   contextKeys.clear()
-  treeViews.length = 0
-  outputChannels.length = 0
+  completionProviders.length = 0
+  diagnosticCollections.length = 0
+  resetWorkbench()
 }

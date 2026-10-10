@@ -46,6 +46,7 @@ describe('connectionOptions', () => {
       dateStrings: true,
       jsonStrings: true,
       connectAttributes: { program_name: 'sqldoro' },
+      maxPreparedStatements: 16,
     })
     expect(stream).toBeTypeOf('function')
   })

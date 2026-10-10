@@ -11,6 +11,7 @@ import {
   type NodeContext,
   nodeId,
   NodeKind,
+  type NodePlace,
   sessionOf,
   treeItem,
 } from './explorer-node.ts'
@@ -22,15 +23,17 @@ interface Branch {
   readonly kind: NodeKind
   readonly connectionId: string
   readonly path: readonly string[]
+  readonly place?: NodePlace
   readonly look: Omit<ItemLook, 'isExpandable'>
   readonly children: (node: ExplorerNode) => Children
 }
 
-function branch({ kind, connectionId, path, look, children }: Branch): ExplorerNode {
+function branch({ kind, connectionId, path, place, look, children }: Branch): ExplorerNode {
   const node: ExplorerNode = {
     id: nodeId(kind, connectionId, path),
     kind,
     connectionId,
+    ...(place === undefined ? {} : { place }),
     treeItem: () => treeItem(node, { ...look, isExpandable: true }),
     children: async (context) => children(node)(context),
   }
@@ -62,6 +65,7 @@ export function databaseNode(
     kind: NodeKind.Database,
     connectionId,
     path: [database],
+    place: { database, schema: dialect.hasSchemas ? '' : database, name: '' },
     look: { label: database, icon: new vscode.ThemeIcon('database') },
     children: (node) => async (context) => {
       if (!dialect.hasSchemas) {
@@ -81,6 +85,7 @@ function schemaNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     kind: NodeKind.Schema,
     connectionId,
     path: [scope.database, scope.schema],
+    place: { ...scope, name: '' },
     look: { label: scope.schema, icon: new vscode.ThemeIcon('symbol-namespace') },
     children: () => async () => Promise.resolve(objectGroups(connectionId, scope)),
   })
@@ -131,6 +136,7 @@ function tableNode(connectionId: string, table: ObjectRef): ExplorerNode {
     kind: NodeKind.Table,
     connectionId,
     path: objectPath(table),
+    place: table,
     look: { label: table.name, icon: new vscode.ThemeIcon('table') },
     children: () => async () =>
       Promise.resolve([
@@ -146,6 +152,7 @@ function viewNode(connectionId: string, view: ObjectRef, isMaterialized: boolean
     kind: NodeKind.View,
     connectionId,
     path: objectPath(view),
+    place: view,
     look: {
       label: view.name,
       icon: new vscode.ThemeIcon('eye'),

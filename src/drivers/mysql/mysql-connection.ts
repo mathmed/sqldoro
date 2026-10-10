@@ -7,6 +7,8 @@ import type { ConnectRequest, Endpoint, TlsSettings } from '../../core/engine/en
 const CONNECT_TIMEOUT_MS = 15_000
 const KEEP_ALIVE_DELAY_MS = 15_000
 const PROGRAM_NAME = 'sqldoro'
+// Statements with bound values are prepared on the server; the oldest are closed past this many.
+const MAX_PREPARED_STATEMENTS = 16
 
 export function connectionOptions(request: ConnectRequest): ConnectionOptions {
   return {
@@ -26,6 +28,7 @@ export function connectionOptions(request: ConnectRequest): ConnectionOptions {
     dateStrings: true,
     jsonStrings: true,
     connectAttributes: { program_name: PROGRAM_NAME },
+    maxPreparedStatements: MAX_PREPARED_STATEMENTS,
   }
 }
 

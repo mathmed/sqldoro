@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const MISSING_PATH = 'ENOENT'
@@ -25,6 +25,10 @@ export async function listFiles(directory: string): Promise<string[]> {
     }
     throw error
   }
+}
+
+export async function fileSize(path: string): Promise<number> {
+  return (await stat(path)).size
 }
 
 export async function removeDirectory(path: string): Promise<void> {

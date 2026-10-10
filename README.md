@@ -9,9 +9,10 @@ A fast, safe MySQL and PostgreSQL client that lives inside VS Code. Open source 
 built to make the dangerous queries hard and the everyday ones quick.
 
 > [!NOTE]
-> Early development. Phase 1, the foundation, is in: saved MySQL and PostgreSQL connections with SSL
-> and SSH tunnels, secrets in VS Code's secret storage, and a schema explorer. The SQL editor, the
-> result grid and the safety guards come next, each one judged by the same strict pipeline.
+> Early development. Phase 1, the foundation, and phase 2, the SQL editor and the result grid, are in:
+> saved MySQL and PostgreSQL connections with SSL and SSH tunnels, a schema explorer, SQL editors with
+> autocomplete, a virtualized result grid, EXPLAIN, DDL, query history and saved queries. Inline
+> editing and the safety guards come next, each one judged by the same strict pipeline.
 
 ## What works today
 
@@ -43,6 +44,54 @@ built to make the dangerous queries hard and the everyday ones quick.
 - **Schema explorer**: connection → databases → schemas (PostgreSQL) → tables and views → columns,
   indexes and foreign keys, loaded when a node opens. **Filter** shows only the tables and views whose
   name contains some text; **Refresh** reloads a node or everything.
+- **SQL editors bound to a connection**: **New Query** (from a connection, database or schema in the
+  explorer, or from the Command Palette) opens a SQL editor that runs on that connection, database and
+  schema; any other SQL document gets one with **Change Editor Connection**. The status bar shows where
+  the editor in front runs (click it to change), or that a query runs (click it to cancel). Each editor
+  runs on its own database session, so a long query in one editor never blocks another or the
+  explorer; the binding is remembered per workspace.
+- **Running**: **Run Query** (`Ctrl+Enter`, `Cmd+Enter` on macOS) runs the selection, or the statement
+  under the cursor; **Run Script** (`Ctrl+Alt+Enter`) runs every statement of the editor in order and
+  stops at the first error. Statements are split without parsing SQL: semicolons inside strings,
+  quoted identifiers, comments and PostgreSQL dollar-quoted bodies do not end a statement.
+  **Cancel Query** stops the statement on the server (`KILL QUERY` in MySQL, `pg_cancel_backend` in
+  PostgreSQL) and the result says truthfully whether it stopped or had already finished. A failed
+  statement shows the server's message, and its position is underlined in the editor when the server
+  gives one.
+- **Result view**: a panel beside the editor with one tab per statement (status, duration, rows
+  returned or affected, and the statements a failure left unrun). The grid is virtualized and pages
+  rows from the extension host as you scroll, so a million rows scroll smoothly while the webview holds
+  only a few thousand. Click a header to sort (Shift for several columns), type in the filter row to filter
+  (contains, without case), drag a header edge to resize. The view sorts and filters the rows already
+  fetched; for a query that only reads, **Sort and filter on the server** runs it again inside
+  `SELECT * FROM (...)` with the filters as bound values instead. Select cells with the mouse or the
+  keyboard (arrows, Page Up/Down, Home/End, Shift to extend, `Ctrl+A`), copy them as TSV (`Ctrl+C`),
+  CSV, JSON or `INSERT` statements, and export the whole result (as sorted and filtered) to CSV, JSON or
+  SQL, streamed to the file you pick. `NULL` and the empty string look different; long text, JSON and
+  binary values open whole in a detail pane (double click or `Enter`), with JSON pretty-printed without
+  losing digits. The grid follows the VS Code theme.
+- **Exact values**: `BIGINT`, `DECIMAL`/`NUMERIC` and dates are shown exactly as the server sent them,
+  whatever the time zone of the machine; numbers are never rounded through JavaScript numbers.
+- **Autocomplete**: databases or schemas, tables and views, the columns of the tables in the statement
+  (aliases included) and keywords, quoted when a name needs it. The catalog is read from the session of
+  the explorer, cached, and refreshed with the explorer and after a statement that changes the schema;
+  a slow catalog never blocks typing.
+- **Show DDL** of a table or view (from the explorer) in a read-only SQL document; **Explain Query**
+  shows the plan of a statement; **Explain Analyze Query** asks first, because it runs the statement,
+  and only runs queries that only read.
+- **Query history** view: every statement that ran, per connection, newest first and searchable
+  (**Search Query History**); open it in an editor, run it again, copy or delete it. Running the same
+  statement again moves it to the top; statements that set a password are kept with their strings
+  masked.
+- **Saved queries** view: named queries in folders; save the selection or the editor, open or insert
+  one, rename, move, delete, and import or export them as a JSON file.
+
+### Settings
+
+| Setting                                   | Default  | Description                                                                   |
+| ----------------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `sqldoro.results.maxRows`                 | `100000` | Rows kept of a result (1 to 5,000,000); past it the result is flagged as cut. |
+| `sqldoro.history.maxEntriesPerConnection` | `500`    | Statements the query history keeps per connection; the oldest go first.       |
 
 ## Planned v1 scope
 
@@ -93,7 +142,7 @@ servers running: connect the Extension Development Host to them (see
 | Command                 | Description                                                                         |
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `make setup`            | Install the locked dependencies and the git hooks.                                  |
-| `make build`            | Bundle the extension into `dist/extension.cjs` (esbuild).                           |
+| `make build`            | Bundle the extension (esbuild) and the result view (Vite) into `dist/`.             |
 | `make format`           | Format every file (Prettier) and apply the fixes ESLint can make.                   |
 | `make lint`             | ESLint (strict type-checked, complexity and security rules) and the Prettier check. |
 | `make typecheck`        | tsc 7 strict on the whole project, then on the platform-agnostic core alone.        |
@@ -113,12 +162,13 @@ servers running: connect the Extension Development Host to them (see
 
 ```
 src/
-├── core/        # Engine interface, connection model, validation, URL import, session opening: pure TypeScript
+├── core/        # Engine interface, connection model, session opening, SQL splitting, autocomplete, the
+│                #   result model and its message protocol, history and saved queries: pure TypeScript
 ├── drivers/     # One folder per database (mysql/ with mysql2, postgres/ with pg) implementing the engine interface
 ├── tunnel/      # The SSH tunnel (ssh2) implementing the core tunnel interface
-├── extension/   # VS Code extension host: activation, commands, the Connections view, storage, the form
+├── extension/   # VS Code extension host: activation, commands, views, editors, result panels, storage
 │   └── factories/   # the only place that instantiates the drivers and the SSH tunnel
-└── webview/     # React result grid, a browser bundle loaded by the webview (later phase)
+└── webview/     # React result grid (TanStack Table and Virtual), a browser bundle built by Vite
 scripts/         # CI tooling: build, smoke launcher, mutation runner and the Quality Report
 test/            # Test support: fakes, the vscode fake, the integration servers and the VS Code suite
 ```
@@ -140,6 +190,13 @@ name, default port, URL schemes and dialect (identifier quote, whether it has sc
 Supporting another database means writing its driver and registering it in
 `src/extension/factories/engines.ts`; nothing else in the core or the extension changes.
 
+**The result view.** The extension host runs the statements and keeps their rows; the webview only
+shows them. They talk through a typed message protocol declared in the core
+(`src/core/results/protocol.ts`), and each side checks every message it receives field by field. The
+webview asks for windows of rows around what is in view and keeps a bounded cache of them; sorting,
+filtering, copying and exporting happen in the host on all the rows. The webview gets a strict Content
+Security Policy with a nonce: no inline script, no remote resource.
+
 **Exact values.** Drivers keep `DECIMAL`/`NUMERIC` and `BIGINT` as the text the server sent, dates
 and JSON as the server formats them, and binary data as hexadecimal text: nothing depends on the time
 zone of the machine or loses precision. Queries stream their rows in batches and keep at most a given
@@ -160,7 +217,7 @@ gates are never loosened to meet the code.
 | Complexity         | ESLint: cyclomatic complexity 5 (xenon A), cognitive complexity 5, nesting depth 2, 30 lines per function, 3 parameters, 300 lines per file; cannot be disabled inline                                         | pre-commit, `lint` job         |
 | Security           | eslint-plugin-security (as errors), eslint-plugin-no-unsanitized, SonarJS security hotspots, bans on shell execution and `eval`; `npm audit`                                                                   | pre-commit, `lint`/`quality`   |
 | Dead code          | knip, configuration hints as errors                                                                                                                                                                            | pre-commit, `quality` job      |
-| Tests and coverage | Vitest with V8 coverage, 100% statements, branches, functions and lines as a ratchet                                                                                                                           | pre-commit, `quality` job      |
+| Tests and coverage | Vitest with V8 coverage (Node.js, and jsdom with Testing Library for the webview), 100% statements, branches, functions and lines as a ratchet                                                                 | pre-commit, `quality` job      |
 | Integration        | Vitest against real MySQL 8.4, PostgreSQL 18 and OpenSSH servers (service containers in CI, Docker Compose locally)                                                                                            | `integration` job              |
 | Architecture       | dependency-cruiser contracts                                                                                                                                                                                   | pre-commit, `architecture` job |
 | Smoke              | the built extension in a real VS Code (`@vscode/test-electron`, xvfb in CI)                                                                                                                                    | `smoke` job                    |
@@ -198,8 +255,10 @@ private key is stored in the repository.
 [`@vscode/test-electron`](https://github.com/microsoft/vscode-test), starts it with the built
 extension (`dist/`) in a fresh profile without telemetry, and runs `test/smoke/suite.ts` inside it:
 the extension must activate, every command and view contributed in `package.json` must be registered
-(each view opens and refreshes), and `sqldoro.hello` must answer. Each step prints a `>> ` line (VS Code version, activation time,
-commands) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
+(each view opens and refreshes), `sqldoro.hello` must answer, and the result view of a SQL editor must
+load (the React bundle runs under its Content Security Policy and tells the extension it is ready).
+Each step prints a `>> ` line (VS Code version, activation time, commands, views, result view load
+time) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
 `make smoke` does the same on a headless machine that has it installed.
 
 ### Architecture contracts (`make lint-arch`)
@@ -216,6 +275,8 @@ commands) that the Quality Report summarises. Linux needs a display: CI wraps it
 - only `src/extension/factories/` instantiates the drivers and the SSH tunnel;
 - the extension host and the webview never import each other, and the webview uses no `vscode`,
   Node.js built-in, tunnel, database or SSH client;
+- UI libraries (React, TanStack) belong to the webview: the core, the drivers, the tunnel and the
+  extension host never import them;
 - no circular dependencies, no product code importing CI scripts or tests (and the reverse), no
   devDependency in the shipped code, no undeclared or unresolvable import.
 
@@ -269,7 +330,7 @@ testing). Long output goes inside collapsible `<details>` blocks, trimmed to fit
 | Tests and coverage | Vitest                   | `quality`        | passed/failed tests and coverage; failures or files below the thresholds  |
 | Integration tests  | Vitest + real servers    | `integration`    | passed/failed tests against MySQL, PostgreSQL and SSH; the failures       |
 | Architecture       | dependency-cruiser       | `architecture`   | modules checked; broken contracts and the violating imports               |
-| Extension smoke    | esbuild + VS Code        | `smoke`          | bundle size, VS Code version, activation time, registered commands, views |
+| Extension smoke    | esbuild + Vite + VS Code | `smoke`          | bundle sizes, VS Code version, activation, commands, views, result view   |
 | Mutation testing   | Stryker (`mutation.yml`) | `mutation`       | score vs. ratchet, killed and surviving mutants by file, line and mutator |
 
 **How it works.** Each analysis runs through `node scripts/quality-report.ts run <analysis> -- <command>`.
@@ -307,9 +368,10 @@ Render locally from fragments: `node scripts/quality-report.ts render --dir qual
 | -------------------------------------- | --------------------------------------------------------------------- |
 | `package.json`                         | Extension manifest, npm scripts and dependencies.                     |
 | `tsconfig.json` / `tsconfig.core.json` | Strict compiler options; the core checked without platform types.     |
+| `src/webview/tsconfig.json`            | The webview checked with DOM types and React's JSX, without Node.js.  |
 | `eslint.config.ts`                     | Lint, complexity and security rules.                                  |
 | `.prettierrc.json`                     | Formatting.                                                           |
-| `vitest.config.ts`                     | Unit tests and the coverage ratchet.                                  |
+| `vitest.config.ts`                     | Unit tests (Node.js and jsdom projects) and the coverage ratchet.     |
 | `vitest.integration.config.ts`         | Integration tests against real servers.                               |
 | `test/integration/compose.yaml`        | MySQL, PostgreSQL and OpenSSH for the integration tests.              |
 | `media/`                               | The activity bar icon.                                                |

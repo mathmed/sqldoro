@@ -3,6 +3,7 @@
 import type { Dialect } from '../../src/core/engine/dialect.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../src/core/engine/engine.ts'
 import type { QueryResult } from '../../src/core/engine/query.ts'
+import { POSTGRES_DIALECT } from '../fixtures/dialects.ts'
 
 export interface FakeEngineOptions {
   readonly id?: string
@@ -36,6 +37,8 @@ export function fakeSession(overrides: Partial<EngineSession> = {}): EngineSessi
     listColumns: async () => Promise.resolve([]),
     listIndexes: async () => Promise.resolve([]),
     listForeignKeys: async () => Promise.resolve([]),
+    objectDdl: async () => Promise.resolve(''),
+    useScope: async () => Promise.resolve(),
     execute: () => ({
       result: Promise.resolve(EMPTY_RESULT),
       cancel: async () => Promise.resolve(),
@@ -49,7 +52,7 @@ const DEFAULT_OPTIONS = {
   displayName: 'FakeSQL',
   defaultPort: 1234,
   urlSchemes: ['fake'],
-  dialect: { identifierQuote: '"', hasSchemas: true },
+  dialect: POSTGRES_DIALECT,
   connect: async (): Promise<EngineSession> => Promise.resolve(fakeSession()),
 } as const satisfies Required<FakeEngineOptions>
 

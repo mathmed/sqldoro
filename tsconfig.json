@@ -30,5 +30,7 @@
     // this project is still checked.
     "skipLibCheck": true
   },
-  "include": ["src", "scripts", "test", "*.config.ts"]
+  "include": ["src", "scripts", "test", "*.config.ts"],
+  // The webview has its own: browser types instead of Node.js (src/webview/tsconfig.json).
+  "exclude": ["src/webview", "test/webview"]
 }

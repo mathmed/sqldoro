@@ -1,0 +1,11 @@
+// The result webview runs in the browser sandbox of VS Code: DOM types, React's JSX, no Node.js.
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2025", "dom", "dom.iterable"],
+    "types": [],
+    "jsx": "react-jsx"
+  },
+  "include": [".", "../../test/webview"],
+  "exclude": []
+}

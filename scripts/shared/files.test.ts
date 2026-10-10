@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { appendText, listFiles, readText, removeDirectory, writeText } from './files.ts'
+import { appendText, fileSize, listFiles, readText, removeDirectory, writeText } from './files.ts'
 import { compareText } from './text.ts'
 
 describe('files', () => {
@@ -21,6 +21,13 @@ describe('files', () => {
     await appendText(path, ' second')
 
     expect(await readText(path)).toBe('first second')
+  })
+
+  it('should tell the size of a file in bytes', async () => {
+    const path = join(directory, 'bundle.js')
+    await writeText(path, 'abcdé')
+
+    expect(await fileSize(path)).toBe(6)
   })
 
   it('should list the files of a folder', async () => {

@@ -14,6 +14,7 @@ import type { ExplorerNode } from '../../src/extension/tree/explorer-node.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { recordingLogger } from '../fakes/logger.ts'
+import { MYSQL_DIALECT } from '../fixtures/dialects.ts'
 
 const POSTGRES = fakeEngine({
   id: 'postgres',
@@ -26,7 +27,7 @@ export const MYSQL = fakeEngine({
   displayName: 'MySQL',
   defaultPort: 3306,
   urlSchemes: ['mysql'],
-  dialect: { identifierQuote: '`', hasSchemas: false },
+  dialect: MYSQL_DIALECT,
 })
 
 export const SHOP: ConnectionConfig = {

@@ -14,6 +14,8 @@ import {
   runQuery,
 } from './mysql-catalog.ts'
 import { closeConnection, openConnection } from './mysql-connection.ts'
+import { objectDdl, useDatabase } from './mysql-ddl.ts'
+import { MYSQL_DIALECT } from './mysql-dialect.ts'
 import { executeQuery, type QueryTarget } from './mysql-query.ts'
 
 const DEFAULT_PORT = 3306
@@ -25,7 +27,7 @@ export const mysqlEngine: Engine = {
   displayName: 'MySQL',
   defaultPort: DEFAULT_PORT,
   urlSchemes: ['mysql'],
-  dialect: { identifierQuote: '`', hasSchemas: false },
+  dialect: MYSQL_DIALECT,
   connect: connectMysql,
 }
 
@@ -74,6 +76,8 @@ function createSession(
     listColumns: async (object) => listColumns(connection, object),
     listIndexes: async (table) => listIndexes(connection, table),
     listForeignKeys: async (table) => listForeignKeys(connection, table),
+    objectDdl: async (object, kind) => objectDdl(connection, object, kind),
+    useScope: async (scope) => useDatabase(connection, scope.database),
     execute: (query) => executeQuery(target, query),
   }
 }

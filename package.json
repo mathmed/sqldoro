@@ -40,6 +40,9 @@
     }
   },
   "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
   "contributes": {
     "commands": [
       {
@@ -112,6 +115,144 @@
         "title": "Clear Filter",
         "category": "sqldoro",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "sqldoro.newQuery",
+        "title": "New Query",
+        "category": "sqldoro",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "sqldoro.changeConnection",
+        "title": "Change Editor Connection",
+        "category": "sqldoro",
+        "icon": "$(database)"
+      },
+      {
+        "command": "sqldoro.runQuery",
+        "title": "Run Query",
+        "category": "sqldoro",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sqldoro.runScript",
+        "title": "Run Script",
+        "category": "sqldoro",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "sqldoro.cancelQuery",
+        "title": "Cancel Query",
+        "category": "sqldoro",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "sqldoro.explain",
+        "title": "Explain Query",
+        "category": "sqldoro",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "sqldoro.explainAnalyze",
+        "title": "Explain Analyze Query",
+        "category": "sqldoro",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "sqldoro.showResults",
+        "title": "Show Results",
+        "category": "sqldoro",
+        "icon": "$(table)"
+      },
+      {
+        "command": "sqldoro.showDdl",
+        "title": "Show DDL",
+        "category": "sqldoro",
+        "icon": "$(code)"
+      },
+      {
+        "command": "sqldoro.searchHistory",
+        "title": "Search Query History",
+        "category": "sqldoro",
+        "icon": "$(search)"
+      },
+      {
+        "command": "sqldoro.openHistoryEntry",
+        "title": "Open in Editor",
+        "category": "sqldoro",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "sqldoro.runHistoryEntry",
+        "title": "Run Again",
+        "category": "sqldoro",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sqldoro.copyHistoryEntry",
+        "title": "Copy SQL",
+        "category": "sqldoro",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "sqldoro.deleteHistoryEntry",
+        "title": "Delete from History",
+        "category": "sqldoro",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "sqldoro.clearHistory",
+        "title": "Clear Query History",
+        "category": "sqldoro",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "sqldoro.saveQuery",
+        "title": "Save Query",
+        "category": "sqldoro",
+        "icon": "$(save)"
+      },
+      {
+        "command": "sqldoro.openSavedQuery",
+        "title": "Open Saved Query",
+        "category": "sqldoro",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "sqldoro.insertSavedQuery",
+        "title": "Insert Saved Query",
+        "category": "sqldoro",
+        "icon": "$(insert)"
+      },
+      {
+        "command": "sqldoro.renameSavedQuery",
+        "title": "Rename Saved Query",
+        "category": "sqldoro",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "sqldoro.moveSavedQuery",
+        "title": "Move Saved Query to Folder",
+        "category": "sqldoro",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "sqldoro.deleteSavedQuery",
+        "title": "Delete Saved Query",
+        "category": "sqldoro",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "sqldoro.importSavedQueries",
+        "title": "Import Saved Queries",
+        "category": "sqldoro",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "sqldoro.exportSavedQueries",
+        "title": "Export Saved Queries",
+        "category": "sqldoro",
+        "icon": "$(save-as)"
       }
     ],
     "viewsContainers": {
@@ -130,6 +271,18 @@
           "name": "Connections",
           "icon": "media/sqldoro.svg",
           "contextualTitle": "sqldoro"
+        },
+        {
+          "id": "sqldoro.history",
+          "name": "Query History",
+          "icon": "media/sqldoro.svg",
+          "contextualTitle": "sqldoro"
+        },
+        {
+          "id": "sqldoro.savedQueries",
+          "name": "Saved Queries",
+          "icon": "media/sqldoro.svg",
+          "contextualTitle": "sqldoro"
         }
       ]
     },
@@ -137,6 +290,14 @@
       {
         "view": "sqldoro.connections",
         "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)"
+      },
+      {
+        "view": "sqldoro.history",
+        "contents": "The statements you run appear here, per connection.\n[Search Query History](command:sqldoro.searchHistory)"
+      },
+      {
+        "view": "sqldoro.savedQueries",
+        "contents": "No saved queries yet.\n[Save Query](command:sqldoro.saveQuery)\n[Import Saved Queries](command:sqldoro.importSavedQueries)"
       }
     ],
     "menus": {
@@ -165,6 +326,36 @@
           "command": "sqldoro.importConnectionUrl",
           "when": "view == sqldoro.connections",
           "group": "1_connections@1"
+        },
+        {
+          "command": "sqldoro.newQuery",
+          "when": "view == sqldoro.connections",
+          "group": "1_connections@2"
+        },
+        {
+          "command": "sqldoro.searchHistory",
+          "when": "view == sqldoro.history",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqldoro.clearHistory",
+          "when": "view == sqldoro.history",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sqldoro.saveQuery",
+          "when": "view == sqldoro.savedQueries",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqldoro.importSavedQueries",
+          "when": "view == sqldoro.savedQueries",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sqldoro.exportSavedQueries",
+          "when": "view == sqldoro.savedQueries",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -212,14 +403,203 @@
           "command": "sqldoro.refresh",
           "when": "view == sqldoro.connections && viewItem =~ /^(connection\\.connected|database|schema|tables|views|table|view|columns|indexes|foreignKeys)$/",
           "group": "4_refresh@1"
+        },
+        {
+          "command": "sqldoro.newQuery",
+          "when": "view == sqldoro.connections && viewItem =~ /^(database|schema)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.newQuery",
+          "when": "view == sqldoro.connections && viewItem =~ /^(connection\\..*|database|schema)$/",
+          "group": "0_query@1"
+        },
+        {
+          "command": "sqldoro.showDdl",
+          "when": "view == sqldoro.connections && viewItem =~ /^(table|view)$/",
+          "group": "0_query@1"
+        },
+        {
+          "command": "sqldoro.openHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.runHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "inline@2"
+        },
+        {
+          "command": "sqldoro.openHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "1_entry@1"
+        },
+        {
+          "command": "sqldoro.runHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "1_entry@2"
+        },
+        {
+          "command": "sqldoro.copyHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "1_entry@3"
+        },
+        {
+          "command": "sqldoro.deleteHistoryEntry",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "2_delete@1"
+        },
+        {
+          "command": "sqldoro.openSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.openSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "1_query@1"
+        },
+        {
+          "command": "sqldoro.insertSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "1_query@2"
+        },
+        {
+          "command": "sqldoro.renameSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "sqldoro.moveSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "sqldoro.deleteSavedQuery",
+          "when": "view == sqldoro.savedQueries && viewItem == savedQuery",
+          "group": "3_delete@1"
         }
       ],
       "commandPalette": [
         {
           "command": "sqldoro.clearFilter",
           "when": "sqldoro.isFiltered"
+        },
+        {
+          "command": "sqldoro.showDdl",
+          "when": "false"
+        },
+        {
+          "command": "sqldoro.runQuery",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.runScript",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.cancelQuery",
+          "when": "sqldoro.isQueryRunning"
+        },
+        {
+          "command": "sqldoro.explain",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.explainAnalyze",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.changeConnection",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.showResults",
+          "when": "editorLangId == sql"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "sqldoro.runQuery",
+          "when": "editorLangId == sql && !sqldoro.isQueryRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqldoro.cancelQuery",
+          "when": "editorLangId == sql && sqldoro.isQueryRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqldoro.changeConnection",
+          "when": "editorLangId == sql",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "sqldoro.runQuery",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@1"
+        },
+        {
+          "command": "sqldoro.runScript",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@2"
+        },
+        {
+          "command": "sqldoro.explain",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@3"
+        },
+        {
+          "command": "sqldoro.explainAnalyze",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@4"
+        },
+        {
+          "command": "sqldoro.saveQuery",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@5"
+        },
+        {
+          "command": "sqldoro.changeConnection",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@6"
         }
       ]
+    },
+    "keybindings": [
+      {
+        "command": "sqldoro.runQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql && sqldoro.editorHasConnection"
+      },
+      {
+        "command": "sqldoro.runScript",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "editorTextFocus && editorLangId == sql && sqldoro.editorHasConnection"
+      }
+    ],
+    "configuration": {
+      "title": "sqldoro",
+      "properties": {
+        "sqldoro.results.maxRows": {
+          "type": "integer",
+          "default": 100000,
+          "minimum": 1,
+          "maximum": 5000000,
+          "markdownDescription": "The most rows sqldoro keeps of a result; past it the result is flagged as cut. The grid shows a million rows smoothly; every row kept uses memory of the extension host."
+        },
+        "sqldoro.history.maxEntriesPerConnection": {
+          "type": "integer",
+          "default": 500,
+          "minimum": 1,
+          "maximum": 10000,
+          "markdownDescription": "The most statements the query history keeps per connection; the oldest go first."
+        }
+      }
     }
   },
   "scripts": {
@@ -229,7 +609,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json && tsc -p src/webview/tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -240,21 +620,30 @@
     "mutation:changed": "node scripts/mutation.ts changed"
   },
   "dependencies": {
+    "@tanstack/react-table": "^9.2.8",
+    "@tanstack/react-virtual": "^3.14.14",
     "mysql2": "^3.24.5",
     "pg": "^8.23.1",
     "pg-cursor": "^2.22.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint-react/eslint-plugin": "^5.24.10",
     "@eslint/js": "^10.0.1",
     "@stryker-mutator/api": "^10.0.0",
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/typescript-checker": "^10.0.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/eslint-plugin-no-unsanitized": "^4.1.0",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "@types/pg-cursor": "^2.7.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/ssh2": "^1.15.6",
     "@types/vscode": "1.140.0",
     "@typescript/native": "npm:typescript@^7.0.2",
@@ -266,9 +655,11 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-no-unsanitized": "^4.1.5",
     "eslint-plugin-perfectionist": "^5.12.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-security": "^4.2.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "jiti": "^2.7.0",
+    "jsdom": "^30.1.2",
     "knip": "^6.41.0",
     "lefthook": "^2.2.1",
     "prettier": "^3.9.9",

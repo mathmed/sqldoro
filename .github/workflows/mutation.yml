@@ -25,7 +25,9 @@ jobs:
   mutation-changed:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # A PR that adds many core files mutates thousands of mutants, each in a fresh Vitest process
+    # (command runner): it gets the budget of the weekly run.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
         with:

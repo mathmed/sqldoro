@@ -31,7 +31,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   constructor(dependencies: ExplorerDependencies) {
     this.#dependencies = dependencies
     this.#subscription = dependencies.sessions.onDidChange((connectionId) => {
-      this.#refreshConnection(connectionId)
+      this.refreshConnection(connectionId)
     })
   }
 
@@ -105,7 +105,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     return cache
   }
 
-  #refreshConnection(connectionId: string): void {
+  // Reloads everything under a connection (after a statement changed its schema, for one).
+  refreshConnection(connectionId: string): void {
     this.#cache.delete(connectionId)
     const node = this.#roots.get(connectionId)
     if (node !== undefined) {

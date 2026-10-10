@@ -11,11 +11,16 @@ const { builtins } = pg.types
 
 type Parser = (text: string) => boolean | number | string
 
+const BYTEA_HEX_PREFIX = '\\x'
+
 const parseBoolean: Parser = (text) => text === 't'
 const parseNumber: Parser = (text) => Number(text)
+// Binary values read as hexadecimal text with a 0x prefix, like MySQL's.
+const parseBytea: Parser = (text) =>
+  text.startsWith(BYTEA_HEX_PREFIX) ? `0x${text.slice(BYTEA_HEX_PREFIX.length)}` : text
 
-// Only these types become JavaScript values; every other value stays the text PostgreSQL sent:
-// exact numbers, dates in the server's format, JSON as written.
+// Only these types become JavaScript values (and bytea normalized hexadecimal text); every other
+// value stays the text PostgreSQL sent: exact numbers, dates in the server's format, JSON as written.
 const PARSERS: ReadonlyMap<number, Parser> = new Map([
   [builtins.BOOL, parseBoolean],
   [builtins.INT2, parseNumber],
@@ -23,6 +28,7 @@ const PARSERS: ReadonlyMap<number, Parser> = new Map([
   [builtins.OID, parseNumber],
   [builtins.FLOAT4, parseNumber],
   [builtins.FLOAT8, parseNumber],
+  [builtins.BYTEA, parseBytea],
 ])
 
 const keepText: Parser = (text) => text

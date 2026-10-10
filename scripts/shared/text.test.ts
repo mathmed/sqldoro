@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { cleanOutput, compareText, linesMatching, orElse, plural, tail } from './text.ts'
+import {
+  cleanOutput,
+  compareText,
+  formatBytes,
+  linesMatching,
+  orElse,
+  plural,
+  tail,
+} from './text.ts'
 
 describe('plural', () => {
   it.each([
@@ -61,5 +69,19 @@ describe('orElse', () => {
 describe('compareText', () => {
   it('should sort text alphabetically', () => {
     expect(['b', 'c', 'a'].toSorted(compareText)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('formatBytes', () => {
+  it.each([
+    [0, '0b'],
+    [512, '512b'],
+    [1024, '1kb'],
+    [184_627, '180.3kb'],
+    [1_258_291, '1.2mb'],
+    [5 * 1024 ** 3, '5gb'],
+    [3 * 1024 ** 4, '3072gb'],
+  ])('should write %d bytes as %s', (bytes, text) => {
+    expect(formatBytes(bytes)).toBe(text)
   })
 })

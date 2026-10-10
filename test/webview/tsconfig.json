@@ -1,0 +1,5 @@
+// Test support of the result webview: the same browser environment as the webview itself.
+{
+  "extends": "../../src/webview/tsconfig.json",
+  "include": [".", "../../src/webview"]
+}

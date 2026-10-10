@@ -16,6 +16,8 @@ export interface ScriptedQuery {
 export interface Answer {
   readonly error?: Error
   readonly rows?: readonly Record<string, unknown>[]
+  // The answer waits for this promise, like a slow server.
+  readonly after?: Promise<unknown>
 }
 
 export interface Page {
@@ -37,12 +39,14 @@ type ReadCallback = (error: Error | undefined, rows: unknown[], result: QueryRes
 
 export class FakeCursor {
   readonly sql: string
+  readonly values: unknown
   readonly config: unknown
   readonly reads: number[] = []
   isClosed = false
 
-  constructor(...[sql, , config]: [string, unknown, unknown]) {
+  constructor(...[sql, values, config]: [string, unknown, unknown]) {
     this.sql = sql
+    this.values = values
     this.config = config
   }
 
@@ -94,8 +98,8 @@ export class FakeClient extends EventEmitter {
     }
     const query = { sql: statement, values }
     this.queries.push(query)
-    const { error, rows = [] } = pg.script.answer(query, this)
-    return error === undefined ? Promise.resolve({ rows }) : Promise.reject(error)
+    const { error, rows = [], after = Promise.resolve() } = pg.script.answer(query, this)
+    return after.then(async () => (error === undefined ? { rows } : Promise.reject(error)))
   }
 
   async end(): Promise<void> {

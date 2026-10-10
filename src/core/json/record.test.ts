@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   readArray,
   readBoolean,
+  readCount,
   readNested,
+  readNullable,
   readNullableString,
   readNumber,
   readOneOf,
@@ -76,6 +78,32 @@ describe('the field readers', () => {
     expect(readOneOf(RECORD, 'text', isLetter)).toBe('a')
     expect(() => readOneOf(RECORD, 'count', isLetter)).toThrow(
       new TypeError('"count" must be a known value'),
+    )
+  })
+})
+
+describe('readCount', () => {
+  it('should read whole numbers of 0 or more', () => {
+    expect(readCount(readRecord({ n: 0 }), 'n')).toBe(0)
+    expect(readCount(readRecord({ n: 12 }), 'n')).toBe(12)
+  })
+
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', null])('should reject %j', (value) => {
+    expect(() => readCount(readRecord({ n: value }), 'n')).toThrow(
+      new TypeError('"n" must be a whole number of 0 or more'),
+    )
+  })
+})
+
+describe('readNullable', () => {
+  it('should read null as null and anything else with the reader', () => {
+    expect(readNullable(readRecord({ a: null }), 'a', readString)).toBeNull()
+    expect(readNullable(readRecord({ a: 'x' }), 'a', readString)).toBe('x')
+  })
+
+  it('should reject a missing field through the reader', () => {
+    expect(() => readNullable(readRecord({}), 'a', readString)).toThrow(
+      new TypeError('"a" must be a string'),
     )
   })
 })

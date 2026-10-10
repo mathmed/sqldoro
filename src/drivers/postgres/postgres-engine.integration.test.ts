@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { queryRequest } from '../../../test/fakes/query-request.ts'
 import { connectRequest, POSTGRES, waitUntilReady } from '../../../test/integration/servers.ts'
 import type { EngineSession, TlsSettings } from '../../core/engine/engine.ts'
 import { QueryCancelledError, type Row } from '../../core/engine/query.ts'
@@ -42,7 +43,13 @@ const REQUIRED_TLS: TlsSettings = {
 let session: EngineSession
 
 async function run(sql: string, maxRows = 100): ReturnType<EngineSession['execute']>['result'] {
-  return session.execute({ sql, maxRows, onRows: () => undefined }).result
+  return session.execute(
+    queryRequest({
+      sql,
+      maxRows,
+      onRows: () => undefined,
+    }),
+  ).result
 }
 
 describe('postgresEngine against a real PostgreSQL server', () => {
@@ -182,12 +189,12 @@ describe('postgresEngine against a real PostgreSQL server', () => {
       )
 
       expect(result.columns).toStrictEqual([
-        { name: 'customer_id', dataType: 'INT8' },
-        { name: 'total', dataType: 'NUMERIC' },
-        { name: 'created_at', dataType: 'TIMESTAMP' },
-        { name: 'payload', dataType: 'JSONB' },
-        { name: 'raw', dataType: 'BYTEA' },
-        { name: 'missing', dataType: 'BOOL' },
+        { name: 'customer_id', dataType: 'INT8', kind: 'number' },
+        { name: 'total', dataType: 'NUMERIC', kind: 'number' },
+        { name: 'created_at', dataType: 'TIMESTAMP', kind: 'temporal' },
+        { name: 'payload', dataType: 'JSONB', kind: 'json' },
+        { name: 'raw', dataType: 'BYTEA', kind: 'binary' },
+        { name: 'missing', dataType: 'BOOL', kind: 'boolean' },
       ])
       expect(result.rows).toStrictEqual([
         [
@@ -195,7 +202,7 @@ describe('postgresEngine against a real PostgreSQL server', () => {
           '12345678901234.123456',
           '2024-02-29 23:59:59.123',
           '{"b": 1}',
-          '\\x00ff',
+          '0x00ff',
           false,
         ],
         ['9007199254740993', null, null, null, null, true],
@@ -212,11 +219,13 @@ describe('postgresEngine against a real PostgreSQL server', () => {
     it('should keep at most maxRows rows, flag the result as truncated and stream them in batches', async () => {
       const batches: (readonly Row[])[] = []
 
-      const result = await session.execute({
-        sql: 'SELECT generate_series(1, 1000) AS n',
-        maxRows: 600,
-        onRows: (rows) => batches.push(rows),
-      }).result
+      const result = await session.execute(
+        queryRequest({
+          sql: 'SELECT generate_series(1, 1000) AS n',
+          maxRows: 600,
+          onRows: (rows) => batches.push(rows),
+        }),
+      ).result
 
       expect(result.rows).toHaveLength(600)
       expect(result.isTruncated).toBe(true)
@@ -237,11 +246,13 @@ describe('postgresEngine against a real PostgreSQL server', () => {
     })
 
     it('should cancel a running statement and stay usable', async () => {
-      const execution = session.execute({
-        sql: 'SELECT pg_sleep(20)',
-        maxRows: 1,
-        onRows: () => undefined,
-      })
+      const execution = session.execute(
+        queryRequest({
+          sql: 'SELECT pg_sleep(20)',
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      )
       await new Promise((resolve) => setTimeout(resolve, 200))
 
       await execution.cancel()
@@ -251,13 +262,15 @@ describe('postgresEngine against a real PostgreSQL server', () => {
     })
 
     it('should stay usable after the consumer of the rows fails', async () => {
-      const execution = session.execute({
-        sql: 'SELECT generate_series(1, 2000)',
-        maxRows: 5000,
-        onRows: () => {
-          throw new Error('the consumer broke')
-        },
-      })
+      const execution = session.execute(
+        queryRequest({
+          sql: 'SELECT generate_series(1, 2000)',
+          maxRows: 5000,
+          onRows: () => {
+            throw new Error('the consumer broke')
+          },
+        }),
+      )
 
       await expect(execution.result).rejects.toThrow('the consumer broke')
       await expect(run('SELECT 2 AS two')).resolves.toMatchObject({ rows: [[2]] })
@@ -274,8 +287,13 @@ describe('postgresEngine against a real PostgreSQL server', () => {
     const onUnexpectedClose = vi.fn()
     const victim = await postgresEngine.connect(connectRequest(POSTGRES, { onUnexpectedClose }))
     const [row] = (
-      await victim.execute({ sql: 'SELECT pg_backend_pid()', maxRows: 1, onRows: () => undefined })
-        .result
+      await victim.execute(
+        queryRequest({
+          sql: 'SELECT pg_backend_pid()',
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      ).result
     ).rows
 
     await run(`SELECT pg_terminate_backend(${String(row?.[0])})`)

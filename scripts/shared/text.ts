@@ -38,3 +38,21 @@ export function orElse(text: string, fallback: string): string {
 export function compareText(left: string, right: string): number {
   return left.localeCompare(right)
 }
+
+const BYTES_PER_UNIT = 1024
+const LARGER_UNITS = ['kb', 'mb', 'gb'] as const
+const TENTHS = 10
+
+// A file size the way esbuild prints it: 512b, 180.3kb, 1.2mb.
+export function formatBytes(bytes: number): string {
+  let size = bytes
+  let unit = 'b'
+  for (const larger of LARGER_UNITS) {
+    if (size < BYTES_PER_UNIT) {
+      break
+    }
+    size /= BYTES_PER_UNIT
+    unit = larger
+  }
+  return `${String(Math.round(size * TENTHS) / TENTHS)}${unit}`
+}

@@ -29,11 +29,19 @@ export interface NodeContext {
   readonly filter: string
 }
 
+// Where a node is in the catalog, for the commands run on it: empty parts are not set.
+export interface NodePlace {
+  readonly database: string
+  readonly schema: string
+  readonly name: string
+}
+
 export interface ExplorerNode {
   // Stable across refreshes, so that VS Code keeps the node expanded.
   readonly id: string
   readonly kind: NodeKind
   readonly connectionId: string
+  readonly place?: NodePlace
   readonly treeItem: (context: NodeContext) => vscode.TreeItem
   readonly children: (context: NodeContext) => Promise<readonly ExplorerNode[]>
 }

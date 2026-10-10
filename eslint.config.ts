@@ -1,17 +1,20 @@
 import comments from '@eslint-community/eslint-plugin-eslint-comments/configs'
+import react from '@eslint-react/eslint-plugin'
 import js from '@eslint/js'
 import type { Linter } from 'eslint'
 import prettier from 'eslint-config-prettier/flat'
 import noUnsanitized from 'eslint-plugin-no-unsanitized'
 import perfectionist from 'eslint-plugin-perfectionist'
+import reactHooks from 'eslint-plugin-react-hooks'
 import security from 'eslint-plugin-security'
 import sonarjs from 'eslint-plugin-sonarjs'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 
-const TYPESCRIPT_FILES = ['**/*.ts']
-const PRODUCTION_FILES = ['src/**/*.ts', 'scripts/**/*.ts']
-const TEST_FILES = ['**/*.test.ts', 'test/**/*.ts']
+const TYPESCRIPT_FILES = ['**/*.ts', '**/*.tsx']
+const PRODUCTION_FILES = ['src/**/*.ts', 'src/**/*.tsx', 'scripts/**/*.ts']
+const TEST_FILES = ['**/*.test.ts', '**/*.test.tsx', 'test/**/*.ts']
+const WEBVIEW_FILES = ['src/webview/**/*.tsx', 'src/webview/**/*.ts']
 
 // Same thresholds as xenon A/A/A in py-awesome-template: no function above cyclomatic complexity
 // 5. Never relax them to make a check pass: split the code instead (inline disables are rejected).
@@ -195,12 +198,17 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
     ignores: TEST_FILES,
     rules: {
       // The extension logs to a VS Code output channel; the scripts are command-line tools.
       'no-console': 'error',
     },
+  },
+  {
+    // The result webview: React, its rules of hooks and its type-checked best practices.
+    files: WEBVIEW_FILES,
+    extends: [react.configs['strict-type-checked'], reactHooks.configs.flat['recommended-latest']],
   },
   {
     // The only module of the CI scripts that touches the file system; its paths come from the

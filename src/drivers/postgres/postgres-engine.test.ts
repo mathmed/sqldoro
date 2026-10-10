@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { answerBy, pg, pgRequest } from '../../../test/fakes/pg.ts'
+import { queryRequest } from '../../../test/fakes/query-request.ts'
 import type { ConnectRequest, EngineSession } from '../../core/engine/engine.ts'
 import { postgresEngine } from './postgres-engine.ts'
 
@@ -290,8 +291,15 @@ describe('postgresEngine', () => {
 
   describe('cancel', () => {
     it('should cancel the backend of the session from another connection', async () => {
+      pg.script.read = () => ({ error: new Error('canceling statement due to user request') })
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT pg_sleep(10)', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT pg_sleep(10)',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
 
       await execution.cancel()
 
@@ -305,7 +313,13 @@ describe('postgresEngine', () => {
 
     it('should say why the cancel failed, after closing its connection', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT pg_sleep(10)', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT pg_sleep(10)',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       answerBy([['SELECT pg_cancel_backend', { error: new Error('must be a superuser') }]])
 
       await expect(execution.cancel()).rejects.toThrow('must be a superuser')
@@ -314,7 +328,13 @@ describe('postgresEngine', () => {
 
     it('should say why the cancel connection failed', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT pg_sleep(10)', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT pg_sleep(10)',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       pg.script.answer = (query, client) => {
         client.emit('error', new Error('Connection terminated unexpectedly'))
         return { rows: query.values.length > 0 ? [{ pg_cancel_backend: true }] : [] }

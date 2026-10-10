@@ -1,13 +1,35 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { QueryCancelledError, type Row, RowCollector, toCellValue } from './query.ts'
+import {
+  ColumnKind,
+  isColumnKind,
+  QueryCancelledError,
+  type ResultColumn,
+  type Row,
+  RowCollector,
+  toCellValue,
+} from './query.ts'
 
-const NO_COLUMNS = [] as const
+const N: ResultColumn = { name: 'n', dataType: 'INT', kind: ColumnKind.Number }
 
-function collector(maxRows: number, batchSize: number): { sut: RowCollector; batches: Row[][] } {
+interface Collected {
+  readonly sut: RowCollector
+  readonly batches: Row[][]
+  readonly described: (readonly ResultColumn[])[]
+}
+
+function collector(maxRows: number, batchSize: number): Collected {
   const batches: Row[][] = []
-  const sut = new RowCollector({ maxRows, onRows: (rows) => batches.push([...rows]) }, batchSize)
-  return { sut, batches }
+  const described: (readonly ResultColumn[])[] = []
+  const sut = new RowCollector(
+    {
+      maxRows,
+      onColumns: (columns) => described.push(columns),
+      onRows: (rows) => batches.push([...rows]),
+    },
+    batchSize,
+  )
+  return { sut, batches, described }
 }
 
 describe('toCellValue', () => {
@@ -39,6 +61,14 @@ describe('toCellValue', () => {
   })
 })
 
+describe('isColumnKind', () => {
+  it('should accept the known kinds only', () => {
+    expect(Object.values(ColumnKind).every(isColumnKind)).toBe(true)
+    expect(isColumnKind('date')).toBe(false)
+    expect(isColumnKind(1)).toBe(false)
+  })
+})
+
 describe('QueryCancelledError', () => {
   it('should explain that the query was cancelled', () => {
     const sut = new QueryCancelledError()
@@ -58,7 +88,7 @@ describe('RowCollector', () => {
     }
 
     expect(batches).toStrictEqual([[[1], [2]]])
-    expect(sut.finish(NO_COLUMNS, undefined).rows).toStrictEqual([[1], [2], [3]])
+    expect(sut.finish(undefined).rows).toStrictEqual([[1], [2], [3]])
     expect(batches).toStrictEqual([[[1], [2]], [[3]]])
   })
 
@@ -68,10 +98,11 @@ describe('RowCollector', () => {
     for (const value of [1, 2, 3, 4]) {
       sut.add([value])
     }
-    const result = sut.finish([{ name: 'n', dataType: 'INT' }], 4)
+    sut.describe([N])
+    const result = sut.finish(4)
 
     expect(result).toStrictEqual({
-      columns: [{ name: 'n', dataType: 'INT' }],
+      columns: [N],
       rows: [[1], [2]],
       isTruncated: true,
       affectedRows: 4,
@@ -85,7 +116,7 @@ describe('RowCollector', () => {
     sut.add([1])
     sut.add([2])
 
-    expect(sut.finish(NO_COLUMNS, undefined).isTruncated).toBe(false)
+    expect(sut.finish(undefined).isTruncated).toBe(false)
   })
 
   it('should count the rows it can still keep', () => {
@@ -101,17 +132,35 @@ describe('RowCollector', () => {
 
     sut.markTruncated()
 
-    expect(sut.finish(NO_COLUMNS, undefined).isTruncated).toBe(true)
+    expect(sut.finish(undefined).isTruncated).toBe(true)
   })
 
   it('should not call onRows when there is nothing to flush', () => {
     const onRows = vi.fn()
-    const sut = new RowCollector({ maxRows: 5, onRows }, 2)
+    const sut = new RowCollector({ maxRows: 5, onColumns: vi.fn(), onRows }, 2)
 
     sut.flush()
-    sut.finish(NO_COLUMNS, undefined)
+    sut.finish(undefined)
 
     expect(onRows).not.toHaveBeenCalled()
+  })
+
+  it('should hand the first description of the columns once, before the rows', () => {
+    const { sut, described } = collector(5, 1)
+    const other: ResultColumn = { name: 'x', dataType: 'TEXT', kind: ColumnKind.Text }
+
+    sut.describe([N])
+    sut.describe([other])
+
+    expect(described).toStrictEqual([[N]])
+    expect(sut.finish(undefined).columns).toStrictEqual([N])
+  })
+
+  it('should describe a result without columns when it finishes undescribed', () => {
+    const { sut, described } = collector(5, 1)
+
+    expect(sut.finish(1).columns).toStrictEqual([])
+    expect(described).toStrictEqual([[]])
   })
 
   it('should keep no row when maxRows is zero', () => {
@@ -119,7 +168,7 @@ describe('RowCollector', () => {
 
     sut.add([1])
 
-    expect(sut.finish(NO_COLUMNS, undefined)).toMatchObject({ rows: [], isTruncated: true })
+    expect(sut.finish(undefined)).toMatchObject({ rows: [], isTruncated: true })
     expect(batches).toStrictEqual([])
   })
 
@@ -131,7 +180,9 @@ describe('RowCollector', () => {
     { problem: 'a negative batch size', maxRows: 1, batchSize: -1 },
     { problem: 'a fractional batch size', maxRows: 1, batchSize: 0.5 },
   ])('should reject $problem', ({ maxRows, batchSize }) => {
-    expect(() => new RowCollector({ maxRows, onRows: vi.fn() }, batchSize)).toThrow(
+    expect(
+      () => new RowCollector({ maxRows, onColumns: vi.fn(), onRows: vi.fn() }, batchSize),
+    ).toThrow(
       new RangeError('maxRows and the batch size must be whole numbers, the batch size above 0'),
     )
   })
