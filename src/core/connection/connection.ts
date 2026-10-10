@@ -122,13 +122,14 @@ export function duplicateConnection(
   return { ...source, id, name: uniqueName(`${source.name} (copy)`, takenNameKeys) }
 }
 
-// Whether an edit changes how the connection reaches the database: the name, the tag and the
-// read-only flag do not, so an open session can stay open.
+// Whether an edit changes the sessions of the connection: how it reaches the database, and whether
+// the server refuses writes (read-only sessions). The name and the tag do not: an open session can
+// stay open.
 export function changesSession(previous: ConnectionConfig, next: ConnectionConfig): boolean {
   return JSON.stringify(sessionFields(previous)) !== JSON.stringify(sessionFields(next))
 }
 
 function sessionFields(connection: ConnectionConfig): readonly unknown[] {
-  const { engine, host, port, user, database, ssl, ssh } = connection
-  return [engine, host, port, user, database, ssl, ssh ?? null]
+  const { engine, host, port, user, database, ssl, ssh, isReadOnly } = connection
+  return [engine, host, port, user, database, ssl, ssh ?? null, isReadOnly]
 }

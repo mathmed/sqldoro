@@ -61,6 +61,19 @@ describe('activate', () => {
     }
   })
 
+  it('should allow writes on a connection, once confirmed', async () => {
+    const globalState = new FakeMemento()
+    await globalState.update('sqldoro.connections', { version: 1, connections: [SAVED_CONNECTION] })
+    activateIn(vscode.ExtensionMode.Production, globalState)
+    window.showWarningMessage.mockResolvedValue('Allow Writes')
+
+    await vscode.commands.executeCommand(CommandId.AllowWrites, 'shop')
+
+    expect(globalState.get('sqldoro.connections')).toMatchObject({
+      connections: [{ id: 'shop', isReadOnly: false }],
+    })
+  })
+
   it('should show the Connections view and log to its own output channel', () => {
     activateIn(vscode.ExtensionMode.Production)
 

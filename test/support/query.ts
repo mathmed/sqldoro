@@ -7,14 +7,19 @@ import { type ConnectionConfig, newConnection } from '../../src/core/connection/
 import type { EditorBinding } from '../../src/core/editor/binding.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { HistoryEntry } from '../../src/core/history/history.ts'
+import type { GuardPolicy } from '../../src/core/safety/guard.ts'
+import { TransactionMode } from '../../src/core/safety/transaction.ts'
 import type { SessionRequest } from '../../src/core/session/open-session.ts'
 import { EditorBindings } from '../../src/extension/editor/bindings.ts'
 import { EditorSessions } from '../../src/extension/editor/editor-sessions.ts'
+import { loadAllRows } from '../../src/extension/editor/load-all.ts'
 import { QueryRunner } from '../../src/extension/editor/query-runner.ts'
 import { runServerView } from '../../src/extension/editor/server-view.ts'
 import type { Clock } from '../../src/extension/platform/clock.ts'
 import { copyRows, exportRows } from '../../src/extension/results/results-actions.ts'
 import { ResultsPanels } from '../../src/extension/results/results-panels.ts'
+import { StatementGuard } from '../../src/extension/safety/statement-guard.ts'
+import { EditorTransactions } from '../../src/extension/transactions/editor-transactions.ts'
 import { fakeEngine } from '../fakes/engine.ts'
 import { FakeMemento } from '../fakes/extension-context.ts'
 import { type RecordingLogger, recordingLogger } from '../fakes/logger.ts'
@@ -44,11 +49,13 @@ export const MYSQL_ENGINE = fakeEngine({
   dialect: MYSQL_DIALECT,
 })
 
+// Writable: the guards of read-only connections have tests of their own.
 export const SHOP: ConnectionConfig = {
   ...newConnection('shop', POSTGRES_ENGINE),
   name: 'Shop',
   user: 'app',
   database: 'shop',
+  isReadOnly: false,
 }
 export const CRM: ConnectionConfig = {
   ...newConnection('crm', MYSQL_ENGINE),
@@ -66,6 +73,7 @@ export interface QueryHarness {
   readonly engine: ScriptedEngine
   readonly bindings: EditorBindings
   readonly editorSessions: EditorSessions
+  readonly transactions: EditorTransactions
   readonly panels: ResultsPanels
   readonly diagnostics: vscode.DiagnosticCollection
   readonly records: HistoryEntry[]
@@ -82,7 +90,13 @@ export interface QueryHarness {
 export interface HarnessOptions {
   readonly maxRows?: number
   readonly openError?: Error
+  // Off unless a test turns it on.
+  readonly autoLimit?: number | null
+  readonly transactionMode?: TransactionMode
+  readonly policy?: GuardPolicy
 }
+
+const PRODUCTION: GuardPolicy = { productionEnvironments: new Set(['prod']) }
 
 function steppingClock(): Clock {
   let now = 0
@@ -103,9 +117,17 @@ function idMaker(): () => string {
   }
 }
 
-export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}): QueryHarness {
+export function queryHarness(options: HarnessOptions = {}): QueryHarness {
+  const { maxRows, openError, autoLimit, transactionMode, policy } = {
+    maxRows: 100,
+    autoLimit: null,
+    transactionMode: TransactionMode.Auto,
+    policy: PRODUCTION,
+    ...options,
+  }
   const engine = new ScriptedEngine()
   const log = recordingLogger()
+  const transactions = new EditorTransactions({ defaultMode: () => transactionMode, log })
   const connections = new Map([
     [SHOP.id, SHOP],
     [CRM.id, CRM],
@@ -125,6 +147,7 @@ export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}):
     },
     readSecrets: async () => Promise.resolve(new Map()),
     log,
+    lifecycle: transactions,
   })
   const bindings = new EditorBindings(new FakeMemento(), log)
   const records: HistoryEntry[] = []
@@ -146,7 +169,9 @@ export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}):
     log,
     actionsFor: (uri) => ({
       cancel: () => void runner.cancel(uri),
-      serverView: async (tab, view) => runServerView(runner, uri, { tab, view }),
+      serverView: async (tab, view) =>
+        runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
+      loadAll: async (tab) => loadAllRows(runner, uri, tab),
       copy: copyRows,
       export: exportRows,
     }),
@@ -157,6 +182,8 @@ export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}):
   const runner: QueryRunner = new QueryRunner({
     bindings,
     editorSessions,
+    transactions,
+    guard: new StatementGuard({ policy: () => policy, log }),
     connect,
     connections: (id) => connections.get(id),
     engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]),
@@ -167,7 +194,7 @@ export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}):
       return Promise.resolve()
     },
     onSchemaChange: (id) => schemaChanges.push(id),
-    settings: () => ({ maxRows, historySize: 10 }),
+    settings: () => ({ maxRows, historySize: 10, autoLimit, policy, transactionMode }),
     clock,
     createId: idMaker(),
     pickBinding,
@@ -178,6 +205,7 @@ export function queryHarness({ maxRows = 100, openError }: HarnessOptions = {}):
     engine,
     bindings,
     editorSessions,
+    transactions,
     panels,
     diagnostics,
     records,

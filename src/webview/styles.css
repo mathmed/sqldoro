@@ -53,6 +53,18 @@ input:focus-visible,
   color: var(--vscode-descriptionForeground);
 }
 
+.connection-banner {
+  padding: 2px 8px;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.connection-banner.production {
+  font-weight: bold;
+  color: var(--vscode-statusBarItem-errorForeground, #fff);
+  background: var(--vscode-statusBarItem-errorBackground, #c72e0f);
+}
+
 .tab-bar {
   display: flex;
   overflow-x: auto;

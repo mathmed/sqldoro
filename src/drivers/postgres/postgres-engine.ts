@@ -4,6 +4,8 @@ import type { ObjectScope } from '../../core/engine/catalog.ts'
 import { ConnectionWatch } from '../../core/engine/connection-watch.ts'
 import { quoteIdentifier } from '../../core/engine/dialect.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../core/engine/engine.ts'
+import type { QueryExecution, QueryRequest } from '../../core/engine/query.ts'
+import { TransactionStatus } from '../../core/engine/transaction-status.ts'
 import { readNumber, readString } from '../../core/json/record.ts'
 import {
   listColumns,
@@ -26,6 +28,16 @@ const SESSION_INFO = `SELECT current_setting('server_version') AS version, pg_ba
 const BACKEND_PID = 'SELECT pg_backend_pid() AS pid'
 const CANCEL = 'SELECT pg_cancel_backend($1)'
 const RESET_SEARCH_PATH = 'RESET search_path'
+// Every transaction of the connection is read-only: the server refuses writes whatever the statement.
+const READ_ONLY_SESSION = 'SET default_transaction_read_only = on'
+// An empty query: once it is answered, the client knows the transaction status of the statements
+// before it, failed ones included.
+const STATUS_PROBE = ''
+const TRANSACTION_STATUSES: ReadonlyMap<string, TransactionStatus> = new Map([
+  ['I', TransactionStatus.Idle],
+  ['T', TransactionStatus.Open],
+  ['E', TransactionStatus.Failed],
+])
 // Objects of public (extensions, shared functions) stay reachable from another schema.
 const PUBLIC_SCHEMA = 'public'
 
@@ -98,9 +110,26 @@ class Clients {
 
   async #open(database: string): Promise<DatabaseClient> {
     const client = await openClient(clientConfig(this.#request, database), this.#watch.report)
-    const [row] = await queryRows(client, BACKEND_PID, [])
-    return { client, pid: row === undefined ? 0 : readNumber(row, 'pid'), database }
+    try {
+      await restrictSession(client, this.#request)
+      const [row] = await queryRows(client, BACKEND_PID, [])
+      return { client, pid: row === undefined ? 0 : readNumber(row, 'pid'), database }
+    } catch (error) {
+      await Promise.allSettled([closeClient(client)])
+      throw error
+    }
   }
+}
+
+async function restrictSession(client: Client, request: ConnectRequest): Promise<void> {
+  if (request.isReadOnly) {
+    await client.query(READ_ONLY_SESSION)
+  }
+}
+
+async function transactionStatusOf(client: Client): Promise<TransactionStatus> {
+  await client.query(STATUS_PROBE)
+  return TRANSACTION_STATUSES.get(client.getTransactionStatus() ?? '') ?? TransactionStatus.Unknown
 }
 
 // Unqualified names resolve in the schema first; an empty schema brings the default back.
@@ -118,6 +147,7 @@ async function connectPostgres(request: ConnectRequest): Promise<EngineSession> 
   const watch = new ConnectionWatch(request.onUnexpectedClose)
   const client = await openClient(clientConfig(request, request.database), watch.report)
   try {
+    await restrictSession(client, request)
     const [row] = await queryRows(client, SESSION_INFO, [])
     if (row === undefined) {
       throw new TypeError('PostgreSQL did not describe the session')
@@ -160,14 +190,20 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
     listForeignKeys: async (table) => listForeignKeys(await of(table.database), table),
     objectDdl: async (object, kind) => objectDdl(await of(object.database), object, kind),
     useScope: async (scope) => clients.use(scope),
-    execute: (query) => {
-      const target = clients.current
-      return executeQuery(
-        { client: target.client, cancel: async () => cancelBackend(request, target) },
-        query,
-      )
-    },
+    execute: (query) => executeOn(clients.current, request, query),
+    transactionStatus: async () => transactionStatusOf(clients.current.client),
   }
+}
+
+function executeOn(
+  target: DatabaseClient,
+  request: ConnectRequest,
+  query: QueryRequest,
+): QueryExecution {
+  return executeQuery(
+    { client: target.client, cancel: async () => cancelBackend(request, target) },
+    query,
+  )
 }
 
 // The cancel request comes from another connection: the session's own is busy with the statement.

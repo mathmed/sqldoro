@@ -130,13 +130,16 @@ describe('QueryRunner.run', () => {
     })
     harness.engine.answer = (request) =>
       request.sql.startsWith('SELECT *') ? { error: located } : { affectedRows: 3 }
-    const editor = await sqlEditor(harness, 'UPDATE t SET a = 1;\nSELECT * FORM t;\nSELECT 3;')
+    const editor = await sqlEditor(
+      harness,
+      'UPDATE t SET a = 1 WHERE id = 1;\nSELECT * FORM t;\nSELECT 3;',
+    )
     const panel = readyPanel(harness, editor)
 
     await harness.runner.run(editor as unknown as vscode.TextEditor, RunScope.All)
 
     expect(harness.engine.requests.map((request) => request.sql)).toStrictEqual([
-      'UPDATE t SET a = 1',
+      'UPDATE t SET a = 1 WHERE id = 1',
       'SELECT * FORM t',
     ])
     expect([...postedTabs(panel).values()]).toMatchObject([
@@ -165,13 +168,13 @@ describe('QueryRunner.run', () => {
 
   it('should mark the whole statement for an error without a place', async () => {
     harness.engine.answer = () => ({ error: new Error('permission denied') })
-    const editor = await sqlEditor(harness, '\n  DELETE FROM t')
+    const editor = await sqlEditor(harness, '\n  DELETE FROM t WHERE id = 1')
     const panel = readyPanel(harness, editor)
 
     await harness.runner.run(editor as unknown as vscode.TextEditor, RunScope.All)
 
     expect(lastDiagnostics()).toMatchObject([
-      { range: { start: { line: 1, character: 2 }, end: { line: 1, character: 15 } } },
+      { range: { start: { line: 1, character: 2 }, end: { line: 1, character: 28 } } },
     ])
     expect([...postedTabs(panel).values()]).toMatchObject([
       { error: { message: 'permission denied', line: null, column: null }, notice: '' },

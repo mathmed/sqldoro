@@ -43,6 +43,9 @@ const KEYWORDS: readonly string[] = [
   'ZEROFILL',
 ]
 
+// Functions that change something when a query calls them: the named locks of the session.
+const SIDE_EFFECT_FUNCTIONS: readonly string[] = ['GET_LOCK', 'RELEASE_ALL_LOCKS', 'RELEASE_LOCK']
+
 export const MYSQL_DIALECT: Dialect = {
   identifierQuote: '`',
   hasSchemas: false,
@@ -65,4 +68,6 @@ export const MYSQL_DIALECT: Dialect = {
   textType: 'CHAR',
   explainPrefix: 'EXPLAIN FORMAT=TREE',
   explainAnalyzePrefix: 'EXPLAIN ANALYZE',
+  hasTransactionalDdl: false,
+  sideEffectFunctions: SIDE_EFFECT_FUNCTIONS,
 }

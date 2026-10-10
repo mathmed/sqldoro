@@ -74,7 +74,7 @@ async function newQueryEditor(): Promise<FakeTextDocument> {
 }
 
 function statusText(): string | undefined {
-  return statusBarItems.at(-1)?.text
+  return statusBarItems.find((item) => item.name === 'sqldoro Connection')?.text
 }
 
 beforeEach(() => {
@@ -107,7 +107,7 @@ describe('the SQL editor features', () => {
 
     await newQueryEditor()
 
-    expect(statusText()).toBe('$(database) Shop › shop.public')
+    expect(statusText()).toBe('$(lock) Shop › shop.public')
     showEditor(await workspace.openTextDocument({ language: 'sql', content: '' }))
     expect(statusText()).toBe('$(plug) Choose a connection')
   })

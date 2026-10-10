@@ -2,9 +2,11 @@ import type { ReactElement } from 'react'
 
 import { ExportFormat } from '../core/results/export-format.ts'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
+import { canLoadAll } from '../core/results/tabs.ts'
 
 export interface ToolbarActions {
   readonly cancel: () => void
+  readonly loadAll: () => void
   readonly copy: (format: ExportFormat) => void
   readonly export: (format: ExportFormat) => void
   readonly setServerSide: (isServerSide: boolean) => void
@@ -34,6 +36,7 @@ export const Toolbar = (props: ToolbarProps): ReactElement => {
   return (
     <div className="toolbar" role="toolbar" aria-label="Result actions">
       {isRunning ? <CancelButton onClick={actions.cancel} /> : null}
+      {canLoadAll(tab) ? <LoadAllButton onClick={actions.loadAll} /> : null}
       <FormatButtons kind="copy" isDisabled={!props.hasSelection} onClick={actions.copy} />
       <FormatButtons
         kind="export"
@@ -73,6 +76,13 @@ const FormatButtons = ({ kind, isDisabled, onClick }: FormatButtonsProps): React
       onClick={onClick}
     />
   )
+
+// The query was cut at the automatic limit: one click runs it again without it.
+const LoadAllButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
+  <button type="button" className="load-all" onClick={onClick}>
+    Load All Rows
+  </button>
+)
 
 const CancelButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
   <button type="button" className="cancel" onClick={onClick}>

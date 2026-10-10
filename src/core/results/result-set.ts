@@ -64,6 +64,11 @@ export class ResultSet {
     return this.#view
   }
 
+  // Sorted and filtered by the server: running the query again runs the view again.
+  get isServerView(): boolean {
+    return this.#isServerView
+  }
+
   get viewVersion(): number {
     return this.#viewVersion
   }
@@ -110,11 +115,12 @@ export class ResultSet {
 
   cancel(durationMs: number): void {
     this.#status = TabStatus.Cancelled
-    this.#summary = { durationMs, affectedRows: null, isTruncated: false }
+    this.#summary = { durationMs, affectedRows: null, isTruncated: false, autoLimit: null }
   }
 
-  setNotice(notice: string): void {
-    this.#notice = notice
+  // Notices add up: what the transaction did, then what did not run.
+  addNotice(notice: string): void {
+    this.#notice = this.#notice === '' ? notice : `${this.#notice} ${notice}`
   }
 
   // Sorting and filtering the rows already here: the server is not asked again.

@@ -4,7 +4,9 @@ import type * as vscode from 'vscode'
 import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { POSTGRES_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { RESULT_COLUMNS } from '../../../test/fixtures/results.ts'
+import { SHOP } from '../../../test/support/query.ts'
 import { createWebviewPanel, type FakeWebviewPanel } from '../../../test/vscode.ts'
+import { EnvironmentTag } from '../../core/connection/connection.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
 import { type PanelActions, ResultsPanel } from './results-panel.ts'
 
@@ -37,7 +39,7 @@ function tab(id = 't1'): ResultSet {
     ['2', 'b'.repeat(1500)],
     ['1', null],
   ])
-  result.succeed({ durationMs: 1, affectedRows: null, isTruncated: false })
+  result.succeed({ durationMs: 1, affectedRows: null, isTruncated: false, autoLimit: null })
   return result
 }
 
@@ -46,9 +48,51 @@ function posted(): Record<string, unknown>[] {
 }
 
 beforeEach(() => {
-  actions = { cancel: vi.fn(), serverView: vi.fn(), copy: vi.fn(), export: vi.fn() }
+  actions = {
+    cancel: vi.fn(),
+    serverView: vi.fn(),
+    loadAll: vi.fn(),
+    copy: vi.fn(),
+    export: vi.fn(),
+  }
   log = recordingLogger()
   now = 1000
+})
+
+describe('ResultsPanel and its connection', () => {
+  const POLICY = { productionEnvironments: new Set(['prod']) }
+  const PROD = { ...SHOP, environment: EnvironmentTag.Production }
+
+  it('should show the connection of its editor, and spell production out in its title', async () => {
+    const sut = panel()
+
+    sut.showConnection(PROD, POLICY)
+    await sut.receive({ type: 'ready' })
+
+    expect(webviewPanel.title).toBe('Results · PROD')
+    expect(posted()[0]).toStrictEqual({
+      type: 'connection',
+      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
+    })
+    sut.showConnection(SHOP, POLICY)
+    expect(webviewPanel.title).toBe('Results')
+    expect(posted().at(-1)).toMatchObject({ connection: { environment: '', isProduction: false } })
+  })
+
+  it('should load every row of a finished tab when asked', async () => {
+    const sut = panel()
+    sut.startRun(POSTGRES_DIALECT)
+    const finished = tab()
+    const running = new ResultSet({ id: 't2', sql: 'SELECT 1', kind: 'rows', canServerView: false })
+    sut.addTab(finished)
+    sut.addTab(running)
+
+    await sut.receive({ type: 'loadAll', tabId: 't1' })
+    await sut.receive({ type: 'loadAll', tabId: 't2' })
+    await sut.receive({ type: 'loadAll', tabId: 'gone' })
+
+    expect(actions.loadAll.mock.calls).toStrictEqual([[finished]])
+  })
 })
 
 describe('ResultsPanel', () => {

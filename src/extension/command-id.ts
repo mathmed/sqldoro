@@ -35,6 +35,11 @@ export const CommandId = {
   DeleteSavedQuery: 'sqldoro.deleteSavedQuery',
   ImportSavedQueries: 'sqldoro.importSavedQueries',
   ExportSavedQueries: 'sqldoro.exportSavedQueries',
+  ToggleTransactionMode: 'sqldoro.toggleTransactionMode',
+  CommitTransaction: 'sqldoro.commitTransaction',
+  RollbackTransaction: 'sqldoro.rollbackTransaction',
+  AllowWrites: 'sqldoro.allowWrites',
+  MakeReadOnly: 'sqldoro.makeReadOnly',
 } as const
 
 export type CommandId = (typeof CommandId)[keyof typeof CommandId]
@@ -49,6 +54,7 @@ export const ContextKey = {
   IsFiltered: 'sqldoro.isFiltered',
   EditorHasConnection: 'sqldoro.editorHasConnection',
   IsQueryRunning: 'sqldoro.isQueryRunning',
+  HasOpenTransaction: 'sqldoro.hasOpenTransaction',
 } as const
 
 // The language of the documents sqldoro runs.

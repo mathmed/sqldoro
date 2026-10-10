@@ -158,6 +158,7 @@ export function mysqlRequest(changes: Partial<ConnectRequest> = {}): ConnectRequ
     password: 's3cret',
     database: 'shop',
     tls: undefined,
+    isReadOnly: false,
     onUnexpectedClose: vi.fn(),
     ...changes,
   }

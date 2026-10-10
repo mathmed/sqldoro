@@ -92,9 +92,18 @@ describe('openSession', () => {
         password: 'db-pass',
         database: 'shop',
         tls: undefined,
+        isReadOnly: true,
         onUnexpectedClose: ANY_FUNCTION,
       },
     ])
+  })
+
+  it('should ask the engine for sessions that refuse writes only on read-only connections', async () => {
+    const { engine, dependencies } = setup()
+
+    await openSession(dependencies, request({ isReadOnly: false }))
+
+    expect(engine.requests[0]?.isReadOnly).toBe(false)
   })
 
   it('should hand the session of the engine', async () => {

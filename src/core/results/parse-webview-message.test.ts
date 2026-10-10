@@ -11,6 +11,16 @@ describe('parseWebviewMessage', () => {
     expect(parseWebviewMessage({ type: 'cancel', extra: 1 })).toStrictEqual({ type: 'cancel' })
   })
 
+  it('should read a request to load every row of a tab', () => {
+    expect(parseWebviewMessage({ type: 'loadAll', tabId: 't' })).toStrictEqual({
+      type: 'loadAll',
+      tabId: 't',
+    })
+    expect(() => parseWebviewMessage({ type: 'loadAll' })).toThrow(
+      new TypeError('"tabId" must be a string'),
+    )
+  })
+
   it('should read a request for rows', () => {
     expect(
       parseWebviewMessage({ type: 'fetchRows', tabId: 't', viewVersion: 2, start: 100, count: 50 }),

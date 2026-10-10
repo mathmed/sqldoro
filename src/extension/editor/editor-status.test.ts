@@ -4,6 +4,7 @@ import type * as vscode from 'vscode'
 import {
   type QueryHarness,
   queryHarness,
+  SHOP,
   SHOP_BINDING,
   sqlEditor,
 } from '../../../test/support/query.ts'
@@ -13,8 +14,10 @@ import {
   resetVscode,
   showEditor,
   statusBarItems,
+  ThemeColor,
   workspace,
 } from '../../../test/vscode.ts'
+import { EnvironmentTag } from '../../core/connection/connection.ts'
 import { RunScope } from '../../core/editor/run-plan.ts'
 import { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import { EditorStatus } from './editor-status.ts'
@@ -30,6 +33,7 @@ beforeEach(() => {
     runner: harness.runner,
     connections: (id) => harness.connections.get(id),
     engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]),
+    policy: () => ({ productionEnvironments: new Set(['prod', 'staging']) }),
   })
 })
 
@@ -73,10 +77,43 @@ describe('EditorStatus', () => {
 
     expect(item()).toMatchObject({
       text: '$(database) Shop › shop.sales',
-      tooltip: 'This editor runs on Shop › shop.sales: click to change',
+      tooltip: 'This editor runs on Shop › shop.sales (writes allowed): click to change',
       command: 'sqldoro.changeConnection',
+      backgroundColor: undefined,
+      color: undefined,
     })
     expect(contextKeys.get('sqldoro.editorHasConnection')).toBe(true)
+  })
+
+  it('should show the environment and a lock for read-only connections', async () => {
+    harness.connections.set('shop', {
+      ...SHOP,
+      environment: EnvironmentTag.Development,
+      isReadOnly: true,
+    })
+    await sqlEditor(harness, 'SELECT 1', SHOP_BINDING)
+
+    sut.update()
+
+    expect(item()).toMatchObject({
+      text: '$(lock) DEV · Shop › shop.sales',
+      tooltip: 'This editor runs on Shop › shop.sales (Development, read-only): click to change',
+      backgroundColor: undefined,
+      color: new ThemeColor('charts.blue'),
+    })
+  })
+
+  it('should paint the item red on production', async () => {
+    harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Staging })
+    await sqlEditor(harness, 'SELECT 1', SHOP_BINDING)
+
+    sut.update()
+
+    expect(item()).toMatchObject({
+      text: '$(database) STAGING · Shop › shop.sales',
+      backgroundColor: new ThemeColor('statusBarItem.errorBackground'),
+      color: undefined,
+    })
   })
 
   it('should treat a connection that is gone as no connection', async () => {

@@ -2,7 +2,6 @@ import {
   type ConnectionConfig,
   DEFAULT_SSH_TUNNEL,
   DEFAULT_SSL,
-  EnvironmentTag,
   SshAuthMethod,
   type SshTunnelOptions,
   SslMode,
@@ -18,15 +17,10 @@ import {
 import { SecretKind } from '../../core/connection/secrets.ts'
 import { ConnectionField } from '../../core/connection/validation.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
-import {
-  ENVIRONMENT_LABELS,
-  labelOf,
-  SSH_AUTH_LABELS,
-  SSL_MODE_DETAILS,
-  SSL_MODE_LABELS,
-} from '../labels.ts'
+import { labelOf, SSH_AUTH_LABELS, SSL_MODE_DETAILS, SSL_MODE_LABELS } from '../labels.ts'
 import {
   choiceField,
+  choicesOf,
   fileField,
   type FormField,
   FormSection,
@@ -34,6 +28,7 @@ import {
   textField,
 } from './field-kinds.ts'
 import type { Choice } from './prompts.ts'
+import { SAFETY_FIELDS } from './safety-fields.ts'
 
 const NO_TUNNEL = 'none'
 
@@ -91,13 +86,6 @@ function withTunnel(connection: ConnectionConfig, method: TunnelChoice): Connect
   return method === NO_TUNNEL
     ? { ...connection, ssh: undefined }
     : withSsh(connection, { authMethod: method })
-}
-
-function choicesOf<T extends string>(
-  values: readonly T[],
-  labels: ReadonlyMap<string, string>,
-): Choice<T>[] {
-  return values.map((value) => ({ label: labelOf(labels, value), value }))
 }
 
 type TunnelChoice = SshAuthMethod | typeof NO_TUNNEL
@@ -289,26 +277,6 @@ const TUNNEL_FIELDS: readonly FormField[] = [
     isVisible: usesSshAuth(SshAuthMethod.PrivateKey),
     prompt: 'The passphrase of the private key, kept in the VS Code secret storage',
     placeHolder: 'Leave empty if the key has no passphrase',
-  }),
-]
-
-const SAFETY_FIELDS: readonly FormField[] = [
-  choiceField({
-    label: 'Environment',
-    section: FormSection.Safety,
-    choices: () => choicesOf(Object.values(EnvironmentTag), ENVIRONMENT_LABELS),
-    read: (connection) => connection.environment,
-    write: (connection, environment) => ({ ...connection, environment }),
-  }),
-  choiceField({
-    label: 'Writes',
-    section: FormSection.Safety,
-    choices: () => [
-      { label: 'Read-only (recommended)', value: true },
-      { label: 'Allow writes', value: false },
-    ],
-    read: (connection) => connection.isReadOnly,
-    write: (connection, isReadOnly) => ({ ...connection, isReadOnly }),
   }),
 ]
 

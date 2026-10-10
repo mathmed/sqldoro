@@ -11,6 +11,8 @@ const CONTRIBUTED_VIEWS = Object.values(manifest.contributes.views)
   .flat()
   .map(({ id }) => id)
 const MILLISECONDS_PER_SECOND = 1000
+const MANUAL_COMMIT = '$(git-commit) Manual commit'
+const AUTO_COMMIT = '$(check-all) Auto-commit'
 
 export async function run(): Promise<void> {
   try {
@@ -20,6 +22,7 @@ export async function run(): Promise<void> {
     await expectContributedViewsShown()
     await probeHelloCommand()
     await probeResultView()
+    await probeTransactionStatus()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
     throw error
@@ -92,4 +95,15 @@ async function probeResultView(): Promise<void> {
   }
   const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
   report(`result view loaded in ${seconds.toFixed(3)}s`)
+}
+
+// The status bar of a SQL editor shows its transaction mode; the command that switches it answers
+// what the item now shows.
+async function probeTransactionStatus(): Promise<void> {
+  const manual = await vscode.commands.executeCommand(CommandId.ToggleTransactionMode)
+  const auto = await vscode.commands.executeCommand(CommandId.ToggleTransactionMode)
+  if (manual !== MANUAL_COMMIT || auto !== AUTO_COMMIT) {
+    throw new Error(`${CommandId.ToggleTransactionMode} answered ${JSON.stringify([manual, auto])}`)
+  }
+  report(`transaction status: ${manual} -> ${auto}`)
 }

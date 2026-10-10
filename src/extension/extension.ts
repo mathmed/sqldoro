@@ -4,11 +4,13 @@ import { buildGreeting } from '../core/greeting.ts'
 import { CommandId, ViewId } from './command-id.ts'
 import { registerConnectionCommands } from './commands/connection-commands.ts'
 import { registerExplorerCommands } from './commands/explorer-commands.ts'
+import { registerWriteAccessCommands } from './commands/write-access-commands.ts'
 import type { EditorSessions } from './editor/editor-sessions.ts'
 import { registerQueryFeatures } from './query-features.ts'
 import { createQueryServices, type WorkbenchContext } from './query-services.ts'
 import { createServices, type Services, type StorageContext } from './services.ts'
 import type { SessionManager } from './sessions/session-manager.ts'
+import { readSettings } from './settings.ts'
 
 type ActivationContext = Pick<vscode.ExtensionContext, 'extensionMode' | 'subscriptions'> &
   StorageContext &
@@ -32,6 +34,7 @@ export function activate(context: ActivationContext): void {
     ...registerQueryFeatures(services, query, log),
   )
   query.status.update()
+  query.transactionStatus.update()
   openSessions = services.sessions
   editorSessions = query.editorSessions
   reportUnreadableConnections(services, log)
@@ -61,6 +64,11 @@ function registerConnections(
     }),
     ...registerConnectionCommands(commandContext),
     ...registerExplorerCommands(commandContext),
+    ...registerWriteAccessCommands({
+      service: services.service,
+      policy: () => readSettings().policy,
+      log,
+    }),
   ]
 }
 

@@ -69,6 +69,14 @@ test/           test support: the vscode and webview fakes for unit tests and th
   user and stand in for VS Code with `fakeVsCodeApi()` and `fromHost()` from
   `test/webview/vscode-api.ts`; `test/webview/setup.ts` gives elements a panel's size, since jsdom lays
   nothing out.
+- Every statement a user (or a later feature, such as inline editing) runs goes through the safety
+  guards: build a `RunWork` with every statement it may execute and run it through
+  `QueryRunner.perform`; `StatementGuard` classifies, applies the guards and confirms, and
+  `QueryRunner.runJob` refuses SQL the guard did not approve. Never call `EngineSession.execute` with
+  user SQL anywhere else. Only sqldoro's own statements (catalog queries, `START TRANSACTION`,
+  `COMMIT`, `ROLLBACK`, the transaction status probe) bypass the guard. The classifier, the guard
+  policy, the automatic `LIMIT` and the transaction state machine live in `src/core/safety/` as pure
+  functions; what differs between engines is declared by their `Dialect`.
 - Contributed commands are declared in `package.json` (`contributes.commands`) with their id in
   `src/extension/command-id.ts`. The smoke test fails when a contributed command is not registered on
   activation.
@@ -195,7 +203,8 @@ contract needs the owner's explicit approval.
 - **Nothing internal leaks**: messages are written for people: no stack traces or internal ids in the
   UI. Database errors are shown with the server's message.
 - **Security**: never put passwords, tokens, connection strings with credentials or personal data in
-  logs, error messages, settings or the repository; credentials live only in VS Code `SecretStorage`.
+  logs, error messages, settings or the repository (the guard log names verbs, tables and
+  connections, never SQL text or bound values); credentials live only in VS Code `SecretStorage`.
   Values reach SQL only through parameters, never by concatenation. Compare secrets with
   `crypto.timingSafeEqual`. Spawn processes with an argument list and no shell (enforced). Webviews get
   a strict Content Security Policy with a nonce and validate every message they receive.

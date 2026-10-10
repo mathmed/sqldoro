@@ -113,16 +113,19 @@ describe('ResultSet', () => {
 
   it('should record how the statement ended', () => {
     const succeeded = resultSet()
-    succeeded.succeed({ durationMs: 5, affectedRows: null, isTruncated: true }, ['plan'])
+    succeeded.succeed({ durationMs: 5, affectedRows: null, isTruncated: true, autoLimit: 1000 }, [
+      'plan',
+    ])
     const failed = resultSet()
     failed.fail({ message: 'boom', line: 2, column: 3 })
     const cancelled = resultSet()
     cancelled.cancel(7)
-    cancelled.setNotice('2 statements were not run')
+    cancelled.addNotice('The transaction failed.')
+    cancelled.addNotice('2 statements were not run')
 
     expect(succeeded.toTab()).toMatchObject({
       status: 'succeeded',
-      summary: { durationMs: 5, affectedRows: null, isTruncated: true },
+      summary: { durationMs: 5, affectedRows: null, isTruncated: true, autoLimit: 1000 },
       plan: ['plan'],
     })
     expect(succeeded.isRunning).toBe(false)
@@ -132,12 +135,12 @@ describe('ResultSet', () => {
     })
     expect(cancelled.toTab()).toMatchObject({
       status: 'cancelled',
-      summary: { durationMs: 7, affectedRows: null, isTruncated: false },
-      notice: '2 statements were not run',
+      summary: { durationMs: 7, affectedRows: null, isTruncated: false, autoLimit: null },
+      notice: 'The transaction failed. 2 statements were not run',
     })
     expect(resultSet().toTab().plan).toStrictEqual([])
     const withoutPlan = resultSet()
-    withoutPlan.succeed({ durationMs: 1, affectedRows: 2, isTruncated: false })
+    withoutPlan.succeed({ durationMs: 1, affectedRows: 2, isTruncated: false, autoLimit: null })
     expect(withoutPlan.toTab().plan).toStrictEqual([])
   })
 
@@ -158,11 +161,13 @@ describe('ResultSet', () => {
       summary: null,
       view: { sort: [{ column: 1, isDescending: true }], filters: [] },
     })
+    expect(sut.isServerView).toBe(true)
     sut.addRows([['9', 'z']])
     expect(sut.rows(0, 5)).toStrictEqual([['9', 'z']])
 
     sut.restart({ sort: [], filters: [] })
     expect(sut.toTab().isServerView).toBe(false)
+    expect(sut.isServerView).toBe(false)
   })
 
   it('should not offer the server view for plans or statements that cannot run again', () => {

@@ -52,7 +52,7 @@ describe('StatusLine', () => {
     expect(
       line({
         status: 'cancelled',
-        summary: { durationMs: 2500, affectedRows: null, isTruncated: false },
+        summary: { durationMs: 2500, affectedRows: null, isTruncated: false, autoLimit: null },
         notice: '1 statement after this one did not run.',
       }),
     ).toBe('Cancelled after 2.50 s · 1 statement after this one did not run.')

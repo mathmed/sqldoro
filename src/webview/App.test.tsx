@@ -73,6 +73,46 @@ describe('App', () => {
     expect(cellAt(0, 1).className).toContain('look-loading')
   })
 
+  it('should show the connection of the editor above the tabs, production loud', () => {
+    render(<App api={api} />)
+    expect(screen.queryByRole('note', { name: 'Connection' })).toBeNull()
+
+    fromHost({
+      type: 'connection',
+      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
+    })
+    const banner = screen.getByRole('note', { name: 'Connection' })
+    expect(banner.textContent).toBe('Production: PROD · Shop · writes allowed')
+    expect(banner.className).toBe('connection-banner production')
+
+    fromHost({
+      type: 'connection',
+      connection: { name: 'Local', environment: '', isProduction: false, isReadOnly: true },
+    })
+    expect(screen.getByRole('note', { name: 'Connection' })).toMatchObject({
+      textContent: 'Local · read-only',
+      className: 'connection-banner',
+    })
+  })
+
+  it('should ask for every row of a tab cut by the automatic limit', () => {
+    render(<App api={api} />)
+    const limited = {
+      ...FIRST,
+      rowCount: 1000,
+      loadedRows: 1000,
+      summary: { durationMs: 3, affectedRows: null, isTruncated: true, autoLimit: 1000 },
+    }
+    fromHost({ type: 'tabs', tabs: [limited], activeTabId: 'tab-1' })
+
+    expect(screen.getByRole('status').textContent).toBe(
+      '1,000 rows (limited to 1,000 rows) in 3 ms',
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Load All Rows' }))
+
+    expect(api.posted().at(-1)).toStrictEqual({ type: 'loadAll', tabId: 'tab-1' })
+  })
+
   it('should report a message it cannot read', () => {
     render(<App api={api} />)
 

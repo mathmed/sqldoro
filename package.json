@@ -253,6 +253,36 @@
         "title": "Export Saved Queries",
         "category": "sqldoro",
         "icon": "$(save-as)"
+      },
+      {
+        "command": "sqldoro.toggleTransactionMode",
+        "title": "Switch Transaction Mode",
+        "category": "sqldoro",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "sqldoro.commitTransaction",
+        "title": "Commit Transaction",
+        "category": "sqldoro",
+        "icon": "$(check)"
+      },
+      {
+        "command": "sqldoro.rollbackTransaction",
+        "title": "Roll Back Transaction",
+        "category": "sqldoro",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "sqldoro.allowWrites",
+        "title": "Allow Writes",
+        "category": "sqldoro",
+        "icon": "$(unlock)"
+      },
+      {
+        "command": "sqldoro.makeReadOnly",
+        "title": "Make Read-Only",
+        "category": "sqldoro",
+        "icon": "$(lock)"
       }
     ],
     "viewsContainers": {
@@ -361,22 +391,22 @@
       "view/item/context": [
         {
           "command": "sqldoro.connect",
-          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)$/",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)\\./",
           "group": "inline@1"
         },
         {
           "command": "sqldoro.disconnect",
-          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)$/",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)\\./",
           "group": "inline@1"
         },
         {
           "command": "sqldoro.connect",
-          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)$/",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)\\./",
           "group": "1_session@1"
         },
         {
           "command": "sqldoro.disconnect",
-          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)$/",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)\\./",
           "group": "1_session@1"
         },
         {
@@ -395,13 +425,23 @@
           "group": "2_edit@2"
         },
         {
+          "command": "sqldoro.allowWrites",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.[a-z]+\\.readOnly$/",
+          "group": "2_edit@3"
+        },
+        {
+          "command": "sqldoro.makeReadOnly",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.[a-z]+\\.writable$/",
+          "group": "2_edit@3"
+        },
+        {
           "command": "sqldoro.deleteConnection",
           "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
           "group": "3_delete@1"
         },
         {
           "command": "sqldoro.refresh",
-          "when": "view == sqldoro.connections && viewItem =~ /^(connection\\.connected|database|schema|tables|views|table|view|columns|indexes|foreignKeys)$/",
+          "when": "view == sqldoro.connections && viewItem =~ /^(connection\\.connected\\.[a-zA-Z]+|database|schema|tables|views|table|view|columns|indexes|foreignKeys)$/",
           "group": "4_refresh@1"
         },
         {
@@ -516,6 +556,18 @@
         {
           "command": "sqldoro.showResults",
           "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.toggleTransactionMode",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "sqldoro.commitTransaction",
+          "when": "sqldoro.hasOpenTransaction"
+        },
+        {
+          "command": "sqldoro.rollbackTransaction",
+          "when": "sqldoro.hasOpenTransaction"
         }
       ],
       "editor/title": [
@@ -533,6 +585,16 @@
           "command": "sqldoro.changeConnection",
           "when": "editorLangId == sql",
           "group": "navigation@2"
+        },
+        {
+          "command": "sqldoro.commitTransaction",
+          "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
+          "group": "navigation@3"
+        },
+        {
+          "command": "sqldoro.rollbackTransaction",
+          "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
+          "group": "navigation@4"
         }
       ],
       "editor/context": [
@@ -565,6 +627,21 @@
           "command": "sqldoro.changeConnection",
           "when": "editorLangId == sql",
           "group": "sqldoro@6"
+        },
+        {
+          "command": "sqldoro.toggleTransactionMode",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@7"
+        },
+        {
+          "command": "sqldoro.commitTransaction",
+          "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
+          "group": "sqldoro@8"
+        },
+        {
+          "command": "sqldoro.rollbackTransaction",
+          "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
+          "group": "sqldoro@9"
         }
       ]
     },
@@ -598,6 +675,49 @@
           "minimum": 1,
           "maximum": 10000,
           "markdownDescription": "The most statements the query history keeps per connection; the oldest go first."
+        },
+        "sqldoro.autoLimit.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Give a query that reads and has no `LIMIT`, `FETCH` or `TOP` of its own an automatic limit of `#sqldoro.autoLimit.rows#` rows. The result says when the limit cut it and offers **Load All Rows**."
+        },
+        "sqldoro.autoLimit.rows": {
+          "type": "integer",
+          "default": 1000,
+          "minimum": 1,
+          "maximum": 5000000,
+          "markdownDescription": "The rows the automatic limit keeps, never more than `#sqldoro.results.maxRows#`."
+        },
+        "sqldoro.safety.productionEnvironments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "none",
+              "local",
+              "dev",
+              "staging",
+              "prod"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "prod"
+          ],
+          "markdownDescription": "The environment tags treated as production: every statement that writes there asks you to type the name of the connection, a connection given one of these tags becomes read-only, and editors show it in red. `prod` always counts: this list can only add to it."
+        },
+        "sqldoro.transactions.defaultMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "enumDescriptions": [
+            "Each statement commits as it runs.",
+            "The first statement opens a transaction that stays open until you commit or roll it back."
+          ],
+          "default": "auto",
+          "markdownDescription": "The transaction mode new SQL editors start in; **Switch Transaction Mode** changes it per editor."
         }
       }
     }

@@ -15,6 +15,9 @@ import type { QueryServices } from './query-services.ts'
 import type { Services } from './services.ts'
 import { ConnectionStatus } from './sessions/session-manager.ts'
 import { registerSavedQueryCommands } from './snippets/saved-query-commands.ts'
+import { watchClosedEditors } from './transactions/closed-editors.ts'
+import { CloseReason } from './transactions/editor-transactions.ts'
+import { registerTransactionCommands } from './transactions/transaction-commands.ts'
 
 const LIVE_STATES: ReadonlySet<string> = new Set([
   ConnectionStatus.Connected,
@@ -38,6 +41,7 @@ export function registerQueryFeatures(
       ...TRIGGER_CHARACTERS,
     ),
     vscode.workspace.registerTextDocumentContentProvider(DDL_SCHEME, query.ddl),
+    vscode.window.registerFileDecorationProvider(query.decorations),
     ...registerCommands(base, query, log),
     ...followDocuments(query, log),
     ...followConnections(base, query, log),
@@ -45,22 +49,12 @@ export function registerQueryFeatures(
 }
 
 function disposablesOf(query: QueryServices): vscode.Disposable[] {
-  const {
-    bindings,
-    editorSessions,
-    panels,
-    runner,
-    history,
-    historyView,
-    savedQueries,
-    savedQueryView,
-    ddl,
-    diagnostics,
-    status,
-  } = query
+  const { bindings, editorSessions, transactions, panels, runner, history, historyView } = query
+  const { savedQueries, savedQueryView, ddl, diagnostics, status, transactionStatus } = query
   return [
     bindings,
     editorSessions,
+    transactions,
     panels,
     runner,
     history,
@@ -70,14 +64,26 @@ function disposablesOf(query: QueryServices): vscode.Disposable[] {
     ddl,
     diagnostics,
     status,
+    transactionStatus,
+    query.decorations,
   ]
 }
 
 function registerCommands(base: Services, query: QueryServices, log: Logger): vscode.Disposable[] {
   const connections = (id: string): ReturnType<Services['store']['find']> => base.store.find(id)
-  const { runner, bindings, panels, history, savedQueries, ddl, pickBinding } = query
+  const { runner, bindings, transactions, panels, history, savedQueries, ddl, pickBinding } = query
   return [
-    ...registerEditorCommands({ runner, bindings, panels, connections, pickBinding, log }),
+    ...registerEditorCommands({
+      runner,
+      bindings,
+      transactions,
+      panels,
+      connections,
+      pickBinding,
+      log,
+    }),
+    ...registerTransactionCommands({ ...query, log }),
+    watchClosedEditors({ ...query, log }),
     ...registerHistoryCommands({ history, bindings, runner, connections, log }),
     ...registerSavedQueryCommands({
       store: savedQueries,
@@ -90,24 +96,39 @@ function registerCommands(base: Services, query: QueryServices, log: Logger): vs
   ]
 }
 
-// A closed editor gives back its connection, its results and its errors.
+// A closed editor gives back its connection (rolling back what it left open), its results and its
+// errors.
 function followDocuments(query: QueryServices, log: Logger): vscode.Disposable[] {
   const update = (): void => {
-    query.status.update()
+    updateStatus(query)
   }
   return [
     vscode.workspace.onDidCloseTextDocument((document) => {
       query.panels.close(document.uri)
       query.diagnostics.delete(document.uri)
-      void query.editorSessions.release(document.uri.toString())
+      void releaseClosed(query, document.uri.toString())
       query.bindings.forgetUntitled(document.uri).catch((error: unknown) => {
         log.warn(`Could not forget the connection of a closed editor: ${describeError(error)}`)
       })
     }),
     vscode.window.onDidChangeActiveTextEditor(update),
-    query.bindings.onDidChange(update),
+    query.bindings.onDidChange(() => {
+      update()
+      query.decorations.refresh()
+    }),
     query.runner.onDidChangeRunning(update),
+    query.transactions.onDidChange(update),
   ]
+}
+
+async function releaseClosed(query: QueryServices, uri: string): Promise<void> {
+  await query.editorSessions.release(uri, CloseReason.EditorClosed)
+  query.transactions.forget(uri)
+}
+
+function updateStatus(query: QueryServices): void {
+  query.status.update()
+  query.transactionStatus.update()
 }
 
 // Editors leave a connection that is disconnected, edited or deleted; the autocomplete forgets
@@ -123,7 +144,8 @@ function followConnections(base: Services, query: QueryServices, log: Logger): v
       query.schemaCache.invalidate(node?.connectionId)
     }),
     base.store.onDidChange(() => {
-      query.status.update()
+      updateStatus(query)
+      query.decorations.refresh()
       void forgetDeleted(base, query).catch((error: unknown) => {
         log.warn(`Could not forget a deleted connection: ${describeError(error)}`)
       })

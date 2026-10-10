@@ -14,7 +14,13 @@ function panels(): ResultsPanels {
     extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
     now: () => 0,
     log,
-    actionsFor: () => ({ cancel, serverView: vi.fn(), copy: vi.fn(), export: vi.fn() }),
+    actionsFor: () => ({
+      cancel,
+      serverView: vi.fn(),
+      loadAll: vi.fn(),
+      copy: vi.fn(),
+      export: vi.fn(),
+    }),
   })
 }
 

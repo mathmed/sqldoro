@@ -5,7 +5,8 @@ import { explainStatement } from '../../core/results/plan.ts'
 import { TabKind } from '../../core/results/protocol.ts'
 import { isReadOnlyQuery } from '../../core/sql/statement-kind.ts'
 import { sourceOf } from './editor-source.ts'
-import type { QueryRunner, RunTarget, RunWork } from './query-runner.ts'
+import type { QueryRunner } from './query-runner.ts'
+import type { RunTarget, RunWork } from './run-types.ts'
 
 const ANALYZE_BUTTON = 'Run EXPLAIN ANALYZE'
 
@@ -51,15 +52,20 @@ interface ExplainSpec {
 function explainWork(runner: QueryRunner, { statement, target, isAnalyze }: ExplainSpec): RunWork {
   const dialect = target.engine.dialect
   const prefixLength = explainStatement('', dialect, isAnalyze).length
-  return async (parts) => {
-    runner.startRun(parts)
-    await runner.runJob(parts, {
-      sql: explainStatement(statement.sql, dialect, isAnalyze),
-      values: [],
-      place: { offset: statement.offset, prefixLength },
-      isRecorded: true,
-      kind: TabKind.Plan,
-    })
+  const sql = explainStatement(statement.sql, dialect, isAnalyze)
+  return {
+    statements: [sql],
+    run: async (parts) => {
+      runner.startRun(parts)
+      await runner.runJob(parts, {
+        sql,
+        values: [],
+        place: { offset: statement.offset, prefixLength },
+        isRecorded: true,
+        kind: TabKind.Plan,
+        shouldAutoLimit: false,
+      })
+    },
   }
 }
 

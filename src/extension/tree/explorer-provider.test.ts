@@ -41,15 +41,24 @@ describe('ExplorerProvider', () => {
       const local = itemOf(sut, roots, 'local db')
 
       expect(shop).toMatchObject({
-        description: 'PROD · localhost',
-        contextValue: 'connection.disconnected',
+        description: 'PROD · read-only · localhost',
+        contextValue: 'connection.disconnected.readOnly',
         collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
       })
       expect(shop.iconPath).toStrictEqual(
         new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('charts.red')),
       )
-      expect(local.description).toBe('localhost')
+      expect(local.description).toBe('read-only · localhost')
       expect(local.iconPath).toStrictEqual(new vscode.ThemeIcon('debug-disconnect', undefined))
+    })
+
+    it('should say when a connection may write', async () => {
+      const { sut } = explorer([{ ...LOCAL, isReadOnly: false }])
+
+      expect(itemOf(sut, await childrenOf(sut), 'local db')).toMatchObject({
+        description: 'localhost',
+        contextValue: 'connection.disconnected.writable',
+      })
     })
 
     it('should describe the connection in its tooltip', async () => {
@@ -118,7 +127,7 @@ describe('ExplorerProvider', () => {
       const children = await childrenOf(sut, roots[0])
       await connecting
 
-      expect(itemOf(sut, roots, 'Shop').contextValue).toBe('connection.connected')
+      expect(itemOf(sut, roots, 'Shop').contextValue).toBe('connection.connected.readOnly')
       expect(labelsOf(sut, children)).toStrictEqual(['Connecting…'])
     })
 
@@ -130,7 +139,7 @@ describe('ExplorerProvider', () => {
       const [message] = await childrenOf(sut, roots[0])
 
       expect(itemOf(sut, roots, 'Shop')).toMatchObject({
-        contextValue: 'connection.failed',
+        contextValue: 'connection.failed.readOnly',
         iconPath: new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground')),
       })
       expect(itemOf(sut, roots, 'Shop').tooltip).toEqual(

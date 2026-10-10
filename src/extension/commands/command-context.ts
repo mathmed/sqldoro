@@ -61,7 +61,7 @@ function guarded<T extends unknown[]>(
 // Command Palette, where the user picks the connection.
 export async function connectionFrom(
   argument: unknown,
-  context: CommandContext,
+  context: Pick<CommandContext, 'service'>,
   title: string,
 ): Promise<ConnectionConfig | undefined> {
   const id = connectionIdOf(argument)

@@ -6,6 +6,7 @@ import { QueryError } from '../../core/engine/query-error.ts'
 import {
   QueryCancelledError,
   type QueryExecution,
+  type QueryRequest,
   type QueryResult,
   type QueryValue,
 } from '../../core/engine/query.ts'
@@ -14,6 +15,7 @@ import { locateError } from '../../core/results/error-location.ts'
 import { planLines } from '../../core/results/plan.ts'
 import { TabKind } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
+import type { LimitPlan } from '../../core/safety/auto-limit.ts'
 import { redactSqlSecrets } from '../../core/sql/redact-sql.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { Clock } from '../platform/clock.ts'
@@ -25,19 +27,13 @@ export interface StatementContext {
   readonly connectionId: string
   readonly scope: ObjectScope
   readonly dialect: Dialect
-  readonly execute: (sql: string, request: StatementRequest) => QueryExecution
+  readonly execute: (request: QueryRequest) => QueryExecution
   readonly panel: ResultsPanel
   readonly diagnostics: vscode.DiagnosticCollection
   readonly clock: Clock
   readonly createId: () => string
   readonly record: (entry: HistoryEntry) => void
   readonly onExecution: (execution: QueryExecution) => void
-}
-
-interface StatementRequest {
-  readonly values: readonly QueryValue[]
-  readonly onColumns: (columns: Parameters<ResultSet['describe']>[0]) => void
-  readonly onRows: (rows: Parameters<ResultSet['addRows']>[0]) => void
 }
 
 // Where a statement is in its editor: errors are shown there. `prefixLength` is what the text
@@ -47,8 +43,9 @@ interface StatementPlace {
   readonly prefixLength: number
 }
 
-// One statement: the text that runs, the tab it fills, where it is in the editor (unknown for a
-// statement sqldoro wrote, such as a sort on the server) and whether the history keeps it.
+// One statement: its text, the tab it fills, where it is in the editor (unknown for a statement
+// sqldoro wrote, such as a sort on the server), whether the history keeps it, and what runs for it
+// (the text with its automatic LIMIT) with how many rows are kept.
 export interface StatementJob {
   readonly sql: string
   readonly values: readonly QueryValue[]
@@ -56,6 +53,7 @@ export interface StatementJob {
   readonly isRecorded: boolean
   readonly tab: ResultSet
   readonly kind: TabKind
+  readonly limit: LimitPlan
 }
 
 const DIAGNOSTIC_SOURCE = 'sqldoro'
@@ -68,7 +66,9 @@ export async function runStatement(
   const { tab, panel } = { tab: job.tab, panel: context.panel }
   const startedAt = context.clock.timestamp()
   const started = context.clock.now()
-  const execution = context.execute(job.sql, {
+  const execution = context.execute({
+    sql: job.limit.sql,
+    maxRows: job.limit.maxRows,
     values: job.values,
     onColumns: (columns) => {
       tab.describe(columns)
@@ -112,7 +112,8 @@ async function settle(
 function succeeded(job: StatementJob, result: QueryResult, durationMs: number): Settled {
   const affectedRows = result.affectedRows ?? null
   const plan = job.kind === TabKind.Plan ? planLines(result) : []
-  job.tab.succeed({ durationMs, affectedRows, isTruncated: result.isTruncated }, plan)
+  const { isTruncated } = result
+  job.tab.succeed({ durationMs, affectedRows, isTruncated, autoLimit: job.limit.autoLimit }, plan)
   return { status: RunOutcome.Succeeded, rowCount: affectedRows ?? result.rows.length, message: '' }
 }
 

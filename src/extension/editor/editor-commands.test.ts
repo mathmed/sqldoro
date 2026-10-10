@@ -8,6 +8,7 @@ import {
   sqlEditor,
 } from '../../../test/support/query.ts'
 import { resetVscode, showEditor, webviewPanels, window, workspace } from '../../../test/vscode.ts'
+import { TransactionStatus } from '../../core/engine/transaction-status.ts'
 import { CommandId } from '../command-id.ts'
 import { registerEditorCommands } from './editor-commands.ts'
 
@@ -32,6 +33,7 @@ beforeEach(() => {
   disposables = registerEditorCommands({
     runner: harness.runner,
     bindings: harness.bindings,
+    transactions: harness.transactions,
     panels: harness.panels,
     connections: (id) => harness.connections.get(id),
     pickBinding: harness.pickBinding,
@@ -92,6 +94,20 @@ describe('Change Connection', () => {
     await vscode.commands.executeCommand(CommandId.ChangeConnection)
 
     expect(harness.bindings.get(uriOf(editor))?.connectionId).toBe('crm')
+  })
+
+  it('should keep the connection while a transaction is open on it', async () => {
+    const editor = await sqlEditor(harness, 'SELECT 1')
+    harness.engine.status = TransactionStatus.Open
+    await vscode.commands.executeCommand(CommandId.RunQuery)
+
+    await vscode.commands.executeCommand(CommandId.ChangeConnection)
+
+    expect(window.showWarningMessage).toHaveBeenCalledWith(
+      'Commit or roll back the open transaction of this editor before changing its connection.',
+    )
+    expect(harness.pickBinding).not.toHaveBeenCalled()
+    expect(harness.bindings.get(uriOf(editor))).toStrictEqual(SHOP_BINDING)
   })
 
   it('should keep the connection when the pick is dismissed', async () => {

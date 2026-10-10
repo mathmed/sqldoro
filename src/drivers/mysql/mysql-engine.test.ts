@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { answerBy, mysql, mysqlRequest } from '../../../test/fakes/mysql2.ts'
 import type { ConnectRequest, EngineSession } from '../../core/engine/engine.ts'
-import { mysqlEngine } from './mysql-engine.ts'
+import { TransactionStatus } from '../../core/engine/transaction-status.ts'
+import { mysqlEngine, statusOf } from './mysql-engine.ts'
 
 vi.mock('mysql2', async (importOriginal) => {
   const original = await importOriginal<{ default: object }>()
@@ -61,10 +62,55 @@ describe('mysqlEngine', () => {
       expect(onUnexpectedClose).not.toHaveBeenCalled()
     })
 
+    it('should make every transaction of a read-only session read-only', async () => {
+      await connected({ isReadOnly: true })
+
+      expect(mysql.connections[0]?.queries.map((query) => query.sql)).toStrictEqual([
+        'SELECT VERSION() AS version',
+        'SET SESSION TRANSACTION READ ONLY',
+      ])
+    })
+
+    it('should leave a writable session as the server opens it', async () => {
+      await connected({ isReadOnly: false })
+
+      expect(mysql.connections[0]?.queries).toHaveLength(1)
+    })
+
+    it('should drop a read-only session that the server cannot make read-only', async () => {
+      answerBy([['SET SESSION', { error: new Error('Unknown system variable') }]])
+
+      await expect(connected({ isReadOnly: true })).rejects.toThrow('Unknown system variable')
+      expect(mysql.connections[0]?.isDestroyed).toBe(true)
+    })
+
     it('should show why the server refused the connection', async () => {
       mysql.script.connectError = new Error("Access denied for user 'app'@'%'")
 
       await expect(connected()).rejects.toThrow("Access denied for user 'app'@'%'")
+    })
+  })
+
+  describe('transactionStatus', () => {
+    it('should ask the server with a statement that does nothing', async () => {
+      answerBy([['DO 0', { result: { affectedRows: 0, serverStatus: 3 } }]])
+      const sut = await connected()
+
+      await expect(sut.transactionStatus()).resolves.toBe(TransactionStatus.Open)
+      expect(mysql.connections[0]?.queries.at(-1)).toStrictEqual({ sql: 'DO 0', values: [] })
+    })
+
+    it.each([
+      [{ serverStatus: 2 }, TransactionStatus.Idle],
+      [{ serverStatus: 1 }, TransactionStatus.Open],
+      [{ serverStatus: 0x2001 }, TransactionStatus.Open],
+      [{ serverStatus: '1' }, TransactionStatus.Unknown],
+      [{}, TransactionStatus.Unknown],
+      [[], TransactionStatus.Unknown],
+      [null, TransactionStatus.Unknown],
+      ['ok', TransactionStatus.Unknown],
+    ])('should read %j as %s', (result, status) => {
+      expect(statusOf(result)).toBe(status)
     })
   })
 

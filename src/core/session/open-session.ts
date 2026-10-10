@@ -50,6 +50,7 @@ export async function openSession(
       password: secretOf(secrets, SecretKind.Password),
       database: connection.database,
       tls,
+      isReadOnly: connection.isReadOnly,
       onUnexpectedClose: watch.report,
     })
     return { engine, engineSession, close: closer(engineSession, tunnel, watch) }

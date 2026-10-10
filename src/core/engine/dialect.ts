@@ -32,6 +32,11 @@ export interface Dialect {
   // What goes before a statement to show its plan, and to run it and measure each step.
   readonly explainPrefix: string
   readonly explainAnalyzePrefix: string
+  // Whether DDL runs inside a transaction (PostgreSQL) or commits the open one first (MySQL).
+  readonly hasTransactionalDdl: boolean
+  // Functions that change something when a query calls them (sequences, locks, other sessions,
+  // files): a query that calls one does not only read.
+  readonly sideEffectFunctions: readonly string[]
 }
 
 const NUL = '\u0000'
