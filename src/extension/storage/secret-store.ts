@@ -15,7 +15,7 @@ export type SecretChanges = ReadonlyMap<SecretKind, string>
 const SECRET_TIMEOUT_SECONDS = 10
 const MILLISECONDS_PER_SECOND = 1000
 export const SECRET_TIMEOUT_MS = SECRET_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND
-const KEYRING_TIMEOUT = `The system keyring did not answer within ${String(SECRET_TIMEOUT_SECONDS)} seconds, so sqldoro cannot read or save passwords. Make sure a keyring is running (gnome-keyring or KWallet on Linux), or start VS Code with --password-store=basic.`
+const KEYRING_TIMEOUT = `The system keyring did not answer within ${String(SECRET_TIMEOUT_SECONDS)} seconds, so sqldoro cannot read or save passwords. If VS Code asked how to store secrets, answer it and try again; otherwise make sure a keyring is running (gnome-keyring or KWallet on Linux), or start VS Code with --password-store=basic.`
 
 function keyOf(id: string, kind: SecretKind): string {
   return `sqldoro.connection.${id}.${kind}`

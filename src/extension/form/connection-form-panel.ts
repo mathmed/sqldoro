@@ -5,6 +5,7 @@ import { parseFormViewMessage } from '../../core/connection-form/parse-webview-m
 import {
   type FormHostMessage,
   FormHostMessageType,
+  FormMode,
   type FormSetup,
   type FormViewMessage,
   FormViewMessageType,
@@ -12,7 +13,11 @@ import {
 } from '../../core/connection-form/protocol.ts'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { FIELD_LABELS, labelOf } from '../../core/connection/labels.ts'
-import { applySecretChanges } from '../../core/connection/secrets.ts'
+import {
+  applySecretChanges,
+  type ConnectionSecrets,
+  type SecretKind,
+} from '../../core/connection/secrets.ts'
 import type { PathField } from '../../core/connection/transitions.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { SecretChanges } from '../storage/secret-store.ts'
@@ -164,7 +169,7 @@ export class ConnectionFormPanel {
       return { isSuccess: false, message: `Fix the connection first: ${issue.message}` }
     }
     try {
-      const stored = await this.#services.secrets.read(connection)
+      const stored = await this.#storedSecrets(connection)
       const secrets = applySecretChanges(stored, this.#secretChangesOf(draft))
       return {
         isSuccess: true,
@@ -173,6 +178,13 @@ export class ConnectionFormPanel {
     } catch (error) {
       return { isSuccess: false, message: describeError(error) }
     }
+  }
+
+  // A new connection has nothing stored: it tests with what was typed, and needs no keyring.
+  async #storedSecrets(connection: ConnectionConfig): Promise<ConnectionSecrets> {
+    return this.#request.mode === FormMode.New
+      ? new Map<SecretKind, string>()
+      : this.#services.secrets.read(connection)
   }
 
   async #save(draft: SubmittedDraft): Promise<void> {

@@ -112,7 +112,7 @@ describe('SecretStore', () => {
 
   describe('a keyring that does not answer', () => {
     const KEYRING_TIMEOUT =
-      'The system keyring did not answer within 10 seconds, so sqldoro cannot read or save passwords. Make sure a keyring is running (gnome-keyring or KWallet on Linux), or start VS Code with --password-store=basic.'
+      'The system keyring did not answer within 10 seconds, so sqldoro cannot read or save passwords. If VS Code asked how to store secrets, answer it and try again; otherwise make sure a keyring is running (gnome-keyring or KWallet on Linux), or start VS Code with --password-store=basic.'
 
     afterEach(() => {
       vi.useRealTimers()

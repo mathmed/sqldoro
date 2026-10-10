@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { FakeMemento } from '../../../test/fakes/extension-context.ts'
 import { saved } from '../../../test/support/commands.ts'
@@ -63,6 +63,21 @@ describe('testing from the form', () => {
       new Map([[SecretKind.Password, 'from-url']]),
       new Map([[SecretKind.Password, 'x']]),
     ])
+  })
+
+  it('should test a new connection with what was typed, without asking the keyring', async () => {
+    const read = vi.spyOn(harness.commands.storage, 'get')
+    const panel = await harness.loaded({ mode: FormMode.New })
+
+    await fromForm(panel, {
+      type: 'test',
+      draft: draft(SHOP, [{ kind: 'password', value: 'typed' }]),
+    })
+
+    expect(harness.test.mock.calls.map(([, secrets]) => secrets)).toStrictEqual([
+      new Map([[SecretKind.Password, 'typed']]),
+    ])
+    expect(read).not.toHaveBeenCalled()
   })
 
   it("should show the server's error", async () => {
