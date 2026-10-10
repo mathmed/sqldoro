@@ -3,10 +3,12 @@
 //
 //   src/core       engine interface, shared types and safety guards: pure TypeScript
 //   src/drivers    one folder per database (mysql, postgres) implementing the core engine interface
+//   src/tunnel     SSH tunnel implementing the core tunnel interface with ssh2
 //   src/extension  VS Code extension host: commands, views, secrets; wires drivers in factories/
 //   src/webview    React result grid running in the browser sandbox of a webview
 
-const DATABASE_CLIENTS = 'node_modules/(@types/)?(mysql|mysql2|mariadb|pg|pg-[^/]+|postgres|ssh2)/'
+const DATABASE_CLIENTS = 'node_modules/(@types/)?(mysql|mysql2|mariadb|pg|pg-[^/]+|postgres)/'
+const SSH_CLIENTS = 'node_modules/(@types/)?ssh2/'
 const UI_LIBRARIES = 'node_modules/(@types/)?(react|react-dom|preact|@vscode-elements/[^/]+)/'
 const TEST_FILE = '\\.test\\.ts$'
 
@@ -20,7 +22,7 @@ export default {
         'host and the webview depend on it, never the other way around.',
       severity: 'error',
       from: { path: '^src/core/' },
-      to: { path: '^src/(drivers|extension|webview)/' },
+      to: { path: '^src/(drivers|tunnel|extension|webview)/' },
     },
     {
       name: 'core-is-platform-agnostic',
@@ -33,17 +35,21 @@ export default {
     },
     {
       name: 'core-has-no-database-or-ui-libraries',
-      comment: 'Database and SSH clients belong to the drivers, UI libraries to the webview.',
+      comment:
+        'Database clients belong to the drivers, the SSH client to the tunnel, UI libraries to ' +
+        'the webview.',
       severity: 'error',
       from: { path: '^src/core/' },
-      to: { path: [DATABASE_CLIENTS, UI_LIBRARIES] },
+      to: { path: [DATABASE_CLIENTS, SSH_CLIENTS, UI_LIBRARIES] },
     },
     {
       name: 'drivers-do-not-know-the-host-or-the-webview',
-      comment: 'A driver only implements the core engine interface: no VS Code API, no UI.',
+      comment:
+        'A driver only implements the core engine interface: no VS Code API, no UI, no SSH (the ' +
+        'core opens the tunnel and hands the driver an endpoint).',
       severity: 'error',
       from: { path: '^src/drivers/' },
-      to: { path: ['^src/(extension|webview)/', '^vscode$', UI_LIBRARIES] },
+      to: { path: ['^src/(tunnel|extension|webview)/', '^vscode$', SSH_CLIENTS, UI_LIBRARIES] },
     },
     {
       name: 'drivers-are-independent',
@@ -53,13 +59,24 @@ export default {
       to: { path: '^src/drivers/', pathNot: '^src/drivers/$1/' },
     },
     {
+      name: 'tunnel-only-knows-the-core',
+      comment:
+        'The SSH tunnel implements the core tunnel interface with ssh2 and Node.js: no driver, ' +
+        'no database client, no VS Code API, no UI.',
+      severity: 'error',
+      from: { path: '^src/tunnel/' },
+      to: {
+        path: ['^src/(drivers|extension|webview)/', '^vscode$', DATABASE_CLIENTS, UI_LIBRARIES],
+      },
+    },
+    {
       name: 'only-the-composition-root-imports-drivers',
       comment:
-        'The extension host talks to databases through the core engine interface; concrete ' +
-        'drivers are instantiated only in src/extension/factories/.',
+        'The extension host talks to databases through the core engine and tunnel interfaces; ' +
+        'concrete drivers and the SSH tunnel are instantiated only in src/extension/factories/.',
       severity: 'error',
       from: { path: '^src/extension/', pathNot: '^src/extension/factories/' },
-      to: { path: '^src/drivers/' },
+      to: { path: '^src/(drivers|tunnel)/' },
     },
     {
       name: 'extension-host-does-not-import-the-webview',
@@ -73,12 +90,12 @@ export default {
     {
       name: 'webview-is-isolated-from-the-host',
       comment:
-        'The webview runs in a browser sandbox: no extension host code, no drivers, no vscode ' +
-        'module (it talks to the host through acquireVsCodeApi), no Node.js built-ins, no ' +
-        'database clients.',
+        'The webview runs in a browser sandbox: no extension host code, no drivers, no tunnel, ' +
+        'no vscode module (it talks to the host through acquireVsCodeApi), no Node.js ' +
+        'built-ins, no database or SSH clients.',
       severity: 'error',
       from: { path: '^src/webview/' },
-      to: { path: ['^src/(extension|drivers)/', DATABASE_CLIENTS] },
+      to: { path: ['^src/(extension|drivers|tunnel)/', DATABASE_CLIENTS, SSH_CLIENTS] },
     },
     {
       name: 'webview-runs-in-the-browser',

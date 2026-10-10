@@ -68,6 +68,61 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The drivers and the SSH tunnel against real servers. The service containers use the images,
+  # versions, throwaway credentials and ports of test/integration/compose.yaml (keep both in sync);
+  # the SSH server reaches the databases by their service names, mysql and postgres.
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4.11
+        env:
+          MYSQL_ROOT_PASSWORD: sqldoro-root
+          MYSQL_DATABASE: sqldoro
+          MYSQL_USER: sqldoro
+          MYSQL_PASSWORD: sqldoro-it
+        ports: ["33306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -usqldoro -psqldoro-it"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 60
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: sqldoro
+          POSTGRES_PASSWORD: sqldoro-it
+          POSTGRES_DB: sqldoro
+        ports: ["35432:5432"]
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U sqldoro -d sqldoro"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 60
+      ssh:
+        image: testcontainers/sshd:1.3.0
+        env:
+          PASSWORD: sqldoro-it
+        ports: ["32222:22"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Integration tests (MySQL, PostgreSQL, SSH)
+        run: node scripts/quality-report.ts run integration -- npm run test:integration
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-integration
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
   architecture:
     runs-on: ubuntu-latest
     steps:
@@ -122,7 +177,7 @@ jobs:
 
   quality-report:
     if: always() && github.event_name == 'pull_request'
-    needs: [lint, quality, architecture, smoke, mutation]
+    needs: [lint, quality, integration, architecture, smoke, mutation]
     runs-on: ubuntu-latest
     permissions:
       contents: read

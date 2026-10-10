@@ -5,6 +5,7 @@ export const Analysis = {
   NpmAudit: 'npm-audit',
   Knip: 'knip',
   Vitest: 'vitest',
+  Integration: 'integration',
   DependencyCruiser: 'dependency-cruiser',
   Build: 'build',
   Smoke: 'smoke',

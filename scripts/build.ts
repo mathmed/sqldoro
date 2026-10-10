@@ -9,7 +9,9 @@ try {
     platform: 'node',
     format: 'cjs',
     target: 'node24',
-    external: ['vscode'],
+    // cpu-features is an optional native addon of ssh2, never built here (npm runs no install
+    // scripts): ssh2 loads it in a try block and falls back to plain JavaScript without it.
+    external: ['vscode', 'cpu-features'],
     minify: true,
     sourcemap: true,
     logLevel: 'info',

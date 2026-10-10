@@ -11,7 +11,8 @@ findings. Never edit files, commit or push.
 
 1. Get the diff: `git fetch origin && git diff origin/main...HEAD` (or `gh pr diff <number>` for a PR).
 2. Read the changed files in full, and the files they touch, before judging.
-3. Run `make quality`, `make smoke` and `make mutation-changed` and include any failure in the report.
+3. Run `make quality`, `make integration`, `make smoke` and `make mutation-changed` and include any failure
+   in the report.
 4. Check:
    - **Layers**: `src/core` imports no platform API, driver, host or webview code; drivers only import
      the core; only `src/extension/factories/` instantiates drivers; the host and the webview never

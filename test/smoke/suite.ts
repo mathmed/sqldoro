@@ -7,6 +7,9 @@ import { CommandId } from '../../src/extension/command-id.ts'
 
 const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`
 const CONTRIBUTED_COMMANDS = manifest.contributes.commands.map(({ command }) => command)
+const CONTRIBUTED_VIEWS = Object.values(manifest.contributes.views)
+  .flat()
+  .map(({ id }) => id)
 const MILLISECONDS_PER_SECOND = 1000
 
 export async function run(): Promise<void> {
@@ -14,6 +17,7 @@ export async function run(): Promise<void> {
     report(`VS Code ${vscode.version}`)
     await activate(findExtension())
     await expectContributedCommandsRegistered()
+    await expectContributedViewsShown()
     await probeHelloCommand()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
@@ -47,6 +51,21 @@ async function expectContributedCommandsRegistered(): Promise<void> {
     throw new Error(`contributed commands not registered after activation: ${missing.join(', ')}`)
   }
   report(`contributed commands registered: ${String(CONTRIBUTED_COMMANDS.length)}`)
+}
+
+// VS Code registers <view>.focus for every view it knows; focusing it asks the extension for the
+// tree, and refreshing it goes through the tree data provider.
+async function expectContributedViewsShown(): Promise<void> {
+  const registered = new Set(await vscode.commands.getCommands(true))
+  const missing = CONTRIBUTED_VIEWS.filter((view) => !registered.has(`${view}.focus`))
+  if (missing.length > 0) {
+    throw new Error(`contributed views not registered after activation: ${missing.join(', ')}`)
+  }
+  for (const view of CONTRIBUTED_VIEWS) {
+    await vscode.commands.executeCommand(`${view}.focus`)
+  }
+  await vscode.commands.executeCommand(CommandId.Refresh)
+  report(`contributed views registered: ${String(CONTRIBUTED_VIEWS.length)}`)
 }
 
 async function probeHelloCommand(): Promise<void> {

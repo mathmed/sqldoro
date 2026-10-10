@@ -10,7 +10,8 @@ const PASSED = `>> launching VS Code stable with the extension under development
 [main 2026-10-10T01:27:42.568Z] update#ctor - updates are disabled by the environment
 >> VS Code 1.141.0
 >> extension mathmed.sqldoro activated in 0.194s
->> contributed commands registered: 2
+>> contributed commands registered: 12
+>> contributed views registered: 1
 >> sqldoro.hello -> Hello from sqldoro (development)!
 >> smoke OK`
 
@@ -22,8 +23,17 @@ describe('analyzeSmoke', () => {
   it('should report the activation time, VS Code version and commands', () => {
     expect(analyzeSmoke(smoke(PASSED, 0))).toStrictEqual({
       status: Status.Ok,
-      summary: 'Activated in 0.194s on VS Code 1.141.0 · 2 contributed commands registered',
+      summary:
+        'Activated in 0.194s on VS Code 1.141.0 · 12 contributed commands and 1 contributed view registered',
     })
+  })
+
+  it('should report the commands alone when the views are not reported', () => {
+    const output = '>> VS Code 1.141.0\n>> contributed commands registered: 1\n>> smoke OK'
+
+    expect(analyzeSmoke(smoke(output, 0)).summary).toBe(
+      'Activated on VS Code 1.141.0 · 1 contributed command registered',
+    )
   })
 
   it('should not need the suite lines to be ok', () => {

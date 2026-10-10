@@ -22,6 +22,8 @@ make lint-arch         # architecture contracts (dependency-cruiser)
 make dead-code         # unused files, exports and dependencies (knip)
 make audit             # known vulnerabilities in the dependencies (npm audit)
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
+make integration       # start the test servers (Docker Compose), run the integration tests against them
+make integration-down  # stop and remove the integration test servers
 make smoke             # build, then run the extension in a real VS Code
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
@@ -36,6 +38,7 @@ Always use `npm ci` / `npm install` (never another package manager) and commit `
 ```
 src/core/       engine interface, shared types and safety guards: pure TypeScript, no platform API
 src/drivers/    one folder per database (mysql/, postgres/) implementing the core engine interface
+src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React result grid: a browser bundle loaded by the webview
 scripts/        CI tooling: build, smoke launcher, mutation runner and the Quality Report
@@ -46,9 +49,12 @@ test/           test support: the vscode fake for unit tests and the suite that 
   built-ins (it also runs in the webview) nor database, SSH or UI libraries. Platform services reach it
   through interfaces it declares. `make typecheck` checks it without Node.js or DOM types.
 - A driver implements the core engine interface and imports only the core and its own database client.
-  Drivers never import each other, `vscode`, the extension host or the webview.
-- The extension host talks to databases through the core engine interface; only
-  `src/extension/factories/` instantiates concrete drivers.
+  Drivers never import each other, the tunnel, the SSH client, `vscode`, the extension host or the
+  webview. The core opens the SSH tunnel and hands the driver an endpoint.
+- The SSH tunnel implements the core tunnel interface and imports only the core, `ssh2` and Node.js.
+- The extension host talks to databases through the core engine and tunnel interfaces; only
+  `src/extension/factories/` instantiates concrete drivers and the SSH tunnel. Supporting another
+  engine means writing its driver and registering it in `src/extension/factories/engines.ts`.
 - The extension host and the webview never import each other: they share types and the message
   protocol through the core. The webview never imports `vscode` (it uses `acquireVsCodeApi()`), Node.js
   built-ins or database clients.
@@ -66,15 +72,26 @@ test/           test support: the vscode fake for unit tests and the suite that 
   `quality-report`, and tests (see the README, "Quality Report"). The wrapper keeps the tool's exit
   code: the job stays the gate.
 - Every change comes with tests.
+- Driver and network code:
+  - every event emitter of a client library (database connections, sockets, SSH clients and
+    channels) gets an `error` listener as soon as it exists: an unhandled `error` event would crash
+    the extension host;
+  - nothing parses, validates or throws inside a library callback or event handler: resolve with the
+    raw value and validate after `await`, or record the failure and settle once;
+  - certificates are verified against the database host name, also through the SSH tunnel;
+  - unit tests stand in for the database servers with the fakes of the client libraries in
+    `test/fakes/` (the external boundary); the integration tests run against real servers.
 
 ## Before opening a PR (mandatory)
 
 1. `make quality` passes. A PR with failing checks is not a PR.
 2. `make smoke` passes when the change touches the extension host, the manifest or the build.
 3. `make mutation-changed` passes when the change touches `src/core`.
-4. Contributed commands, settings and views are not removed or renamed unless the task asks for it:
+4. `make integration` passes when the change touches the drivers, the tunnel or how the core opens a
+   session (it needs Docker).
+5. Contributed commands, settings and views are not removed or renamed unless the task asks for it:
    they are the public contract of the extension.
-5. The README is updated if the change affects setup, commands, settings, scope or architecture.
+6. The README is updated if the change affects setup, commands, settings, scope or architecture.
 
 ## Deterministic validation
 
@@ -100,7 +117,10 @@ contract needs the owner's explicit approval.
   only ever raises the numbers in `vitest.config.ts`). Write the missing test or remove the unreachable
   code. Only the command-line entry points `scripts/*.ts` are excluded: CI runs them for real.
 - **Smoke**: `make smoke` launches a real VS Code with the built extension. It must activate, register
-  every contributed command and answer `sqldoro.hello`.
+  every contributed command and view and answer `sqldoro.hello`.
+- **Integration**: the `integration` job runs `make integration`'s tests against real MySQL,
+  PostgreSQL and OpenSSH service containers; `test/integration/compose.yaml` starts the same servers
+  locally. Keep both definitions in sync.
 - **Mutation testing** runs on every PR (`Mutation testing` workflow, only the `src/core` files changed
   in the diff) and weekly on the whole core. The job fails when the score is below `MUTATION_MIN_SCORE`
   (repository variable, default 95). Survivors are listed in the Quality Report and the job summary with

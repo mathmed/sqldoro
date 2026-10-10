@@ -3,8 +3,9 @@ import { finding, type Finding, textDetails } from '../finding.ts'
 import { type Fragment, hasPassed } from '../fragment.ts'
 import { Status } from '../status.ts'
 
-// esbuild prints one "  <file>  <size>" line per output file, then "⚡ Done in <time>".
-const BUNDLE_LINE = /^\s+(\S+\.c?js)\s+(\d[\d.]*[a-z]*b)$/i
+// esbuild prints one "  <file>  <size>" line per output file, with a ⚠️ after the size of a large
+// one, then "⚡ Done in <time>".
+const BUNDLE_LINE = /^\s+(\S+\.c?js)\s+(\d[\d.]*[a-z]*b)(?: (\u26A0\uFE0F))?$/iu
 const DONE_LINE = /Done in (\S+)$/m
 const ERROR_LINE = /^✘ \[ERROR\] /
 
@@ -28,8 +29,8 @@ function parseBundle(line: string): string | undefined {
   if (match === null) {
     return undefined
   }
-  const [, file = '', size = ''] = match
-  return `${file} ${size}`
+  const [, file = '', size = '', marker] = match
+  return marker === undefined ? `${file} ${size}` : `${file} ${size} ${marker}`
 }
 
 function failedBuild(output: string): Finding {

@@ -7,6 +7,7 @@ import {
   LINT_FAMILY,
   SECURITY_FAMILY,
 } from './analyzers/eslint.ts'
+import { analyzeIntegration } from './analyzers/integration.ts'
 import { analyzeKnip } from './analyzers/knip.ts'
 import { analyzeMutation } from './analyzers/mutation.ts'
 import { analyzeNpmAudit } from './analyzers/npm-audit.ts'
@@ -22,6 +23,7 @@ import type { Fragment } from './fragment.ts'
 export const Job = {
   Lint: 'lint',
   Quality: 'quality',
+  Integration: 'integration',
   Architecture: 'architecture',
   Smoke: 'smoke',
   Mutation: 'mutation',
@@ -94,6 +96,17 @@ export const SECTIONS: readonly Section[] = [
     title: 'Tests and coverage (Vitest)',
     checks: [
       { analysis: Analysis.Vitest, job: Job.Quality, label: 'vitest', analyze: analyzeVitest },
+    ],
+  },
+  {
+    title: 'Integration tests (MySQL, PostgreSQL, SSH)',
+    checks: [
+      {
+        analysis: Analysis.Integration,
+        job: Job.Integration,
+        label: 'integration',
+        analyze: analyzeIntegration,
+      },
     ],
   },
   {

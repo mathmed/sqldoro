@@ -8,6 +8,7 @@ const REPORT_LINE = /^>> /
 const VERSION_LINE = /^>> VS Code (\S+)$/m
 const ACTIVATED_LINE = /^>> extension \S+ activated in ([\d.]+)s$/m
 const COMMANDS_LINE = /^>> contributed commands registered: (\d+)$/m
+const VIEWS_LINE = /^>> contributed views registered: (\d+)$/m
 const SUITE_FAILURE = /^>> smoke: (\S.*)$/m
 const LAUNCH_FAILURE = /^>> smoke FAILED: (\S.*)$/m
 
@@ -21,13 +22,23 @@ export function analyzeSmoke(fragment: Fragment): Finding {
 }
 
 function passedSummary(output: string): string {
-  const commands = COMMANDS_LINE.exec(output)?.[1]
   const activation = `${activationTime(output)}${hostVersion(output)}`
-  if (commands === undefined) {
-    return activation
-  }
-  const registered = plural(Number(commands), 'contributed command', 'contributed commands')
-  return `${activation} · ${registered} registered`
+  const registered = [
+    countOf(COMMANDS_LINE, output, ['contributed command', 'contributed commands']),
+    countOf(VIEWS_LINE, output, ['contributed view', 'contributed views']),
+  ].filter((count) => count !== '')
+  return registered.length === 0
+    ? activation
+    : `${activation} · ${registered.join(' and ')} registered`
+}
+
+function countOf(
+  line: RegExp,
+  output: string,
+  [singular, pluralForm]: readonly [string, string],
+): string {
+  const count = line.exec(output)?.[1]
+  return count === undefined ? '' : plural(Number(count), singular, pluralForm)
 }
 
 function activationTime(output: string): string {

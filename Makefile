@@ -1,4 +1,4 @@
-.PHONY: setup build format lint typecheck test lint-arch dead-code audit quality smoke mutation mutation-changed all
+.PHONY: setup build format lint typecheck test lint-arch dead-code audit quality integration integration-down smoke mutation mutation-changed all
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
 XVFB := $(if $(DISPLAY),,$(shell command -v xvfb-run >/dev/null 2>&1 && echo xvfb-run -a))
@@ -45,6 +45,17 @@ audit:
 # Every check of the pre-commit hook and of the lint, quality and architecture CI jobs
 quality: lint typecheck test lint-arch dead-code audit
 
+# Integration tests: the drivers and the SSH tunnel against real MySQL, PostgreSQL and SSH servers,
+# started with Docker Compose (test/integration/compose.yaml) and left running for the next run
+INTEGRATION_COMPOSE := docker compose -f test/integration/compose.yaml
+integration:
+	$(INTEGRATION_COMPOSE) up -d --wait
+	npm run test:integration
+
+# Stop and remove the integration test servers
+integration-down:
+	$(INTEGRATION_COMPOSE) down --volumes
+
 # Build the extension and run it in a real VS Code: it must activate and register its commands
 smoke: build
 	$(XVFB) npm run smoke
@@ -59,4 +70,4 @@ mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
 # Everything CI runs on a pull request
-all: quality smoke mutation-changed
+all: quality integration smoke mutation-changed
