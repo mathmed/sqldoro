@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.vsix
+*.tsbuildinfo
+
+# Coverage and mutation testing (Stryker)
+coverage/
+reports/
+.stryker-tmp/
+
+# VS Code downloaded by the smoke test (@vscode/test-electron)
+.vscode-test/
+
+# Quality Report fragments (scripts/quality-report.ts)
+quality-fragments/
+quality-report.md
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Operating systems and editors
+.DS_Store
+.idea/
+
+# Claude Code
+.claude/settings.local.json
+.local_dev

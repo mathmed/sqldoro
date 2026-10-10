@@ -1,0 +1,97 @@
+{
+  "name": "sqldoro",
+  "displayName": "sqldoro",
+  "description": "A fast, safe MySQL and PostgreSQL client for VS Code.",
+  "version": "0.0.1",
+  "publisher": "mathmed",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mathmed/sqldoro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mathmed/sqldoro/issues"
+  },
+  "homepage": "https://github.com/mathmed/sqldoro#readme",
+  "keywords": [
+    "database",
+    "mysql",
+    "postgres",
+    "postgresql",
+    "sql"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.2.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "onFail": "error"
+    }
+  },
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqldoro.hello",
+        "title": "Hello",
+        "category": "sqldoro"
+      }
+    ]
+  },
+  "scripts": {
+    "hooks": "lefthook install",
+    "build": "node scripts/build.ts",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint:arch": "depcruise src scripts test",
+    "dead-code": "knip --treat-config-hints-as-errors",
+    "smoke": "node scripts/smoke.ts",
+    "mutation": "node scripts/mutation.ts full",
+    "mutation:changed": "node scripts/mutation.ts changed"
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^10.0.1",
+    "@stryker-mutator/api": "^10.0.0",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/typescript-checker": "^10.0.0",
+    "@types/eslint-plugin-no-unsanitized": "^4.1.0",
+    "@types/node": "^24.19.2",
+    "@types/vscode": "1.140.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
+    "@vscode/test-electron": "^3.1.0",
+    "dependency-cruiser": "^18.5.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-no-unsanitized": "^4.1.5",
+    "eslint-plugin-perfectionist": "^5.12.1",
+    "eslint-plugin-security": "^4.2.0",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "jiti": "^2.7.0",
+    "knip": "^6.41.0",
+    "lefthook": "^2.2.1",
+    "prettier": "^3.9.9",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  }
+}
