@@ -51,6 +51,12 @@ describe('EditorTransactions', () => {
     expect(sut.of('other').mode).toBe('manual')
   })
 
+  it('should run the rows of a table in auto-commit whatever the settings say', () => {
+    mode = TransactionMode.Manual
+
+    expect(sut.of('sqldoro-table:/orders?{}').mode).toBe('auto')
+  })
+
   it('should switch modes between transactions, and tell who listens', () => {
     const listener = vi.fn()
     sut.onDidChange(listener)

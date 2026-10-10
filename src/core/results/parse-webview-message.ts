@@ -24,6 +24,10 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [WebviewMessageType.Export, readExport],
   [WebviewMessageType.FetchCell, readFetchCell],
   [WebviewMessageType.LoadAll, readLoadAll],
+  [
+    WebviewMessageType.Refresh,
+    (message) => ({ type: WebviewMessageType.Refresh, tabId: readString(message, 'tabId') }),
+  ],
   [WebviewMessageType.Problem, readProblem],
   [WebviewMessageType.Edit, readEdit],
   [

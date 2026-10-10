@@ -31,15 +31,20 @@ built to make the dangerous queries hard and the everyday ones quick.
 - **Read-only by default**: a new connection refuses anything that may write, in sqldoro and in the
   database session, until you allow writes on it.
 - **Schema explorer**: databases, schemas, tables and views, columns, indexes and foreign keys,
-  loaded as you open them, with a filter by name.
+  loaded as you open them, with a filter by name. Click a table or view to open its rows in a result
+  panel of their own (**Open Table Data**, also an inline button and the first entry of its context
+  menu), without writing a query: sqldoro reads `SELECT * FROM` the table through the guards, with the
+  automatic `LIMIT`, on a session of the panel's own, and **Refresh** reads the rows again. These
+  reads are sqldoro's own: the query history does not keep them.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
-- **A result grid that stays fast**: virtualized in rows and columns, so a million rows or a thousand
-  columns scroll smoothly. Sort and filter (on the rows already fetched, or on the server), select
-  cells, copy them as TSV, CSV, JSON or `INSERT` statements, and export the whole result to CSV, JSON
-  or SQL. `NULL` and the empty string look different, `BIGINT`, `DECIMAL` and dates are shown exactly
-  as the server sent them, and long text, JSON and binary values open in a detail pane.
+- **A result grid that stays fast**, beside each SQL editor and for each table opened from the
+  explorer: virtualized in rows and columns, so a million rows or a thousand columns scroll smoothly.
+  Sort and filter (on the rows already fetched, or on the server), select cells, copy them as TSV,
+  CSV, JSON or `INSERT` statements, and export the whole result to CSV, JSON or SQL. `NULL` and the
+  empty string look different, `BIGINT`, `DECIMAL` and dates are shown exactly as the server sent
+  them, and long text, JSON and binary values open in a detail pane.
 - **Inline editing with an SQL preview**: change the rows of a table in the grid, add, duplicate and
   delete rows, then preview the exact statements and their bound values before anything is written.
   The changes apply in one transaction, all or nothing, and a row someone changed meanwhile is
@@ -60,11 +65,12 @@ built to make the dangerous queries hard and the everyday ones quick.
    password and database of **Main**; **SSL/TLS** and **SSH Tunnel** when you need them), then
    **Test Connection** and **Save**. New connections are read-only; tag production connections
    `prod`.
-2. Select **New Query** on the connection, a database or a schema. Type a statement and press
-   `Ctrl+Enter` (`Cmd+Enter` on macOS): the results open beside the editor.
-3. To change data, run **Allow Writes** on the connection, run a plain `SELECT` of one table that
-   includes its primary key, edit cells in the grid and press `Ctrl+S` (`Cmd+S`) to preview the
-   changes.
+2. Click a table in the explorer to see its rows, or select **New Query** on the connection, a
+   database or a schema. Type a statement and press `Ctrl+Enter` (`Cmd+Enter` on macOS): the results
+   open beside the editor.
+3. To change data, run **Allow Writes** on the connection, open a table with a primary key (or run a
+   plain `SELECT` of one table that includes it), edit cells in the grid and press `Ctrl+S` (`Cmd+S`)
+   to preview the changes.
 
 **sqldoro: Get Started** opens the walkthrough of these steps, and **sqldoro: About sqldoro and Its
 Safety Model** recaps the guards. On Linux without a keyring (gnome-keyring, KWallet), VS Code may ask
@@ -91,6 +97,7 @@ editor where it applies.
 | **Refresh**                            |                                                | Reloads a node of the explorer, or all of it.                                                      |
 | **Filter Tables and Views**            |                                                | Shows only the tables and views whose name contains some text.                                     |
 | **Clear Filter**                       |                                                | Shows every table and view again.                                                                  |
+| **Open Table Data**                    |                                                | Opens the rows of a table or view (a click on it in the explorer) in a result panel of their own.  |
 | **Show DDL**                           |                                                | Opens the `CREATE` statement of a table or view (from the explorer).                               |
 | **New Query**                          |                                                | Opens a SQL editor on a connection, database or schema.                                            |
 | **Change Editor Connection**           |                                                | Binds the SQL editor to another connection, database or schema.                                    |
@@ -154,14 +161,14 @@ grants the work needs (a read-only role for browsing production), and treat the 
 seat belts, not as access control.
 
 **One gate for every statement.** Whatever runs a statement (Run Query, Run Script, the history, a
-saved query opened in an editor, EXPLAIN and EXPLAIN ANALYZE, sorting on the server, Load All Rows,
-and the changes applied from the grid) goes through the same guard before anything runs: it
-classifies each statement, applies the rules of the connection, asks for the confirmations they need
-and logs the decision. A script is checked whole before its first statement runs, and the runner
-refuses any statement the guard did not see. Only sqldoro's own statements bypass it: the catalog
-queries of the explorer, `START TRANSACTION`, `COMMIT`, `ROLLBACK`, the savepoint of an apply that
-joins an open transaction (`SAVEPOINT`, `RELEASE SAVEPOINT`, `ROLLBACK TO SAVEPOINT`) and the
-transaction status probe.
+saved query opened in an editor, EXPLAIN and EXPLAIN ANALYZE, the rows of a table opened from the
+explorer and their Refresh, sorting on the server, Load All Rows, and the changes applied from the
+grid) goes through the same guard before anything runs: it classifies each statement, applies the
+rules of the connection, asks for the confirmations they need and logs the decision. A script is
+checked whole before its first statement runs, and the runner refuses any statement the guard did not
+see. Only sqldoro's own statements bypass it: the catalog queries of the explorer,
+`START TRANSACTION`, `COMMIT`, `ROLLBACK`, the savepoint of an apply that joins an open transaction
+(`SAVEPOINT`, `RELEASE SAVEPOINT`, `ROLLBACK TO SAVEPOINT`) and the transaction status probe.
 
 **The classifier is best effort, and fails closed.** It reads each statement with the lexical rules
 of its dialect (strings, quoted names, comments, MySQL's `/*! */` comments, which MySQL runs,
@@ -221,8 +228,10 @@ The grid writes only what it can write exactly, to the row it read, and says so 
 - **The transaction.** An apply runs in a transaction of its own and commits only if every statement
   changed exactly the row it had to; a failure, a conflict or any other count rolls everything back,
   and the result says which row stopped it and why. In manual mode, or when the editor has a
-  transaction open, the apply runs inside a savepoint of it, and committing stays yours. MySQL edits
-  need strict SQL mode, so that a value the column cannot hold is refused instead of cut.
+  transaction open, the apply runs inside a savepoint of it, and committing stays yours. A table
+  opened from the explorer always runs in auto-commit, so its changes apply in a transaction of their
+  own. MySQL edits need strict SQL mode, so that a value the column cannot hold is refused instead of
+  cut.
 
 ## Known limits
 

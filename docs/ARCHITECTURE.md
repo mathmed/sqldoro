@@ -158,6 +158,17 @@ shows up to 200,000. Every message is typed in `src/core/results/protocol.ts` an
 field by the core parsers on the side that receives it. The page has a strict Content Security
 Policy: one script with a nonce, styles and images from the extension only, no remote resource.
 
+## Table data
+
+A table or view opened from the explorer is a source of results like a SQL editor, keyed by a URI of
+its own instead of a document URI: `sqldoro-table:` with the connection, the database, the schema
+and the table (`src/extension/tables/table-uri.ts`). The same key finds its result panel, its
+database session and its transaction, so opening the table again shows the panel it has, and closing
+the panel gives the session back; disconnecting or deleting the connection closes it. Its binding
+comes from the URI and its transaction mode is always auto-commit. The core builds its statement
+(`tableDataQuery`, with the quoting of the dialect), and it runs through `QueryRunner.perform` like
+any other run, so the guards, the automatic limit and the editing of rows apply unchanged.
+
 ## The connection form
 
 **Add Connection**, **Import Connection from URL** and **Edit Connection** open the connection form,

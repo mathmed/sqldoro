@@ -1,6 +1,13 @@
 import type * as vscode from 'vscode'
 
-// How messages and titles name the document of an editor: the last part of its path.
+import { tableDataTitle } from '../../core/results/table-data.ts'
+import { tableTargetOf } from '../tables/table-uri.ts'
+
+// How messages and titles name the source of results: the last part of the path of an editor's
+// document, or the table of a table panel ("orders — sales").
 export function documentLabel(uri: vscode.Uri): string {
-  return uri.path.slice(uri.path.lastIndexOf('/') + 1)
+  const target = tableTargetOf(uri)
+  return target === undefined
+    ? uri.path.slice(uri.path.lastIndexOf('/') + 1)
+    : tableDataTitle(target.table)
 }

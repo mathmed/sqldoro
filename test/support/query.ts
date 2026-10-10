@@ -15,6 +15,7 @@ import { EditorBindings } from '../../src/extension/editor/bindings.ts'
 import { EditorSessions } from '../../src/extension/editor/editor-sessions.ts'
 import { loadAllRows } from '../../src/extension/editor/load-all.ts'
 import { QueryRunner } from '../../src/extension/editor/query-runner.ts'
+import { refreshTab } from '../../src/extension/editor/refresh-rows.ts'
 import { runServerView } from '../../src/extension/editor/server-view.ts'
 import { applyEdits } from '../../src/extension/edits/apply-edits.ts'
 import { checkEditing } from '../../src/extension/edits/edit-check.ts'
@@ -178,6 +179,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
       serverView: async (tab, view) =>
         runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
       loadAll: async (tab) => loadAllRows(runner, uri, tab),
+      refresh: async (tab) => refreshTab(runner, uri, tab),
       copy: copyRows,
       export: exportRows,
       applyEdits: async (tab, plan) =>

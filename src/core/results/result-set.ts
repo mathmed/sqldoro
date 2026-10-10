@@ -20,6 +20,8 @@ export interface ResultSetSpec {
   readonly kind: TabKind
   // Whether the statement can run again to sort and filter on the server.
   readonly canServerView: boolean
+  // Whether the view offers to read the rows again (the rows of a table opened from the explorer).
+  readonly canRefresh: boolean
 }
 
 export interface ProjectedRows {
@@ -74,6 +76,10 @@ export class ResultSet implements RowSource {
 
   get viewVersion(): number {
     return this.#viewVersion
+  }
+
+  get canRefresh(): boolean {
+    return this.#spec.canRefresh
   }
 
   get isRunning(): boolean {
@@ -201,6 +207,7 @@ export class ResultSet implements RowSource {
       viewVersion: this.#viewVersion,
       isServerView: this.#isServerView,
       canServerView: this.#spec.canServerView && this.#spec.kind === TabKind.Rows,
+      canRefresh: this.#spec.canRefresh,
       summary: this.#summary,
       error: this.#error,
       notice: this.#notice,

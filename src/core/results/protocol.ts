@@ -138,6 +138,8 @@ export interface ResultTab {
   readonly viewVersion: number
   readonly isServerView: boolean
   readonly canServerView: boolean
+  // Whether the view offers to read the rows again: the rows of a table opened from the explorer.
+  readonly canRefresh: boolean
   readonly summary: TabSummary | null
   readonly error: TabError | null
   readonly notice: string
@@ -203,6 +205,7 @@ export const WebviewMessageType = {
   FetchCell: 'fetchCell',
   Cancel: 'cancel',
   LoadAll: 'loadAll',
+  Refresh: 'refresh',
   Problem: 'problem',
   Edit: 'edit',
   PreviewEdits: 'previewEdits',
@@ -255,6 +258,8 @@ export type WebviewMessage =
   | { readonly type: typeof WebviewMessageType.Cancel }
   // Runs the statement of the tab again without its automatic limit.
   | { readonly type: typeof WebviewMessageType.LoadAll; readonly tabId: string }
+  // Reads the rows of the tab again, in its view.
+  | { readonly type: typeof WebviewMessageType.Refresh; readonly tabId: string }
   // Something the webview could not handle, for the extension's log.
   | { readonly type: typeof WebviewMessageType.Problem; readonly message: string }
   // Edits name the view they were made on: one made on another view is dropped.

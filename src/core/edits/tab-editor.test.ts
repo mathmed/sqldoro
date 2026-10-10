@@ -19,6 +19,7 @@ function rows(): ResultSet {
     sql: 'SELECT * FROM sales.orders',
     kind: 'rows',
     canServerView: true,
+    canRefresh: false,
   })
   result.describe(ORDERS_RESULT)
   result.addRows(ROWS)

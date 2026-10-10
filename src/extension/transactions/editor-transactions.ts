@@ -16,9 +16,10 @@ import {
   observe,
   switchedMode,
   TransactionEnd,
-  type TransactionMode,
+  TransactionMode,
 } from '../../core/safety/transaction.ts'
 import { describeError } from '../../core/text/errors.ts'
+import { isTableKey } from '../tables/table-uri.ts'
 
 export interface EditorTransactionsDependencies {
   readonly defaultMode: () => TransactionMode
@@ -81,7 +82,7 @@ export class EditorTransactions implements vscode.Disposable {
   }
 
   of(uri: string): EditorTransaction {
-    return this.#entries.get(uri)?.transaction ?? newTransaction(this.#dependencies.defaultMode())
+    return this.#entries.get(uri)?.transaction ?? newTransaction(this.#modeOf(uri))
   }
 
   isOpen(uri: string): boolean {
@@ -172,6 +173,11 @@ export class EditorTransactions implements vscode.Disposable {
 
   dispose(): void {
     this.#changes.dispose()
+  }
+
+  // A table panel has no editor to commit from: its rows run in auto-commit, whatever the default.
+  #modeOf(uri: string): TransactionMode {
+    return isTableKey(uri) ? TransactionMode.Auto : this.#dependencies.defaultMode()
   }
 
   #set(uri: string, entry: Entry): void {

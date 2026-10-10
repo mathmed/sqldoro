@@ -3,6 +3,7 @@ import * as vscode from 'vscode'
 import type { ObjectRef, ObjectScope } from '../../core/engine/catalog.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import { matchesFilter } from '../../core/text/filter.ts'
+import { CommandId } from '../command-id.ts'
 import {
   type ExplorerNode,
   type ItemLook,
@@ -18,6 +19,8 @@ import {
 import { columnNode, foreignKeyNode, indexNode } from './leaf-nodes.ts'
 
 type Children = (context: NodeContext) => Promise<readonly ExplorerNode[]>
+
+const OPEN_DATA = 'Open Table Data'
 
 interface Branch {
   readonly kind: NodeKind
@@ -131,35 +134,52 @@ function objectPath(object: ObjectRef): readonly string[] {
   return [object.database, object.schema, object.name]
 }
 
+// A click on the label of a table or view opens its rows; its twistie still opens what is inside.
+function opensData(node: ExplorerNode): ExplorerNode {
+  const opening: ExplorerNode = {
+    ...node,
+    treeItem: (context) => {
+      const item = node.treeItem(context)
+      item.command = { command: CommandId.OpenTableData, title: OPEN_DATA, arguments: [opening] }
+      return item
+    },
+  }
+  return opening
+}
+
 function tableNode(connectionId: string, table: ObjectRef): ExplorerNode {
-  return branch({
-    kind: NodeKind.Table,
-    connectionId,
-    path: objectPath(table),
-    place: table,
-    look: { label: table.name, icon: new vscode.ThemeIcon('table') },
-    children: () => async () =>
-      Promise.resolve([
-        columnsNode(connectionId, table),
-        indexesNode(connectionId, table),
-        foreignKeysNode(connectionId, table),
-      ]),
-  })
+  return opensData(
+    branch({
+      kind: NodeKind.Table,
+      connectionId,
+      path: objectPath(table),
+      place: table,
+      look: { label: table.name, icon: new vscode.ThemeIcon('table') },
+      children: () => async () =>
+        Promise.resolve([
+          columnsNode(connectionId, table),
+          indexesNode(connectionId, table),
+          foreignKeysNode(connectionId, table),
+        ]),
+    }),
+  )
 }
 
 function viewNode(connectionId: string, view: ObjectRef, isMaterialized: boolean): ExplorerNode {
-  return branch({
-    kind: NodeKind.View,
-    connectionId,
-    path: objectPath(view),
-    place: view,
-    look: {
-      label: view.name,
-      icon: new vscode.ThemeIcon('eye'),
-      description: isMaterialized ? 'materialized' : '',
-    },
-    children: (node) => async (context) => columnChildren(node, view, context),
-  })
+  return opensData(
+    branch({
+      kind: NodeKind.View,
+      connectionId,
+      path: objectPath(view),
+      place: view,
+      look: {
+        label: view.name,
+        icon: new vscode.ThemeIcon('eye'),
+        description: isMaterialized ? 'materialized' : '',
+      },
+      children: (node) => async (context) => columnChildren(node, view, context),
+    }),
+  )
 }
 
 async function columnChildren(

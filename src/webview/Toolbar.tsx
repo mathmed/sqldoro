@@ -7,6 +7,8 @@ import { canLoadAll } from '../core/results/tabs.ts'
 export interface ToolbarActions {
   readonly cancel: () => void
   readonly loadAll: () => void
+  // Reads the rows of a table opened from the explorer again.
+  readonly refresh: () => void
   readonly copy: (format: ExportFormat) => void
   // The selected rows, whole, as INSERT statements.
   readonly copyRows: () => void
@@ -37,7 +39,7 @@ export const Toolbar = (props: ToolbarProps): ReactElement => {
   const isRunning = tab.status === TabStatus.Running
   return (
     <div className="toolbar" role="toolbar" aria-label="Result actions">
-      {isRunning ? <CancelButton onClick={actions.cancel} /> : null}
+      <RunButton tab={tab} actions={actions} />
       {canLoadAll(tab) ? <LoadAllButton onClick={actions.loadAll} /> : null}
       <FormatButtons kind="copy" isDisabled={!props.hasSelection} onClick={actions.copy} />
       <button type="button" disabled={!props.hasSelection} onClick={actions.copyRows}>
@@ -81,6 +83,26 @@ const FormatButtons = ({ kind, isDisabled, onClick }: FormatButtonsProps): React
       onClick={onClick}
     />
   )
+
+// While the statement runs it can be cancelled; once it ran, the rows of a table can be read again.
+const RunButton = ({
+  tab,
+  actions,
+}: {
+  readonly tab: ResultTab
+  readonly actions: ToolbarActions
+}): ReactElement | null => {
+  if (tab.status === TabStatus.Running) {
+    return <CancelButton onClick={actions.cancel} />
+  }
+  return tab.canRefresh ? <RefreshButton onClick={actions.refresh} /> : null
+}
+
+const RefreshButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
+  <button type="button" className="refresh" onClick={onClick}>
+    Refresh
+  </button>
+)
 
 // The query was cut at the automatic limit: one click runs it again without it.
 const LoadAllButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (

@@ -17,6 +17,7 @@ import { EditorStatus } from './editor/editor-status.ts'
 import { EnvironmentDecorations } from './editor/environment-decorations.ts'
 import { loadAllRows } from './editor/load-all.ts'
 import { QueryRunner } from './editor/query-runner.ts'
+import { refreshTab } from './editor/refresh-rows.ts'
 import { runServerView } from './editor/server-view.ts'
 import { applyEdits } from './edits/apply-edits.ts'
 import { checkEditing } from './edits/edit-check.ts'
@@ -180,13 +181,14 @@ interface ActionParts {
   readonly access: Access
 }
 
-// What the result view of an editor asks of the extension.
+// What the result view of an editor or a table asks of the extension.
 function actionsOf(uri: vscode.Uri, { runner, editors, access }: ActionParts): PanelActions {
   return {
     cancel: () => void runner.cancel(uri),
     serverView: async (tab, view) =>
       runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
     loadAll: async (tab) => loadAllRows(runner, uri, tab),
+    refresh: async (tab) => refreshTab(runner, uri, tab),
     copy: copyRows,
     export: exportRows,
     applyEdits: async (tab, plan) =>

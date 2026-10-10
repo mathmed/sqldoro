@@ -4,7 +4,7 @@ import { ObjectKind } from '../../core/engine/catalog.ts'
 import type { Logger } from '../../core/platform.ts'
 import { CommandId } from '../command-id.ts'
 import { registerAll } from '../commands/command-context.ts'
-import { type ExplorerNode, NodeKind } from '../tree/explorer-node.ts'
+import { isObjectNode, NodeKind } from '../tree/explorer-node.ts'
 import { type DdlDocuments, ddlUri } from './ddl-documents.ts'
 
 export interface DdlCommandContext {
@@ -14,15 +14,6 @@ export interface DdlCommandContext {
 
 export function registerDdlCommands(context: DdlCommandContext): vscode.Disposable[] {
   return registerAll(context, [{ id: CommandId.ShowDdl, action: 'Show DDL', run: showDdl }])
-}
-
-function isObjectNode(value: unknown): value is ExplorerNode {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'kind' in value &&
-    (value.kind === NodeKind.Table || value.kind === NodeKind.View)
-  )
 }
 
 // From a table or view of the explorer: its definition in a read-only SQL document.

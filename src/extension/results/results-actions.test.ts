@@ -11,7 +11,7 @@ import { ResultSet } from '../../core/results/result-set.ts'
 import { copyRows, exportRows } from './results-actions.ts'
 
 function result(sql = 'SELECT id, name FROM sales.orders', count = 2): ResultSet {
-  const sut = new ResultSet({ id: 't', sql, kind: 'rows', canServerView: true })
+  const sut = new ResultSet({ id: 't', sql, kind: 'rows', canServerView: true, canRefresh: false })
   sut.describe(RESULT_COLUMNS)
   sut.addRows(
     Array.from({ length: count }, (...[, index]) => [

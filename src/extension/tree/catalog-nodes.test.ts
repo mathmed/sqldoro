@@ -92,6 +92,27 @@ describe('the catalog nodes', () => {
     ).toStrictEqual(['Columns', 'Indexes', 'Foreign Keys'])
   })
 
+  it('should open the rows of a table or a view on a click, and only theirs', async () => {
+    const { sut } = await connected()
+    const tables = await open(sut, 'Shop', 'shop', 'public', 'Tables')
+    const views = await open(sut, 'Shop', 'shop', 'public', 'Views')
+    const [orders] = tables
+    const [totals] = views
+
+    expect(itemOf(sut, tables, 'orders')).toMatchObject({
+      command: { command: 'sqldoro.openTableData', title: 'Open Table Data', arguments: [orders] },
+      collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+      contextValue: 'table',
+    })
+    expect(itemOf(sut, views, 'totals').command?.arguments).toStrictEqual([totals])
+    expect(orders?.place).toStrictEqual({ database: 'shop', schema: 'public', name: 'orders' })
+    const groups = await open(sut, 'Shop', 'shop', 'public')
+    expect(groups.map((node) => sut.getTreeItem(node).command)).toStrictEqual([
+      undefined,
+      undefined,
+    ])
+  })
+
   it('should go straight to the tables and views of an engine without schemas', async () => {
     const local = { ...newConnection('local', MYSQL), name: 'Local', user: 'root' }
     const { sut, sessions } = explorer([local], { session: CATALOG })

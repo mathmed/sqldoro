@@ -16,7 +16,7 @@ preferences.
 3. Create a branch: `git checkout -b claude/<task-slug>`.
 4. Implement the change, respecting the layers (`src/core` → engine interface, types and safety guards;
    `src/drivers` → database implementations; `src/extension` → VS Code host and wiring;
-   `src/webview` → the result grid).
+   `src/webview` → the result grid and the connection form).
 5. Write tests next to the code (`*.test.ts`). Mock only the external boundary: the VS Code API
    through `test/vscode.ts`, database servers, the network, the clock.
 6. Run `make quality`, plus `make smoke` and `make mutation-changed` when the checklist asks for them,

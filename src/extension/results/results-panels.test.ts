@@ -3,9 +3,14 @@ import type * as vscode from 'vscode'
 
 import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { resetVscode, Uri, webviewPanels } from '../../../test/vscode.ts'
+import { tableUri } from '../tables/table-uri.ts'
 import { ResultsPanels } from './results-panels.ts'
 
 const DOCUMENT = Uri.parse('untitled:Untitled-1') as unknown as vscode.Uri
+const ORDERS = tableUri({
+  connectionId: 'shop',
+  table: { database: 'shop', schema: 'sales', name: 'orders' },
+})
 let log: ReturnType<typeof recordingLogger>
 let cancel: Mock<() => void>
 
@@ -18,6 +23,7 @@ function panels(): ResultsPanels {
       cancel,
       serverView: vi.fn(),
       loadAll: vi.fn(),
+      refresh: vi.fn(),
       copy: vi.fn(),
       export: vi.fn(),
       applyEdits: vi.fn(),
@@ -82,5 +88,39 @@ describe('ResultsPanels', () => {
     sut.show(Uri.parse('file:/work/report.sql') as unknown as vscode.Uri)
     sut.dispose()
     expect(webviewPanels.every((panel) => panel.isDisposed)).toBe(true)
+  })
+
+  it('should open the panel of a table in place, named by the table', () => {
+    panels().show(ORDERS)
+
+    expect(webviewPanels[0]).toMatchObject({
+      title: 'orders — sales',
+      showOptions: { viewColumn: -1, preserveFocus: true },
+    })
+  })
+
+  it('should say which source lost its panel', () => {
+    const sut = panels()
+    const closed: string[] = []
+    sut.onDidClose((uri) => closed.push(uri.toString()))
+    sut.show(DOCUMENT)
+    sut.show(ORDERS)
+
+    sut.close(ORDERS)
+    sut.close(DOCUMENT)
+
+    expect(closed).toStrictEqual([ORDERS.toString(), DOCUMENT.toString()])
+  })
+
+  it('should close only the panels whose source is asked for', () => {
+    const sut = panels()
+    sut.show(DOCUMENT)
+    sut.show(ORDERS)
+
+    sut.closeWhere((uri) => uri.scheme === ORDERS.scheme)
+
+    expect(webviewPanels.map((panel) => panel.isDisposed)).toStrictEqual([false, true])
+    expect(sut.get(ORDERS)).toBeUndefined()
+    expect(sut.get(DOCUMENT)).toBeDefined()
   })
 })

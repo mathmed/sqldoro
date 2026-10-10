@@ -33,10 +33,10 @@ const PLAN: EditPlan = {
 
 function partsWith(approval: Approval, engine: ScriptedEngine): RunParts {
   const session = { engine: POSTGRES_ENGINE, engineSession: engine.session(), close: vi.fn() }
-  const document = { uri: { toString: () => 'untitled:Untitled-1', path: 'Untitled-1' } }
+  const uri = { toString: () => 'untitled:Untitled-1', path: 'Untitled-1', scheme: 'untitled' }
   return {
     target: {
-      document: document as unknown as vscode.TextDocument,
+      uri: uri as unknown as vscode.Uri,
       connection: SHOP,
       engine: { ...POSTGRES_ENGINE, dialect: POSTGRES_DIALECT },
       scope: { database: 'shop', schema: 'sales' },

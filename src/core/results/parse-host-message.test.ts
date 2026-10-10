@@ -32,9 +32,18 @@ describe('parseHostMessage', () => {
       error: { message: 'bad', line: 1, column: 4 },
       notice: '1 statement not run',
       view: { sort: [{ column: 0, isDescending: false }], filters: [{ column: 1, text: 'a' }] },
+      canRefresh: true,
     })
 
     expect(parseHostMessage({ type: 'tab', tab })).toStrictEqual({ type: 'tab', tab })
+  })
+
+  it('should refuse a tab that does not say whether it can be read again', () => {
+    const tab = { ...resultTab(), canRefresh: 'yes' }
+
+    expect(() => parseHostMessage({ type: 'tab', tab })).toThrow(
+      new TypeError('"canRefresh" must be a boolean'),
+    )
   })
 
   it('should read a window of rows and a cell value', () => {

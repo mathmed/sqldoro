@@ -4,6 +4,7 @@ import { TabKind } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import { serverViewProblem, serverViewQuery } from '../../core/results/server-view.ts'
 import type { ViewSpec } from '../../core/results/view.ts'
+import { isTableKey } from '../tables/table-uri.ts'
 import type { QueryRunner } from './query-runner.ts'
 import type { RunTarget, RunWork } from './run-types.ts'
 
@@ -18,31 +19,31 @@ const DUPLICATE_COLUMNS =
   'Columns with the same name cannot be sorted or filtered on the server: sort and filter the rows here instead.'
 
 // Sorts and filters the whole result on the server: the query of the tab runs again, wrapped, on
-// the editor's connection, and its rows replace the tab's.
+// the connection of its source, and its rows replace the tab's.
 export async function runServerView(
   runner: QueryRunner,
   uri: vscode.Uri,
   request: ServerViewRequest,
 ): Promise<void> {
-  const document = openDocument(uri)
-  if (document !== undefined) {
-    await runner.perform(document, async (target) =>
+  if (isSourceOpen(uri)) {
+    await runner.perform(uri, async (target) =>
       Promise.resolve(serverViewWork(runner, target, request)),
     )
   }
 }
 
-// The document of a result, still open; otherwise the user is told to run the query again.
-export function openDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
-  const document = vscode.workspace.textDocuments.find(
-    (open) => open.uri.toString() === uri.toString(),
-  )
-  if (document === undefined) {
+// Whether the source of a result is still open: the document of its editor (a table panel is its
+// own source); otherwise the user is told to run the query again.
+export function isSourceOpen(uri: vscode.Uri): boolean {
+  const key = uri.toString()
+  const isOpen =
+    isTableKey(key) || vscode.workspace.textDocuments.some((open) => open.uri.toString() === key)
+  if (!isOpen) {
     void vscode.window.showInformationMessage(
       'The editor of this result is closed: run the query again.',
     )
   }
-  return document
+  return isOpen
 }
 
 function serverViewWork(

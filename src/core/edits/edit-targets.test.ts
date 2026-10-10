@@ -7,7 +7,13 @@ import { editTargets, type TargetSource } from './edit-targets.ts'
 import { addRow, deleteRow, NO_EDITS, type PendingEdits, PendingKind, setCell } from './pending.ts'
 
 function source(edits: PendingEdits = NO_EDITS, columnCount = 3): TargetSource {
-  const rows = new ResultSet({ id: 't', sql: 'SELECT', kind: 'rows', canServerView: false })
+  const rows = new ResultSet({
+    id: 't',
+    sql: 'SELECT',
+    kind: 'rows',
+    canServerView: false,
+    canRefresh: false,
+  })
   rows.describe(ORDERS_RESULT)
   rows.addRows([[10], [11], [12], [13]])
   rows.applyView({ sort: [{ column: 0, isDescending: true }], filters: [] })

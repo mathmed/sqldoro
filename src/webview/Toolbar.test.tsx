@@ -9,6 +9,7 @@ import { Toolbar } from './Toolbar.tsx'
 let actions: {
   cancel: Mock<() => void>
   loadAll: Mock<() => void>
+  refresh: Mock<() => void>
   copy: Mock<(format: ExportFormat) => void>
   copyRows: Mock<() => void>
   export: Mock<(format: ExportFormat) => void>
@@ -43,6 +44,7 @@ beforeEach(() => {
   actions = {
     cancel: vi.fn(),
     loadAll: vi.fn(),
+    refresh: vi.fn(),
     copy: vi.fn(),
     copyRows: vi.fn(),
     export: vi.fn(),
@@ -115,6 +117,26 @@ describe('Toolbar', () => {
     toolbar()
 
     expect(screen.queryByRole('button', { name: 'Load All Rows' })).toBeNull()
+  })
+
+  it('should read the rows of a table again once they are read', () => {
+    toolbar({ canRefresh: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(actions.refresh).toHaveBeenCalledOnce()
+  })
+
+  it('should not offer to read the rows of a table again while they are read', () => {
+    toolbar({ canRefresh: true, status: 'running' })
+
+    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+  })
+
+  it('should not offer to read the rows of a query again', () => {
+    toolbar()
+
+    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
   })
 
   it('should not offer the server where the statement cannot run again', () => {

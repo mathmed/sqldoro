@@ -204,6 +204,14 @@ describe('ResultView', () => {
     expect(sent('setView')).toStrictEqual([])
   })
 
+  it('should ask the host to read the rows of a table again', () => {
+    view({ canRefresh: true })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+
+    expect(sent('refresh')).toStrictEqual([{ type: 'refresh', tabId: 'tab-1' }])
+  })
+
   it('should export the result', () => {
     view()
 
