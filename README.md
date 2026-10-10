@@ -9,9 +9,40 @@ A fast, safe MySQL and PostgreSQL client that lives inside VS Code. Open source 
 built to make the dangerous queries hard and the everyday ones quick.
 
 > [!NOTE]
-> Early development. This first step sets up the project skeleton and a strict, deterministic quality
-> pipeline; the extension only registers a `sqldoro: Hello` command so that every gate has real code
-> to check. The database features below come next, and each one is judged by this pipeline.
+> Early development. Phase 1, the foundation, is in: saved MySQL and PostgreSQL connections with SSL
+> and SSH tunnels, secrets in VS Code's secret storage, and a schema explorer. The SQL editor, the
+> result grid and the safety guards come next, each one judged by the same strict pipeline.
+
+## What works today
+
+- **Connections view** in the activity bar: add, edit, duplicate, delete, test, connect and
+  disconnect connections. Each connection shows its status (disconnected, connecting, connected,
+  failed) and its environment: tagged connections show a badge such as `PROD`, and the icon takes the
+  environment's color (production in red).
+- **Connection form**: a quick pick where each field shows its value and its problems; select a field
+  to change it, then **Save** or **Test Connection**. Fields: name, engine, host, port, user, password,
+  database, SSL (mode, CA certificate, client certificate and key, whether unauthorized certificates
+  are rejected), SSH tunnel, environment tag (none, local, dev, staging, prod) and the read-only flag.
+  New connections are **read-only** and untagged until you decide otherwise; the read-only flag and
+  the environment tag are saved now and enforced by the safety guards of a later phase.
+- **Import from URL**: `mysql://`, `postgres://` and `postgresql://` URLs, with percent-encoded user,
+  password and database, IPv6 hosts in brackets and the SSL parameters of both dialects (`sslmode` or
+  `ssl-mode`, `sslrootcert`/`ssl-ca`, `sslcert`/`ssl-cert`, `sslkey`/`ssl-key`, `ssl=true`). The
+  form opens with what the URL holds for you to review; unknown parameters are reported, and `prefer`
+  is turned into `require` rather than silently falling back to plain text.
+- **SSL modes**: `disable`; `require` (encrypted, and the certificate must verify unless you accept
+  unauthorized certificates); `verify-ca` (trusted certificate, any host name); `verify-full`
+  (trusted certificate naming the host). Certificates are checked against the database host name even
+  through an SSH tunnel.
+- **SSH tunnels** with a password (also answering keyboard-interactive prompts) or a private key and
+  its passphrase. The tunnel listens on `127.0.0.1` only, and closes with the session. Host keys are
+  trusted on first use like OpenSSH: sqldoro shows the SHA256 fingerprint the first time and warns
+  loudly if it changes.
+- **Secrets**: passwords and passphrases live only in VS Code's `SecretStorage`; the rest of a
+  connection is saved in the extension's global state (not synced). Errors and logs never show them.
+- **Schema explorer**: connection → databases → schemas (PostgreSQL) → tables and views → columns,
+  indexes and foreign keys, loaded when a node opens. **Filter** shows only the tables and views whose
+  name contains some text; **Refresh** reloads a node or everything.
 
 ## Planned v1 scope
 
@@ -43,15 +74,19 @@ connections you configure to your own databases.
 ## Development
 
 Requirements: Node.js 24 (the runtime of the VS Code extension host; `package.json` declares it in
-`devEngines`, and npm refuses other versions), npm, and VS Code to run the extension.
+`devEngines`, and npm refuses other versions), npm, VS Code to run the extension, and Docker with
+Compose for the integration tests.
 
 ```sh
-make setup   # npm ci (locked dependencies, no install scripts) and the git hooks
-make quality # every static check and the unit tests
+make setup        # npm ci (locked dependencies, no install scripts) and the git hooks
+make quality      # every static check and the unit tests
+make integration  # the drivers and the SSH tunnel against real servers (Docker)
 ```
 
 Press **F5** in VS Code ("Run Extension") to build the extension and open it in an Extension
-Development Host, then run **sqldoro: Hello** from the Command Palette.
+Development Host, then open the **sqldoro** view in the activity bar. `make integration` leaves its
+servers running: connect the Extension Development Host to them (see
+[Integration tests](#integration-tests-make-integration) for their ports and credentials).
 
 ### Commands
 
@@ -67,6 +102,8 @@ Development Host, then run **sqldoro: Hello** from the Command Palette.
 | `make dead-code`        | Unused files, exports, dependencies and stale configuration (knip).                 |
 | `make audit`            | Known vulnerabilities in the dependencies (`npm audit`).                            |
 | `make quality`          | All of the above: what the pre-commit hook runs.                                    |
+| `make integration`      | Start the test servers (Docker Compose) and run the integration tests.              |
+| `make integration-down` | Stop and remove the integration test servers.                                       |
 | `make smoke`            | Build and run the extension in a real VS Code (see below).                          |
 | `make mutation`         | Mutation testing of the whole core (Stryker; slow, weekly in CI).                   |
 | `make mutation-changed` | Mutation testing of the core files changed against `BASE` (default `origin/main`).  |
@@ -76,20 +113,38 @@ Development Host, then run **sqldoro: Hello** from the Command Palette.
 
 ```
 src/
-├── core/        # Engine interface, shared types and safety guards: pure TypeScript, no platform API
-├── drivers/     # One folder per database (mysql/, postgres/) implementing the core engine interface
-├── extension/   # VS Code extension host: activation, commands, views, SecretStorage
-│   └── factories/   # (planned) the only place that instantiates concrete drivers
-└── webview/     # React result grid, a browser bundle loaded by the webview
+├── core/        # Engine interface, connection model, validation, URL import, session opening: pure TypeScript
+├── drivers/     # One folder per database (mysql/ with mysql2, postgres/ with pg) implementing the engine interface
+├── tunnel/      # The SSH tunnel (ssh2) implementing the core tunnel interface
+├── extension/   # VS Code extension host: activation, commands, the Connections view, storage, the form
+│   └── factories/   # the only place that instantiates the drivers and the SSH tunnel
+└── webview/     # React result grid, a browser bundle loaded by the webview (later phase)
 scripts/         # CI tooling: build, smoke launcher, mutation runner and the Quality Report
-test/            # Test support: the vscode fake for unit tests and the suite that runs inside VS Code
+test/            # Test support: fakes, the vscode fake, the integration servers and the VS Code suite
 ```
 
-The core is the center: drivers implement its engine interface, the extension host talks to
-databases only through that interface, and the webview shares types and the message protocol with the
-host through it. The core never imports `vscode`, Node.js built-ins or database and UI libraries,
-because it also runs in the webview. These rules are contracts checked on every commit (see
+The core is the center: drivers implement its `Engine` interface, the SSH tunnel its `TunnelOpener`
+interface, and the extension host talks to databases only through them. The core never imports
+`vscode`, Node.js built-ins or database, SSH and UI libraries, because it also runs in the webview.
+These rules are contracts checked on every commit (see
 [Architecture contracts](#architecture-contracts-make-lint-arch)); `CLAUDE.md` lists them in full.
+
+**Opening a session.** `openSession` (core) reads the certificate files through the platform, opens
+the SSH tunnel when the connection has one (asking the extension whether the host key is trusted),
+then asks the driver to connect to the tunnel's local end or straight to the database. If the driver
+fails, the tunnel closes; closing the session closes the driver session, then the tunnel. When the
+server or the network ends a session, the extension marks the connection as failed and says so.
+
+**Adding an engine.** The core knows engines only through `EngineRegistry`: an engine brings its id,
+name, default port, URL schemes and dialect (identifier quote, whether it has schemas), and connects.
+Supporting another database means writing its driver and registering it in
+`src/extension/factories/engines.ts`; nothing else in the core or the extension changes.
+
+**Exact values.** Drivers keep `DECIMAL`/`NUMERIC` and `BIGINT` as the text the server sent, dates
+and JSON as the server formats them, and binary data as hexadecimal text: nothing depends on the time
+zone of the machine or loses precision. Queries stream their rows in batches and keep at most a given
+number of them; cancelling one stops it from another connection (`KILL QUERY` in MySQL,
+`pg_cancel_backend` in PostgreSQL).
 
 ## Quality pipeline
 
@@ -106,6 +161,7 @@ gates are never loosened to meet the code.
 | Security           | eslint-plugin-security (as errors), eslint-plugin-no-unsanitized, SonarJS security hotspots, bans on shell execution and `eval`; `npm audit`                                                                   | pre-commit, `lint`/`quality`   |
 | Dead code          | knip, configuration hints as errors                                                                                                                                                                            | pre-commit, `quality` job      |
 | Tests and coverage | Vitest with V8 coverage, 100% statements, branches, functions and lines as a ratchet                                                                                                                           | pre-commit, `quality` job      |
+| Integration        | Vitest against real MySQL 8.4, PostgreSQL 18 and OpenSSH servers (service containers in CI, Docker Compose locally)                                                                                            | `integration` job              |
 | Architecture       | dependency-cruiser contracts                                                                                                                                                                                   | pre-commit, `architecture` job |
 | Smoke              | the built extension in a real VS Code (`@vscode/test-electron`, xvfb in CI)                                                                                                                                    | `smoke` job                    |
 | Mutation testing   | Stryker, changed core files on PRs, whole core weekly, `MUTATION_MIN_SCORE` ratchet                                                                                                                            | `mutation` workflow            |
@@ -115,13 +171,34 @@ Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the 
 `make quality`'s checks in parallel; commit-msg enforces Conventional Commits. Dependabot proposes
 grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5).
 
+### Integration tests (`make integration`)
+
+Unit tests stand in for the database servers with fakes of the client libraries (`test/fakes/`);
+the integration tests run the drivers and the SSH tunnel against real servers instead:
+`src/**/*.integration.test.ts` and `test/integration/*.integration.test.ts`, run by
+`vitest.integration.config.ts`. `make integration` starts the servers of
+`test/integration/compose.yaml` with Docker Compose (and leaves them running), then runs the tests;
+CI starts the same images as service containers of the `integration` job.
+
+| Server     | Image                       | Address           | User / password        | Database  |
+| ---------- | --------------------------- | ----------------- | ---------------------- | --------- |
+| MySQL      | `mysql:8.4.11`              | `127.0.0.1:33306` | `sqldoro / sqldoro-it` | `sqldoro` |
+| PostgreSQL | `postgres:18.6-alpine`      | `127.0.0.1:35432` | `sqldoro / sqldoro-it` | `sqldoro` |
+| OpenSSH    | `testcontainers/sshd:1.3.0` | `127.0.0.1:32222` | `root / sqldoro-it`    |           |
+
+These are throwaway credentials of local test containers. The SSH server reaches the databases as
+`mysql:3306` and `postgres:5432`. Each address can be overridden with `SQLDORO_IT_<SERVER>_HOST` and
+`SQLDORO_IT_<SERVER>_PORT` (`MYSQL`, `POSTGRES`, `SSH`). The tests create their own tables and
+schemas, wait for the servers to accept connections, and generate their SSH keys on the fly: no
+private key is stored in the repository.
+
 ### Extension smoke test (`make smoke`)
 
 `scripts/smoke.ts` downloads VS Code (latest stable, or `SMOKE_VSCODE_VERSION`) with
 [`@vscode/test-electron`](https://github.com/microsoft/vscode-test), starts it with the built
 extension (`dist/`) in a fresh profile without telemetry, and runs `test/smoke/suite.ts` inside it:
-the extension must activate, every command contributed in `package.json` must be registered, and
-`sqldoro.hello` must answer. Each step prints a `>> ` line (VS Code version, activation time,
+the extension must activate, every command and view contributed in `package.json` must be registered
+(each view opens and refreshes), and `sqldoro.hello` must answer. Each step prints a `>> ` line (VS Code version, activation time,
 commands) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
 `make smoke` does the same on a headless machine that has it installed.
 
@@ -132,10 +209,13 @@ commands) that the Quality Report summarises. Linux needs a display: CI wraps it
 
 - the core depends on no other layer, no `vscode`, no Node.js built-in and no database, SSH or UI
   library;
-- drivers depend only on the core, never on each other, the extension host, the webview or `vscode`;
-- only `src/extension/factories/` instantiates drivers;
+- drivers depend only on the core and their database client, never on each other, the tunnel, the
+  SSH client, the extension host, the webview or `vscode`;
+- the SSH tunnel depends only on the core, `ssh2` and Node.js, never on a driver, a database client,
+  the extension host, the webview or `vscode`;
+- only `src/extension/factories/` instantiates the drivers and the SSH tunnel;
 - the extension host and the webview never import each other, and the webview uses no `vscode`,
-  Node.js built-in or database client;
+  Node.js built-in, tunnel, database or SSH client;
 - no circular dependencies, no product code importing CI scripts or tests (and the reverse), no
   devDependency in the shipped code, no undeclared or unresolvable import.
 
@@ -167,8 +247,10 @@ artifact and written to `reports/mutation/` locally. For each survivor, add the 
 
 Stryker's Vitest runner cannot select tests on Vitest 5 yet
 ([stryker-js#6210](https://github.com/stryker-mutator/stryker-js/issues/6210): every covered mutant
-would "survive"), so mutants run through Stryker's command runner, one fresh Vitest process each.
-Switch back to the Vitest runner with `perTest` coverage once that fix is released.
+would "survive"), so mutants run through Stryker's command runner, one fresh Vitest process each,
+running the tests of the core (where every mutant lives): the tests of the other layers open real SSH
+sessions and would only make each run slower. Switch back to the Vitest runner with `perTest`
+coverage once that fix is released.
 
 ## Quality Report
 
@@ -185,8 +267,9 @@ testing). Long output goes inside collapsible `<details>` blocks, trimmed to fit
 | Dead code          | knip                     | `quality`        | unused files, exports and dependencies by kind                            |
 | Complexity         | ESLint                   | `lint`           | functions above the complexity limits, by rule and location               |
 | Tests and coverage | Vitest                   | `quality`        | passed/failed tests and coverage; failures or files below the thresholds  |
+| Integration tests  | Vitest + real servers    | `integration`    | passed/failed tests against MySQL, PostgreSQL and SSH; the failures       |
 | Architecture       | dependency-cruiser       | `architecture`   | modules checked; broken contracts and the violating imports               |
-| Extension smoke    | esbuild + VS Code        | `smoke`          | bundle size, VS Code version, activation time, registered commands        |
+| Extension smoke    | esbuild + VS Code        | `smoke`          | bundle size, VS Code version, activation time, registered commands, views |
 | Mutation testing   | Stryker (`mutation.yml`) | `mutation`       | score vs. ratchet, killed and surviving mutants by file, line and mutator |
 
 **How it works.** Each analysis runs through `node scripts/quality-report.ts run <analysis> -- <command>`.
@@ -227,6 +310,9 @@ Render locally from fragments: `node scripts/quality-report.ts render --dir qual
 | `eslint.config.ts`                     | Lint, complexity and security rules.                                  |
 | `.prettierrc.json`                     | Formatting.                                                           |
 | `vitest.config.ts`                     | Unit tests and the coverage ratchet.                                  |
+| `vitest.integration.config.ts`         | Integration tests against real servers.                               |
+| `test/integration/compose.yaml`        | MySQL, PostgreSQL and OpenSSH for the integration tests.              |
+| `media/`                               | The activity bar icon.                                                |
 | `.dependency-cruiser.mjs`              | Architecture contracts.                                               |
 | `knip.jsonc`                           | Dead code analysis: entry points and project files.                   |
 | `stryker.config.mjs`                   | Mutation testing scope and runner.                                    |
