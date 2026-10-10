@@ -5,6 +5,8 @@ pre-commit:
   jobs:
     - name: format
       glob: "*.{ts,mjs,json,jsonc,md,yml,yaml}"
+      # AGENTS.md is a symlink to CLAUDE.md, and Prettier refuses symlinks given by name.
+      file_types: not symlink
       run: npx prettier --write --ignore-unknown {staged_files}
       stage_fixed: true
     - name: checks
