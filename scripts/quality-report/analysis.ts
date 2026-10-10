@@ -8,6 +8,7 @@ export const Analysis = {
   Integration: 'integration',
   DependencyCruiser: 'dependency-cruiser',
   Build: 'build',
+  Package: 'package',
   Smoke: 'smoke',
   Mutation: 'mutation',
 } as const

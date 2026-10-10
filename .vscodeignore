@@ -1,0 +1,15 @@
+# What the .vsix ships (npm run package): everything is left out, then the files the extension needs
+# at run time are added back. scripts/package/vsix-rules.ts checks the package against this list.
+**
+!dist/extension.cjs
+!dist/ThirdPartyNotices.txt
+!dist/webview/results.js
+!dist/webview/results.css
+!dist/webview/connection-form.js
+!dist/webview/connection-form.css
+!media/icon.png
+!media/sqldoro.svg
+!media/walkthrough/**
+!LICENSE
+!README.md
+!CHANGELOG.md

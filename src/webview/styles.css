@@ -160,6 +160,10 @@
   left: 0;
 }
 
+.grid-spacer {
+  flex: none;
+}
+
 .grid-cell {
   position: relative;
   flex: none;
@@ -288,6 +292,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-note {
+  margin: 0;
+  padding: 4px 8px;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .cell-detail pre {

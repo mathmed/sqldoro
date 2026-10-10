@@ -24,9 +24,12 @@ interface Harness {
 
 let nextId = 0
 
-function harness(engines: readonly Engine[] = [ENGINE]): Harness {
+function harness(
+  engines: readonly Engine[] = [ENGINE],
+  storage = new FakeSecretStorage(),
+): Harness {
   const store = new ConnectionStore(new FakeMemento(), recordingLogger())
-  const secrets = new SecretStore(new FakeSecretStorage())
+  const secrets = new SecretStore(storage)
   const close = vi.fn(async () => Promise.resolve())
   const sessions = new SessionManager({
     open: async () => Promise.resolve({ engine: ENGINE, engineSession: fakeSession(), close }),
@@ -96,6 +99,19 @@ describe('ConnectionService', () => {
     await expect(secrets.read(connection)).resolves.toStrictEqual(
       new Map([[SecretKind.Password, 's3cret']]),
     )
+  })
+
+  it('should save nothing when the keyring cannot store the secrets', async () => {
+    const storage = new FakeSecretStorage()
+    vi.spyOn(storage, 'store').mockRejectedValueOnce(new Error('keyring locked'))
+    const { sut } = harness([ENGINE], storage)
+    const connection = shop(sut)
+
+    await expect(sut.save(connection, new Map([[SecretKind.Password, 's3cret']]))).rejects.toThrow(
+      'keyring locked',
+    )
+
+    expect(sut.list()).toStrictEqual([])
   })
 
   it('should refuse to save an invalid connection', async () => {
@@ -188,6 +204,18 @@ describe('ConnectionService', () => {
         [SecretKind.SshPassword, 'ssh'],
       ]),
     )
+  })
+
+  it('should not add a copy whose secrets cannot be copied', async () => {
+    const storage = new FakeSecretStorage()
+    const { sut } = harness([ENGINE], storage)
+    const connection = shop(sut)
+    await sut.save(connection, new Map([[SecretKind.Password, 'db']]))
+    vi.spyOn(storage, 'store').mockRejectedValueOnce(new Error('keyring locked'))
+
+    await expect(sut.duplicate(connection)).rejects.toThrow('keyring locked')
+
+    expect(sut.list()).toStrictEqual([connection])
   })
 
   it('should import a URL as a new connection with a name nobody uses', async () => {

@@ -113,6 +113,31 @@ describe('Grid', () => {
     expect(scroll).toHaveBeenCalledWith({ left: 352 })
   })
 
+  it('should put only the columns in view of a wide result in the page, and follow the scroll', async () => {
+    const columns = Array.from(Array(500).keys(), (index) => ({
+      name: `c${String(index)}`,
+      dataType: 'INT',
+      kind: ColumnKind.Number,
+    }))
+    grid({ columns })
+
+    const headers = (): string[] =>
+      screen.getAllByRole('columnheader').map((header) => header.textContent)
+    expect(headers()).toStrictEqual(columns.slice(0, 12).map((column) => column.name))
+    expect(document.getElementById('cell-tab-1-0-499')).toBeNull()
+    Object.defineProperty(theGrid(), 'scrollLeft', { configurable: true, value: 90 * 490 })
+    fireEvent.scroll(theGrid())
+
+    await vi.waitFor(() => {
+      expect(headers().at(-1)).toBe('c499')
+    })
+    expect(headers()).toHaveLength(13)
+    expect(cellAt(0, 499).getAttribute('aria-colindex')).toBe('500')
+    expect(cellAt(0, 487).previousElementSibling?.getAttribute('style')).toBe(
+      `width: ${String(90 * 487)}px;`,
+    )
+  })
+
   it('should copy and open the value of a cell from the keyboard, or with a double click', () => {
     grid({}, selectCell({ row: 1, column: 1 }))
 

@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in sqldoro does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Never paste passwords, tokens, connection strings with credentials or
+        real data. A security problem goes through [SECURITY.md](https://github.com/mathmed/sqldoro/blob/main/SECURITY.md), not here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what sqldoro did instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest steps that show it, with the statements and a table definition if they matter.
+      placeholder: |
+        1. Add a PostgreSQL connection with ...
+        2. Run `SELECT ...`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: sqldoro-version
+    attributes:
+      label: sqldoro version
+      description: "Command Palette: sqldoro: About sqldoro and Its Safety Model."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: vscode-version
+    attributes:
+      label: VS Code version and operating system
+      placeholder: "VS Code 1.141.0 on Ubuntu 24.04"
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Database
+      options:
+        - MySQL
+        - PostgreSQL
+        - Both
+        - Not related to a database
+    validations:
+      required: true
+  - type: input
+    id: server-version
+    attributes:
+      label: Database server version, and how you connect
+      placeholder: "MySQL 8.4 through an SSH tunnel, SSL require"
+  - type: textarea
+    id: log
+    attributes:
+      label: Output
+      description: Anything relevant from the sqldoro output channel (View → Output → sqldoro). It never holds SQL text or secrets, but check before you paste.
+      render: text

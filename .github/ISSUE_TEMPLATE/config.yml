@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/mathmed/sqldoro/security/advisories/new
+    about: Never in a public issue. See SECURITY.md.
+  - name: How sqldoro keeps statements safe
+    url: https://github.com/mathmed/sqldoro#safety-model
+    about: The safety model, and what it cannot do.

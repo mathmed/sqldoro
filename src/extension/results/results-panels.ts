@@ -1,6 +1,8 @@
 import * as vscode from 'vscode'
 
+import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { Logger } from '../../core/platform.ts'
+import type { GuardPolicy } from '../../core/safety/guard.ts'
 import { describeError } from '../../core/text/errors.ts'
 import { documentLabel } from '../editor/document-label.ts'
 import { bundleOf, createNonce, webviewHtml, webviewRoot } from '../webview-page.ts'
@@ -43,6 +45,13 @@ export class ResultsPanels implements vscode.Disposable {
     const panel = this.#create(uri)
     this.#panels.set(uri.toString(), panel)
     return panel
+  }
+
+  // Each panel shows the connection of its editor as it is now.
+  followConnections(connections: readonly ConnectionConfig[], policy: GuardPolicy): void {
+    for (const panel of this.#panels.values()) {
+      panel.followConnection(connections, policy)
+    }
   }
 
   close(uri: vscode.Uri): void {

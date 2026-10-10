@@ -8,6 +8,7 @@ import { registerWriteAccessCommands } from './commands/write-access-commands.ts
 import { pingServer } from './connections/server-test.ts'
 import type { EditorSessions } from './editor/editor-sessions.ts'
 import { ConnectionForms } from './form/connection-forms.ts'
+import { registerHelpCommands } from './help/help-commands.ts'
 import { registerQueryFeatures } from './query-features.ts'
 import { createQueryServices, type WorkbenchContext } from './query-services.ts'
 import { createServices, type Services, type StorageContext } from './services.ts'
@@ -16,7 +17,9 @@ import { readSettings } from './settings.ts'
 
 type ActivationContext = Pick<vscode.ExtensionContext, 'extensionMode' | 'subscriptions'> &
   StorageContext &
-  WorkbenchContext
+  WorkbenchContext & {
+    readonly extension: Pick<vscode.Extension<unknown>, 'id' | 'packageJSON'>
+  }
 
 const OUTPUT_CHANNEL = 'sqldoro'
 const SHOW_OUTPUT = 'Show Output'
@@ -34,6 +37,12 @@ export function activate(context: ActivationContext): void {
     ...registerConnections(context.extensionUri, services, log),
     vscode.commands.registerCommand(CommandId.Hello, () => showGreeting(isDevelopment)),
     ...registerQueryFeatures(services, query, log),
+    ...registerHelpCommands({
+      extensionId: context.extension.id,
+      extensionUri: context.extensionUri,
+      packageJson: context.extension.packageJSON,
+      log,
+    }),
   )
   query.status.update()
   query.transactionStatus.update()

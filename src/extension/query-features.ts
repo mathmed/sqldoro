@@ -14,6 +14,7 @@ import { systemClock } from './platform/clock.ts'
 import type { QueryServices } from './query-services.ts'
 import type { Services } from './services.ts'
 import { ConnectionStatus } from './sessions/session-manager.ts'
+import { readSettings } from './settings.ts'
 import { registerSavedQueryCommands } from './snippets/saved-query-commands.ts'
 import { watchClosedEditors } from './transactions/closed-editors.ts'
 import { CloseReason } from './transactions/editor-transactions.ts'
@@ -146,6 +147,7 @@ function followConnections(base: Services, query: QueryServices, log: Logger): v
     base.store.onDidChange(() => {
       updateStatus(query)
       query.decorations.refresh()
+      query.panels.followConnections(base.store.list(), readSettings().policy)
       void forgetDeleted(base, query).catch((error: unknown) => {
         log.warn(`Could not forget a deleted connection: ${describeError(error)}`)
       })

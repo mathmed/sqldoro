@@ -1,4 +1,4 @@
-.PHONY: setup build format lint typecheck test lint-arch dead-code audit quality integration integration-down smoke mutation mutation-changed all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code audit quality integration integration-down smoke mutation mutation-changed all
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
 XVFB := $(if $(DISPLAY),,$(shell command -v xvfb-run >/dev/null 2>&1 && echo xvfb-run -a))
@@ -11,6 +11,10 @@ setup:
 # Bundle the extension into dist/ (esbuild)
 build:
 	npm run build
+
+# Pack the built extension into sqldoro-<version>.vsix (vsce) and check what the package holds
+package: build
+	npm run package
 
 # Format every file and apply the fixes ESLint can make on its own
 format:
@@ -56,8 +60,8 @@ integration:
 integration-down:
 	$(INTEGRATION_COMPOSE) down --volumes
 
-# Build the extension and run it in a real VS Code: it must activate and register its commands
-smoke: build
+# Install the package in a real VS Code: it must activate and register its commands and views
+smoke: package
 	$(XVFB) npm run smoke
 
 # Mutation testing of the whole core (slow; weekly in CI). Report: reports/mutation/mutation.html

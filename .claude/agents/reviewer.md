@@ -27,7 +27,7 @@ findings. Never edit files, commit or push.
      messages, missing Content Security Policy, secrets or personal data in logs, any telemetry.
    - **Contract**: contributed commands, settings and views were not removed or renamed without reason.
    - **Preferences**: the personal preferences section of `CLAUDE.md`.
-   - **Docs**: README updated when the change affects setup, commands, settings, scope or architecture.
+   - **Docs**: README (users), CONTRIBUTING.md (development), docs/ARCHITECTURE.md and CHANGELOG.md updated when the change affects setup, commands, settings, scope or architecture.
 
 ## Report
 

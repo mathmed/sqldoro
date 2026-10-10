@@ -40,6 +40,8 @@ export const CommandId = {
   RollbackTransaction: 'sqldoro.rollbackTransaction',
   AllowWrites: 'sqldoro.allowWrites',
   MakeReadOnly: 'sqldoro.makeReadOnly',
+  GettingStarted: 'sqldoro.gettingStarted',
+  About: 'sqldoro.about',
 } as const
 
 export type CommandId = (typeof CommandId)[keyof typeof CommandId]

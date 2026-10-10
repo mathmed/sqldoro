@@ -22,6 +22,24 @@ describe('redactSqlSecrets', () => {
     ).toBe("SELECT dblink_connect('***'), 'plain', '***', '***'")
   })
 
+  it('should mask the strings of options named after a password, such as MySQL replication ones', () => {
+    expect(
+      redactSqlSecrets(
+        "CHANGE REPLICATION SOURCE TO SOURCE_HOST = 'db', source_password = 'r3pl'",
+        MYSQL_LEXICAL,
+      ),
+    ).toBe("CHANGE REPLICATION SOURCE TO SOURCE_HOST = '***', source_password = '***'")
+    expect(redactSqlSecrets("CHANGE MASTER TO MASTER_PASSWORD = 'r3pl'", MYSQL_LEXICAL)).toBe(
+      "CHANGE MASTER TO MASTER_PASSWORD = '***'",
+    )
+  })
+
+  it('should keep the strings of statements that only name a column after a password', () => {
+    const sql = "SELECT password_hash, passwords FROM users WHERE email = 'a@example.com'"
+
+    expect(redactSqlSecrets(sql, POSTGRES_LEXICAL)).toBe(sql)
+  })
+
   it('should keep statements without secrets as they are', () => {
     const sql = `SELECT "password", 'a' -- password\nFROM t`
 

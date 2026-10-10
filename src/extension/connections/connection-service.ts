@@ -66,14 +66,16 @@ export class ConnectionService {
     })
   }
 
+  // The secrets go first: when the keyring fails, the connection is not saved half way, and saving
+  // again writes both.
   async save(connection: ConnectionConfig, secretChanges: SecretChanges): Promise<void> {
     const [issue] = this.validate(connection)
     if (issue !== undefined) {
       throw new Error(issue.message)
     }
     const previous = this.find(connection.id)
-    await this.#dependencies.store.save(connection)
     await this.#dependencies.secrets.apply(connection, secretChanges)
+    await this.#dependencies.store.save(connection)
     const isSessionStale =
       previous !== undefined && (secretChanges.size > 0 || changesSession(previous, connection))
     if (isSessionStale) {
@@ -89,8 +91,8 @@ export class ConnectionService {
 
   async duplicate(source: ConnectionConfig): Promise<ConnectionConfig> {
     const copy = duplicateConnection(source, this.#dependencies.createId(), this.takenNameKeys(''))
-    await this.#dependencies.store.save(copy)
     await this.#dependencies.secrets.copy(source, copy)
+    await this.#dependencies.store.save(copy)
     return copy
   }
 

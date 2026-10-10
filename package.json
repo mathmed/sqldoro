@@ -1,8 +1,8 @@
 {
   "name": "sqldoro",
   "displayName": "sqldoro",
-  "description": "A fast, safe MySQL and PostgreSQL client for VS Code.",
-  "version": "0.0.1",
+  "description": "A fast, safe MySQL and PostgreSQL client: schema explorer, SQL editor with autocomplete, a virtualized result grid, inline editing with an SQL preview, and safety guards for every statement. No telemetry.",
+  "version": "0.1.0",
   "publisher": "mathmed",
   "license": "MIT",
   "private": true,
@@ -15,14 +15,32 @@
     "url": "https://github.com/mathmed/sqldoro/issues"
   },
   "homepage": "https://github.com/mathmed/sqldoro#readme",
+  "qna": "https://github.com/mathmed/sqldoro/issues",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#16285C",
+    "theme": "dark"
+  },
+  "pricing": "Free",
   "keywords": [
     "database",
+    "sql",
     "mysql",
     "postgres",
     "postgresql",
-    "sql"
+    "database client",
+    "sql client",
+    "sql editor",
+    "query",
+    "schema explorer",
+    "ssh tunnel",
+    "result grid",
+    "data editor",
+    "read-only",
+    "safe"
   ],
   "categories": [
+    "Programming Languages",
     "Other"
   ],
   "engines": {
@@ -283,6 +301,18 @@
         "title": "Make Read-Only",
         "category": "sqldoro",
         "icon": "$(lock)"
+      },
+      {
+        "command": "sqldoro.gettingStarted",
+        "title": "Get Started",
+        "category": "sqldoro",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "sqldoro.about",
+        "title": "About sqldoro and Its Safety Model",
+        "category": "sqldoro",
+        "icon": "$(shield)"
       }
     ],
     "viewsContainers": {
@@ -319,7 +349,7 @@
     "viewsWelcome": [
       {
         "view": "sqldoro.connections",
-        "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)"
+        "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)\nNew connections are read-only until you allow writes. [Get Started](command:sqldoro.gettingStarted) walks through connecting, querying, the safety model and editing rows."
       },
       {
         "view": "sqldoro.history",
@@ -386,6 +416,16 @@
           "command": "sqldoro.exportSavedQueries",
           "when": "view == sqldoro.savedQueries",
           "group": "navigation@3"
+        },
+        {
+          "command": "sqldoro.gettingStarted",
+          "when": "view == sqldoro.connections",
+          "group": "2_help@1"
+        },
+        {
+          "command": "sqldoro.about",
+          "when": "view == sqldoro.connections",
+          "group": "2_help@2"
         }
       ],
       "view/item/context": [
@@ -657,6 +697,12 @@
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
         "when": "editorTextFocus && editorLangId == sql && sqldoro.editorHasConnection"
+      },
+      {
+        "command": "sqldoro.cancelQuery",
+        "key": "ctrl+shift+backspace",
+        "mac": "cmd+shift+backspace",
+        "when": "editorTextFocus && editorLangId == sql && sqldoro.isQueryRunning"
       }
     ],
     "configuration": {
@@ -720,11 +766,79 @@
           "markdownDescription": "The transaction mode new SQL editors start in; **Switch Transaction Mode** changes it per editor."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "sqldoro.gettingStarted",
+        "title": "Get Started with sqldoro",
+        "description": "Connect to MySQL or PostgreSQL, run your first query, and see how sqldoro keeps the dangerous statements hard.",
+        "steps": [
+          {
+            "id": "connect",
+            "title": "Add a connection",
+            "description": "Connect to MySQL or PostgreSQL, directly or through an SSH tunnel. Passwords stay in the VS Code secret storage, and new connections are read-only.\n[Add Connection](command:sqldoro.addConnection)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.addConnection",
+              "onCommand:sqldoro.importConnectionUrl"
+            ]
+          },
+          {
+            "id": "query",
+            "title": "Run a query",
+            "description": "Open a SQL editor on a connection, run the statement under the cursor with Ctrl+Enter (Cmd+Enter on macOS) and browse the results in the grid.\n[New Query](command:sqldoro.newQuery)",
+            "media": {
+              "markdown": "media/walkthrough/query.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.runQuery",
+              "onCommand:sqldoro.runScript"
+            ]
+          },
+          {
+            "id": "safety",
+            "title": "Know the safety model",
+            "description": "Read-only connections, confirmations for UPDATE and DELETE without WHERE and for production, manual transactions and an automatic LIMIT: what each guard does, and what it cannot do.\n[About the Safety Model](command:sqldoro.about)",
+            "media": {
+              "markdown": "media/walkthrough/safety.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.about"
+            ]
+          },
+          {
+            "id": "edit",
+            "title": "Edit rows with a preview",
+            "description": "Change the rows of a table in the grid, then preview the exact SQL before anything is written. Allow writes on the connection first.\n[Allow Writes](command:sqldoro.allowWrites)",
+            "media": {
+              "markdown": "media/walkthrough/edit.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.allowWrites"
+            ]
+          },
+          {
+            "id": "keep",
+            "title": "Keep your queries",
+            "description": "Every statement you run lands in the query history; name the ones you need again in Saved Queries.\n[Search Query History](command:sqldoro.searchHistory)",
+            "media": {
+              "markdown": "media/walkthrough/keep.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.searchHistory",
+              "onCommand:sqldoro.saveQuery"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "hooks": "lefthook install",
     "build": "node scripts/build.ts",
+    "package": "node scripts/package.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -769,6 +883,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^5.0.3",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
     "dependency-cruiser": "^18.5.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",

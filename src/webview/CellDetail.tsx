@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 
 import type { CellValue, ResultColumn } from '../core/engine/query.ts'
-import { detailText } from './cell-display.ts'
+import { groupDigits } from '../core/results/tabs.ts'
+import { detailView, MAX_DETAIL_LENGTH } from './cell-display.ts'
 
 interface CellDetailProps {
   readonly column: ResultColumn
@@ -19,6 +20,30 @@ export const CellDetail = ({ column, value, onClose }: CellDetailProps): ReactEl
         Close
       </button>
     </header>
-    <pre tabIndex={0}>{value === undefined ? 'Loading…' : detailText(value, column.kind)}</pre>
+    {value === undefined ? (
+      <pre tabIndex={0}>Loading…</pre>
+    ) : (
+      <DetailValue column={column} value={value} />
+    )}
   </aside>
 )
+
+const DetailValue = ({
+  column,
+  value,
+}: {
+  readonly column: ResultColumn
+  readonly value: CellValue
+}): ReactElement => {
+  const { text, wholeLength } = detailView(value, column.kind)
+  return (
+    <>
+      {wholeLength === null ? null : (
+        <p className="detail-note" role="note">
+          {`Showing the first ${groupDigits(MAX_DETAIL_LENGTH)} of ${groupDigits(wholeLength)} characters: copy the cell (Ctrl+C) or export the result to get all of it.`}
+        </p>
+      )}
+      <pre tabIndex={0}>{text}</pre>
+    </>
+  )
+}

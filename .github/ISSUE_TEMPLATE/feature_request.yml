@@ -1,0 +1,27 @@
+name: Feature request
+description: Something sqldoro could do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Some things are out of scope on purpose (other engines, ER diagrams, schema diff, data
+        compare, an import wizard, NoSQL, telemetry): see the README before asking for them.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: How sqldoro could help. Say how it should behave with the safety guards (read-only connections, production) if it runs statements.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

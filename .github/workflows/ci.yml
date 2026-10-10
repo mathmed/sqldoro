@@ -5,6 +5,8 @@ on:
     branches: ["**"]
   push:
     branches: ["main"]
+  # The release workflow runs the same gates on a version tag before it drafts the release.
+  workflow_call:
 
 permissions:
   contents: read
@@ -143,10 +145,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Builds the extension and runs it in a real VS Code (latest stable, downloaded by
-  # @vscode/test-electron) under a virtual display: it must activate and register every command it
-  # contributes.
-  smoke:
+  # Builds the two bundles and packs them into the .vsix a release would publish (vsce, reproducible:
+  # the same commit always packs the same bytes), checks what the package holds and keeps it as the
+  # sqldoro-vsix artifact, on pull requests and on main.
+  package:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -156,8 +158,42 @@ jobs:
           node-version-file: package.json
           cache: npm
       - run: npm ci
-      - name: Build (esbuild)
+      - name: Build (esbuild, Vite)
         run: node scripts/quality-report.ts run build -- npm run build
+      - name: Package (vsce)
+        run: node scripts/quality-report.ts run package -- npm run package
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sqldoro-vsix
+          path: sqldoro-*.vsix
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-package
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Installs the package of the package job in a real VS Code (latest stable, downloaded by
+  # @vscode/test-electron) under a virtual display: it must activate and register every command and
+  # view it contributes.
+  smoke:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v8
+        with:
+          name: sqldoro-vsix
       - name: Extension smoke (VS Code)
         run: node scripts/quality-report.ts run smoke -- xvfb-run -a npm run smoke
 
@@ -177,7 +213,7 @@ jobs:
 
   quality-report:
     if: always() && github.event_name == 'pull_request'
-    needs: [lint, quality, integration, architecture, smoke, mutation]
+    needs: [lint, quality, integration, architecture, package, smoke, mutation]
     runs-on: ubuntu-latest
     permissions:
       contents: read

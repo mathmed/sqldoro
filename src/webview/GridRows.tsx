@@ -9,11 +9,14 @@ import type { RowEdit } from './edit-overlay.ts'
 import { cellDisplay, cellNote, type CellState, rowClassName } from './grid-cells.ts'
 import { ariaRowIndex, cellId, HEADER_HEIGHT, ROW_HEIGHT } from './grid-model.ts'
 import type { CellEditorView } from './use-cell-editor.ts'
+import type { ColumnWindow } from './use-column-window.ts'
 
 export interface RowLayout {
   readonly tabId: string
   readonly columns: readonly ResultColumn[]
   readonly widths: readonly number[]
+  // The columns in the page; the others are empty space.
+  readonly shown: ColumnWindow
   readonly totalWidth: number
   readonly range: CellRange | undefined
   readonly focus: CellPosition | undefined
@@ -91,18 +94,26 @@ const GridRow = ({ index, offset, row, layout, events }: GridRowProps): ReactEle
         width: layout.totalWidth,
       }}
     >
-      {layout.columns.map((column, columnIndex) => (
-        <GridCell
-          key={column.name + String(columnIndex)}
-          cell={{ position: { row: index, column: columnIndex }, kind: column.kind, row, edit }}
-          name={column.name}
-          layout={layout}
-          events={events}
-        />
-      ))}
+      <ColumnSpacer width={layout.shown.before} />
+      {layout.columns.slice(layout.shown.first, layout.shown.last + 1).map((column, shift) => {
+        const columnIndex = layout.shown.first + shift
+        return (
+          <GridCell
+            key={column.name + String(columnIndex)}
+            cell={{ position: { row: index, column: columnIndex }, kind: column.kind, row, edit }}
+            name={column.name}
+            layout={layout}
+            events={events}
+          />
+        )
+      })}
     </div>
   )
 }
+
+// Stands for the columns before those in the page, so that these sit where they belong.
+export const ColumnSpacer = ({ width }: { readonly width: number }): ReactElement | null =>
+  width === 0 ? null : <div className="grid-spacer" aria-hidden="true" style={{ width }} />
 
 interface GridCellProps {
   readonly cell: CellState

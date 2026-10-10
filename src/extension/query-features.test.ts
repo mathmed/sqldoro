@@ -58,6 +58,7 @@ async function activated(): Promise<void> {
     workspaceState,
     secrets: new FakeSecretStorage(),
     extensionUri: vscode.Uri.file('/extension'),
+    extension: { id: 'mathmed.sqldoro', packageJSON: { version: '0.1.0' } },
   })
 }
 
@@ -181,6 +182,24 @@ describe('the SQL editor features', () => {
     await vscode.commands.executeCommand(CommandId.Disconnect, 'shop')
     await vi.waitFor(() => {
       expect(editorClient?.isEnded).toBe(true)
+    })
+  })
+
+  it('should show a change of the connection in the results of its editors at once', async () => {
+    await activated()
+    await newQueryEditor()
+    await window.activeTextEditor?.edit((builder) => {
+      builder.replace(new Range(new Position(0, 0), new Position(0, 0)), 'SELECT 1')
+    })
+    await vscode.commands.executeCommand(CommandId.RunQuery)
+    webviewPanels[0]?.webview.send({ type: 'ready' })
+    window.showWarningMessage.mockResolvedValue('Allow Writes')
+
+    await vscode.commands.executeCommand(CommandId.AllowWrites, 'shop')
+
+    expect(webviewPanels[0]?.webview.posted.at(-1)).toMatchObject({
+      type: 'connection',
+      connection: { name: 'Shop', isReadOnly: false },
     })
   })
 
