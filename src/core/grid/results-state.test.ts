@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { resultTab } from '../../../test/fixtures/results.ts'
 import { activateTab, activeTab, EMPTY_RESULTS, reduceResults } from './results-state.ts'
 
+const SHOP = { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false }
 const FIRST = resultTab({ id: 'a' })
 const SECOND = resultTab({ id: 'b' })
 const THIRD = resultTab({ id: 'c' })
@@ -12,6 +13,7 @@ describe('reduceResults', () => {
     expect(
       reduceResults(EMPTY_RESULTS, { type: 'tabs', tabs: [FIRST, SECOND], activeTabId: 'a' }),
     ).toStrictEqual({
+      connection: null,
       tabs: [FIRST, SECOND],
       activeTabId: 'a',
     })
@@ -26,33 +28,45 @@ describe('reduceResults', () => {
     })
     expect(
       reduceResults(
-        { tabs: [FIRST], activeTabId: 'a' },
+        { connection: SHOP, tabs: [FIRST], activeTabId: 'a' },
         { type: 'tabs', tabs: [], activeTabId: null },
       ),
-    ).toStrictEqual(EMPTY_RESULTS)
+    ).toStrictEqual({ ...EMPTY_RESULTS, connection: SHOP })
   })
 
   it('should add a new tab in front', () => {
-    const state = { tabs: [FIRST], activeTabId: 'a' }
+    const state = { connection: SHOP, tabs: [FIRST], activeTabId: 'a' }
 
     expect(reduceResults(state, { type: 'tab', tab: SECOND })).toStrictEqual({
+      connection: SHOP,
       tabs: [FIRST, SECOND],
       activeTabId: 'b',
     })
   })
 
   it('should update a known tab where it is, without bringing it to the front', () => {
-    const state = { tabs: [FIRST, SECOND], activeTabId: 'b' }
+    const state = { connection: null, tabs: [FIRST, SECOND], activeTabId: 'b' }
     const changed = resultTab({ id: 'a', rowCount: 99 })
 
     expect(reduceResults(state, { type: 'tab', tab: changed })).toStrictEqual({
+      connection: null,
       tabs: [changed, SECOND],
       activeTabId: 'b',
     })
   })
 
+  it('should show the connection of the editor, whatever the tabs', () => {
+    const state = { connection: null, tabs: [FIRST], activeTabId: 'a' }
+
+    expect(reduceResults(state, { type: 'connection', connection: SHOP })).toStrictEqual({
+      connection: SHOP,
+      tabs: [FIRST],
+      activeTabId: 'a',
+    })
+  })
+
   it('should keep the state for rows and cells', () => {
-    const state = { tabs: [FIRST], activeTabId: 'a' }
+    const state = { connection: null, tabs: [FIRST], activeTabId: 'a' }
 
     expect(
       reduceResults(state, { type: 'rows', tabId: 'a', viewVersion: 0, start: 0, rows: [] }),
@@ -71,7 +85,7 @@ describe('reduceResults', () => {
 })
 
 describe('activateTab and activeTab', () => {
-  const state = { tabs: [FIRST, SECOND], activeTabId: 'a' }
+  const state = { connection: null, tabs: [FIRST, SECOND], activeTabId: 'a' }
 
   it('should bring a known tab to the front and ignore an unknown one', () => {
     expect(activateTab(state, 'b').activeTabId).toBe('b')

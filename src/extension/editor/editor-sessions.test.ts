@@ -4,7 +4,8 @@ import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { CRM, SHOP } from '../../../test/support/query.ts'
 import { ScriptedEngine } from '../../../test/support/sessions.ts'
 import type { Session, SessionRequest } from '../../core/session/open-session.ts'
-import { EditorSessions } from './editor-sessions.ts'
+import { CloseReason } from '../transactions/editor-transactions.ts'
+import { EditorSessions, type SessionLifecycle } from './editor-sessions.ts'
 
 const SALES = { database: 'shop', schema: 'sales' }
 
@@ -12,6 +13,9 @@ let engine: ScriptedEngine
 let requests: SessionRequest[]
 let close: Mock<() => Promise<void>>
 let log: ReturnType<typeof recordingLogger>
+let lifecycle: {
+  [K in keyof SessionLifecycle]: Mock<SessionLifecycle[K]>
+}
 
 function sessions(open?: () => Promise<Session>): EditorSessions {
   return new EditorSessions({
@@ -23,6 +27,7 @@ function sessions(open?: () => Promise<Session>): EditorSessions {
       }),
     readSecrets: async () => Promise.resolve(new Map([['password', 's3cret']])),
     log,
+    lifecycle,
   })
 }
 
@@ -31,6 +36,11 @@ beforeEach(() => {
   requests = []
   close = vi.fn<() => Promise<void>>(async () => Promise.resolve())
   log = recordingLogger()
+  lifecycle = {
+    beforeClose: vi.fn<SessionLifecycle['beforeClose']>(async () => Promise.resolve()),
+    onLost: vi.fn<SessionLifecycle['onLost']>(),
+    isPinned: vi.fn<SessionLifecycle['isPinned']>(() => false),
+  }
 })
 
 describe('EditorSessions', () => {
@@ -76,7 +86,46 @@ describe('EditorSessions', () => {
     await sut.acquire('a', CRM, { database: 'crm', schema: 'crm' })
 
     expect(close).toHaveBeenCalledOnce()
+    expect(lifecycle.beforeClose).toHaveBeenCalledWith(
+      'a',
+      expect.anything(),
+      CloseReason.ConnectionChanged,
+    )
     expect(requests).toHaveLength(2)
+  })
+
+  it('should open the session again when the connection changes whether it may write', async () => {
+    const sut = sessions()
+    const first = await sut.acquire('a', SHOP, SALES)
+
+    const second = await sut.acquire('a', { ...SHOP, isReadOnly: true }, SALES)
+    const third = await sut.acquire('a', { ...SHOP, isReadOnly: true, name: 'Renamed' }, SALES)
+
+    expect(second).not.toBe(first)
+    expect(third).toBe(second)
+    expect(requests.map((request) => request.connection.isReadOnly)).toStrictEqual([false, true])
+  })
+
+  it('should not move a session that holds an open transaction', async () => {
+    const sut = sessions()
+    await sut.acquire('a', SHOP, SALES)
+    lifecycle.isPinned.mockReturnValue(true)
+
+    await expect(sut.acquire('a', SHOP, SALES)).resolves.toBeDefined()
+    await expect(sut.acquire('a', SHOP, { database: 'shop', schema: 'public' })).rejects.toThrow(
+      'Commit or roll back the open transaction of this editor before it changes database or schema.',
+    )
+    expect(lifecycle.isPinned).toHaveBeenCalledWith('a')
+    expect(engine.useScope).toHaveBeenCalledOnce()
+  })
+
+  it('should hand the session the editor has, without opening one', async () => {
+    const sut = sessions()
+    expect(sut.existing('a')).toBeUndefined()
+
+    const session = await sut.acquire('a', SHOP, SALES)
+
+    await expect(sut.existing('a')).resolves.toBe(session)
   })
 
   it('should forget a session that fails to open, and close one whose scope fails', async () => {
@@ -107,7 +156,7 @@ describe('EditorSessions', () => {
     reject(new Error('late'))
 
     await expect(failing).rejects.toThrow('late')
-    await sut.release('a')
+    await sut.release('a', CloseReason.EditorClosed)
     expect(close).toHaveBeenCalled()
   })
 
@@ -117,8 +166,8 @@ describe('EditorSessions', () => {
     await sut.acquire('b', SHOP, SALES)
     await sut.acquire('c', CRM, SALES)
 
-    await sut.release('a')
-    await sut.release('missing')
+    await sut.release('a', CloseReason.EditorClosed)
+    await sut.release('missing', CloseReason.EditorClosed)
     await sut.releaseConnection('shop')
     expect(close).toHaveBeenCalledTimes(2)
 
@@ -126,6 +175,11 @@ describe('EditorSessions', () => {
     await vi.waitFor(() => {
       expect(close).toHaveBeenCalledTimes(3)
     })
+    expect(lifecycle.beforeClose.mock.calls.map(([uri, , reason]) => [uri, reason])).toStrictEqual([
+      ['a', CloseReason.EditorClosed],
+      ['b', CloseReason.ConnectionClosed],
+      ['c', CloseReason.Shutdown],
+    ])
   })
 
   it('should forget a session the server ends, and log it', async () => {
@@ -136,6 +190,7 @@ describe('EditorSessions', () => {
     await sut.acquire('a', SHOP, SALES)
 
     expect(log.warn).toHaveBeenCalledWith('The connection of a ended: terminated')
+    expect(lifecycle.onLost).toHaveBeenCalledWith('a')
     expect(requests).toHaveLength(2)
   })
 
@@ -144,7 +199,7 @@ describe('EditorSessions', () => {
     close.mockRejectedValueOnce(new Error('already gone'))
     await sut.acquire('a', SHOP, SALES)
 
-    await sut.release('a')
+    await sut.release('a', CloseReason.EditorClosed)
 
     expect(log.warn).toHaveBeenCalledWith('Could not close an editor connection: already gone')
   })

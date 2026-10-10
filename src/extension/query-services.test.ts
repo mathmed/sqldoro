@@ -13,6 +13,7 @@ import {
   FakeWebviewPanel,
   Position,
   resetVscode,
+  settings,
   showEditor,
   Uri,
   webviewPanels,
@@ -151,6 +152,24 @@ describe('createQueryServices', () => {
     })
 
     expect(window.showErrorMessage).not.toHaveBeenCalled()
+  })
+
+  it('should load every row of a result cut by the automatic limit', async () => {
+    settings.set('sqldoro.autoLimit.rows', 1)
+    const { query } = await wired()
+    pg.script.read = (cursor) =>
+      cursor.reads.length === 1 ? { ...ONE_ROW, rows: [[1]] } : { ...ONE_ROW, rows: [[2]] }
+    const panel = await run(query, await boundEditor(query, 'SELECT 1 AS one'))
+    const [tabId = ''] = postedTabs(panel).keys()
+
+    panel.webview.send({ type: 'loadAll', tabId })
+
+    await vi.waitFor(() => {
+      expect(pg.clients.at(-1)?.cursors.map((cursor) => cursor.sql)).toStrictEqual([
+        'SELECT 1 AS one LIMIT 2',
+        'SELECT 1 AS one',
+      ])
+    })
   })
 
   it('should let the user pick the connection of an editor among the saved ones', async () => {

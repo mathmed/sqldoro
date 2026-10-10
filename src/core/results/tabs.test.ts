@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDuration, groupDigits, plural, summaryText, tabTitle } from './tabs.ts'
+import { resultTab } from '../../../test/fixtures/results.ts'
+import { TabKind, TabStatus } from './protocol.ts'
+import { canLoadAll, formatDuration, groupDigits, plural, summaryText, tabTitle } from './tabs.ts'
 
 describe('tabTitle', () => {
   it('should put the statement on one line', () => {
@@ -47,23 +49,58 @@ describe('formatDuration', () => {
 
 describe('summaryText', () => {
   it('should say how many rows came back and how long it took', () => {
-    expect(summaryText({ durationMs: 35, affectedRows: null, isTruncated: false }, 1234)).toBe(
-      '1,234 rows in 35 ms',
-    )
+    expect(
+      summaryText(
+        { durationMs: 35, affectedRows: null, isTruncated: false, autoLimit: null },
+        1234,
+      ),
+    ).toBe('1,234 rows in 35 ms')
   })
 
   it('should say how many rows a statement changed', () => {
-    expect(summaryText({ durationMs: 2000, affectedRows: 1, isTruncated: false }, 0)).toBe(
-      '1 row affected in 2.00 s',
-    )
-    expect(summaryText({ durationMs: 1, affectedRows: 3, isTruncated: false }, 0)).toBe(
-      '3 rows affected in 1 ms',
-    )
+    expect(
+      summaryText({ durationMs: 2000, affectedRows: 1, isTruncated: false, autoLimit: null }, 0),
+    ).toBe('1 row affected in 2.00 s')
+    expect(
+      summaryText({ durationMs: 1, affectedRows: 3, isTruncated: false, autoLimit: null }, 0),
+    ).toBe('3 rows affected in 1 ms')
   })
 
   it('should say when the row limit cut the result', () => {
-    expect(summaryText({ durationMs: 5, affectedRows: null, isTruncated: true }, 1)).toBe(
-      '1 row (row limit reached) in 5 ms',
-    )
+    expect(
+      summaryText({ durationMs: 5, affectedRows: null, isTruncated: true, autoLimit: null }, 1),
+    ).toBe('1 row (row limit reached) in 5 ms')
+  })
+})
+
+describe('summaryText of a query cut by the automatic limit', () => {
+  it('should say the result is limited to the automatic limit', () => {
+    expect(
+      summaryText({ durationMs: 5, affectedRows: null, isTruncated: true, autoLimit: 1000 }, 1000),
+    ).toBe('1,000 rows (limited to 1,000 rows) in 5 ms')
+    expect(
+      summaryText({ durationMs: 5, affectedRows: null, isTruncated: true, autoLimit: 1 }, 1),
+    ).toBe('1 row (limited to 1 row) in 5 ms')
+    expect(
+      summaryText({ durationMs: 5, affectedRows: null, isTruncated: false, autoLimit: 1000 }, 3),
+    ).toBe('3 rows in 5 ms')
+  })
+})
+
+describe('canLoadAll', () => {
+  const LIMITED = { durationMs: 1, affectedRows: null, isTruncated: true, autoLimit: 1000 }
+
+  it('should offer to load every row of a query cut by the automatic limit', () => {
+    expect(canLoadAll(resultTab({ summary: LIMITED }))).toBe(true)
+  })
+
+  it.each([
+    { summary: { ...LIMITED, isTruncated: false } },
+    { summary: { ...LIMITED, autoLimit: null } },
+    { summary: null },
+    { summary: LIMITED, status: TabStatus.Running },
+    { summary: LIMITED, kind: TabKind.Plan },
+  ])('should not offer it for %j', (changes) => {
+    expect(canLoadAll(resultTab(changes))).toBe(false)
   })
 })

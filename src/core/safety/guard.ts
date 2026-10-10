@@ -36,7 +36,7 @@ const ConfirmationKind = {
 type ConfirmationKind = (typeof ConfirmationKind)[keyof typeof ConfirmationKind]
 
 // A deliberate act the run waits for: typing a name, once, for this run only.
-interface Confirmation {
+export interface Confirmation {
   readonly kind: ConfirmationKind
   readonly title: string
   readonly prompt: string

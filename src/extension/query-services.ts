@@ -13,6 +13,8 @@ import { pickBinding } from './editor/binding-picker.ts'
 import { EditorBindings } from './editor/bindings.ts'
 import { EditorSessions } from './editor/editor-sessions.ts'
 import { EditorStatus } from './editor/editor-status.ts'
+import { EnvironmentDecorations } from './editor/environment-decorations.ts'
+import { loadAllRows } from './editor/load-all.ts'
 import { QueryRunner } from './editor/query-runner.ts'
 import { runServerView } from './editor/server-view.ts'
 import { HistoryStore } from './history/history-store.ts'
@@ -20,10 +22,13 @@ import { HistoryView } from './history/history-view.ts'
 import { systemClock } from './platform/clock.ts'
 import { copyRows, exportRows } from './results/results-actions.ts'
 import { ResultsPanels } from './results/results-panels.ts'
+import { StatementGuard } from './safety/statement-guard.ts'
 import type { Services } from './services.ts'
 import { readSettings } from './settings.ts'
 import { SavedQueryStore } from './snippets/saved-query-store.ts'
 import { SavedQueryView } from './snippets/saved-query-view.ts'
+import { EditorTransactions } from './transactions/editor-transactions.ts'
+import { TransactionStatusItem } from './transactions/transaction-status.ts'
 
 export type WorkbenchContext = Pick<
   vscode.ExtensionContext,
@@ -33,6 +38,7 @@ export type WorkbenchContext = Pick<
 export interface QueryServices {
   readonly bindings: EditorBindings
   readonly editorSessions: EditorSessions
+  readonly transactions: EditorTransactions
   readonly panels: ResultsPanels
   readonly runner: QueryRunner
   readonly history: HistoryStore
@@ -44,6 +50,8 @@ export interface QueryServices {
   readonly ddl: DdlDocuments
   readonly diagnostics: vscode.DiagnosticCollection
   readonly status: EditorStatus
+  readonly transactionStatus: TransactionStatusItem
+  readonly decorations: EnvironmentDecorations
   readonly pickBinding: () => ReturnType<typeof pickBinding>
 }
 
@@ -59,6 +67,7 @@ interface Access {
 interface EditorParts {
   readonly bindings: EditorBindings
   readonly editorSessions: EditorSessions
+  readonly transactions: EditorTransactions
   readonly history: HistoryStore
   readonly diagnostics: vscode.DiagnosticCollection
   readonly pickBinding: () => ReturnType<typeof pickBinding>
@@ -88,11 +97,28 @@ export function createQueryServices(
     schemaCache,
     completion: createCompletion(access, editors.bindings, schemaCache),
     ddl: new DdlDocuments(access.session),
+    ...createIndicators(access, editors, runner),
+  }
+}
+
+// What tells the user where the editor in front runs: the status bar and the editor tabs.
+function createIndicators(
+  access: Access,
+  editors: EditorParts,
+  runner: QueryRunner,
+): Pick<QueryServices, 'decorations' | 'status' | 'transactionStatus'> {
+  return {
     status: new EditorStatus({
       bindings: editors.bindings,
       runner,
       connections: access.connection,
-      engines: base.engines,
+      engines: access.base.engines,
+      policy: () => readSettings().policy,
+    }),
+    transactionStatus: new TransactionStatusItem(editors),
+    decorations: new EnvironmentDecorations({
+      bindings: editors.bindings,
+      connections: access.connection,
     }),
   }
 }
@@ -108,13 +134,19 @@ function accessOf(base: Services, log: Logger): Access {
 }
 
 function createEditorParts(context: WorkbenchContext, { base, log, connect }: Access): EditorParts {
+  const transactions = new EditorTransactions({
+    defaultMode: () => readSettings().transactionMode,
+    log,
+  })
   return {
     bindings: new EditorBindings(context.workspaceState, log),
     editorSessions: new EditorSessions({
       open: base.open,
       readSecrets: async (config) => base.secrets.read(config),
       log,
+      lifecycle: transactions,
     }),
+    transactions,
     history: new HistoryStore(context.globalState, log, () => readSettings().historySize),
     diagnostics: vscode.languages.createDiagnosticCollection(DIAGNOSTICS_NAME),
     pickBinding: async () =>
@@ -134,7 +166,9 @@ function createRunParts(
     log: access.log,
     actionsFor: (uri) => ({
       cancel: () => void runner.cancel(uri),
-      serverView: async (tab, view) => runServerView(runner, uri, { tab, view }),
+      serverView: async (tab, view) =>
+        runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
+      loadAll: async (tab) => loadAllRows(runner, uri, tab),
       copy: copyRows,
       export: exportRows,
     }),
@@ -146,6 +180,7 @@ function createRunParts(
 function createRunner(access: Access, editors: EditorParts, panels: ResultsPanels): QueryRunner {
   return new QueryRunner({
     ...editors,
+    guard: new StatementGuard({ policy: () => readSettings().policy, log: access.log }),
     connect: access.connect,
     connections: access.connection,
     engines: access.base.engines,

@@ -83,6 +83,9 @@ function toolbarActions(api: VsCodeApi, tab: ResultTab, choices: ResultChoices):
     cancel: () => {
       api.postMessage({ type: WebviewMessageType.Cancel })
     },
+    loadAll: () => {
+      api.postMessage({ type: WebviewMessageType.LoadAll, tabId: tab.id })
+    },
     copy: (format: ExportFormat) => {
       copySelection(api, tab, { selection: choices.selection, format })
     },

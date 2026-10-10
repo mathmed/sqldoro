@@ -11,6 +11,7 @@ import {
   type ResultColumn,
   type Row,
 } from '../../src/core/engine/query.ts'
+import { TransactionStatus } from '../../src/core/engine/transaction-status.ts'
 import { fakeSession } from '../fakes/engine.ts'
 
 export interface Answer {
@@ -28,11 +29,14 @@ export class ScriptedEngine {
   readonly cancel = vi.fn(async () => Promise.resolve())
   readonly useScope = vi.fn(async () => Promise.resolve())
   answer: (request: QueryRequest) => Answer = () => ({})
+  // What the server says of the transaction after each statement.
+  status: TransactionStatus = TransactionStatus.Idle
 
   session(overrides: Partial<EngineSession> = {}): EngineSession {
     return fakeSession({
       execute: (request) => this.#execute(request),
       useScope: this.useScope,
+      transactionStatus: async () => Promise.resolve(this.status),
       ...overrides,
     })
   }

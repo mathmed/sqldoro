@@ -1,4 +1,4 @@
-import type { TabSummary } from './protocol.ts'
+import { type ResultTab, TabKind, TabStatus, type TabSummary } from './protocol.ts'
 
 const WHITESPACE = /\s+/g
 const TITLE_LENGTH = 60
@@ -39,6 +39,24 @@ export function summaryText(summary: TabSummary, rowCount: number): string {
     summary.affectedRows === null
       ? plural(rowCount, 'row', 'rows')
       : plural(summary.affectedRows, 'row affected', 'rows affected')
-  const limit = summary.isTruncated ? ' (row limit reached)' : ''
-  return `${rows}${limit} in ${formatDuration(summary.durationMs)}`
+  return `${rows}${limitText(summary)} in ${formatDuration(summary.durationMs)}`
+}
+
+function limitText(summary: TabSummary): string {
+  if (!summary.isTruncated) {
+    return ''
+  }
+  return summary.autoLimit === null
+    ? ' (row limit reached)'
+    : ` (limited to ${plural(summary.autoLimit, 'row', 'rows')})`
+}
+
+// A query cut by the automatic limit can run again without it.
+export function canLoadAll(tab: Pick<ResultTab, 'kind' | 'status' | 'summary'>): boolean {
+  return (
+    tab.kind === TabKind.Rows &&
+    tab.status === TabStatus.Succeeded &&
+    tab.summary?.isTruncated === true &&
+    tab.summary.autoLimit !== null
+  )
 }

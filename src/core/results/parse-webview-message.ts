@@ -20,6 +20,7 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [WebviewMessageType.Copy, readCopy],
   [WebviewMessageType.Export, readExport],
   [WebviewMessageType.FetchCell, readFetchCell],
+  [WebviewMessageType.LoadAll, readLoadAll],
   [WebviewMessageType.Problem, readProblem],
 ])
 
@@ -82,6 +83,10 @@ function readFetchCell(message: JsonRecord): WebviewMessage {
     row: readCount(message, 'row'),
     column: readCount(message, 'column'),
   }
+}
+
+function readLoadAll(message: JsonRecord): WebviewMessage {
+  return { type: WebviewMessageType.LoadAll, tabId: readString(message, 'tabId') }
 }
 
 function readProblem(message: JsonRecord): WebviewMessage {

@@ -1,19 +1,36 @@
-import { type HostMessage, HostMessageType, type ResultTab } from '../results/protocol.ts'
+import {
+  type HostMessage,
+  HostMessageType,
+  type PanelConnection,
+  type ResultTab,
+} from '../results/protocol.ts'
 
-// What the result webview shows: the tabs of the last run, and the one in front.
+// What the result webview shows: the connection of the editor, the tabs of the last run, and the
+// one in front.
 export interface ResultsState {
+  readonly connection: PanelConnection | null
   readonly tabs: readonly ResultTab[]
   readonly activeTabId: string | null
 }
 
-export const EMPTY_RESULTS: ResultsState = { tabs: [], activeTabId: null }
+export const EMPTY_RESULTS: ResultsState = { connection: null, tabs: [], activeTabId: null }
 
 // A list of tabs replaces the run; a tab updates its own, and a new one comes to the front.
 export function reduceResults(state: ResultsState, message: HostMessage): ResultsState {
-  if (message.type === HostMessageType.Tabs) {
-    return { tabs: message.tabs, activeTabId: message.activeTabId ?? lastId(message.tabs) }
+  switch (message.type) {
+    case HostMessageType.Tabs:
+      return {
+        ...state,
+        tabs: message.tabs,
+        activeTabId: message.activeTabId ?? lastId(message.tabs),
+      }
+    case HostMessageType.Tab:
+      return withTab(state, message.tab)
+    case HostMessageType.Connection:
+      return { ...state, connection: message.connection }
+    default:
+      return state
   }
-  return message.type === HostMessageType.Tab ? withTab(state, message.tab) : state
 }
 
 function lastId(tabs: readonly ResultTab[]): string | null {
@@ -23,7 +40,7 @@ function lastId(tabs: readonly ResultTab[]): string | null {
 function withTab(state: ResultsState, tab: ResultTab): ResultsState {
   const isNew = !state.tabs.some((existing) => existing.id === tab.id)
   return isNew
-    ? { tabs: [...state.tabs, tab], activeTabId: tab.id }
+    ? { ...state, tabs: [...state.tabs, tab], activeTabId: tab.id }
     : { ...state, tabs: state.tabs.map((existing) => (existing.id === tab.id ? tab : existing)) }
 }
 

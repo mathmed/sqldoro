@@ -8,6 +8,7 @@ import { Toolbar } from './Toolbar.tsx'
 
 let actions: {
   cancel: Mock<() => void>
+  loadAll: Mock<() => void>
   copy: Mock<(format: ExportFormat) => void>
   export: Mock<(format: ExportFormat) => void>
   setServerSide: Mock<(isServerSide: boolean) => void>
@@ -38,7 +39,13 @@ function button(group: string, name: string): HTMLButtonElement {
 }
 
 beforeEach(() => {
-  actions = { cancel: vi.fn(), copy: vi.fn(), export: vi.fn(), setServerSide: vi.fn() }
+  actions = {
+    cancel: vi.fn(),
+    loadAll: vi.fn(),
+    copy: vi.fn(),
+    export: vi.fn(),
+    setServerSide: vi.fn(),
+  }
 })
 
 describe('Toolbar', () => {
@@ -81,6 +88,19 @@ describe('Toolbar', () => {
     fireEvent.click(checkbox)
 
     expect(actions.setServerSide).toHaveBeenCalledWith(false)
+  })
+
+  it('should offer to load every row only when the automatic limit cut the result', () => {
+    const limited = { durationMs: 1, affectedRows: null, isTruncated: true, autoLimit: 500 }
+    toolbar({ summary: limited })
+    fireEvent.click(screen.getByRole('button', { name: 'Load All Rows' }))
+    expect(actions.loadAll).toHaveBeenCalledOnce()
+  })
+
+  it('should not offer to load every row of a complete result', () => {
+    toolbar()
+
+    expect(screen.queryByRole('button', { name: 'Load All Rows' })).toBeNull()
   })
 
   it('should not offer the server where the statement cannot run again', () => {

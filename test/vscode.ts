@@ -11,6 +11,7 @@ import {
 import { type Disposable, resetWorkbench } from './vscode/workbench.ts'
 
 export * from './vscode/languages.ts'
+export * from './vscode/tabs.ts'
 export * from './vscode/text.ts'
 export * from './vscode/uri.ts'
 export * from './vscode/webviews.ts'

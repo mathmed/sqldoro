@@ -1,18 +1,22 @@
 import type * as vscode from 'vscode'
 
+import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import type { Logger } from '../../core/platform.ts'
 import type { ExportFormat } from '../../core/results/export-format.ts'
+import { panelConnection, panelTitle } from '../../core/results/panel-connection.ts'
 import { parseWebviewMessage } from '../../core/results/parse-webview-message.ts'
 import {
   type CellRange,
   type HostMessage,
   HostMessageType,
+  type PanelConnection,
   type WebviewMessage,
   WebviewMessageType,
 } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import type { ViewSpec } from '../../core/results/view.ts'
+import type { GuardPolicy } from '../../core/safety/guard.ts'
 
 export interface CopyRequest {
   readonly range: CellRange
@@ -24,6 +28,7 @@ export interface CopyRequest {
 export interface PanelActions {
   readonly cancel: () => void
   readonly serverView: (tab: ResultSet, view: ViewSpec) => Promise<void>
+  readonly loadAll: (tab: ResultSet) => Promise<void>
   readonly copy: (tab: ResultSet, request: CopyRequest, dialect: Dialect) => Promise<void>
   readonly export: (tab: ResultSet, format: ExportFormat, dialect: Dialect) => Promise<void>
 }
@@ -58,13 +63,16 @@ export class ResultsPanel {
   readonly #tabs = new Map<string, ResultSet>()
   readonly #postedAt = new Map<string, number>()
   readonly #handlers: ReadonlyMap<string, Handler>
+  readonly #title: string
   #dialect: Dialect | undefined
+  #connection: PanelConnection | undefined
   #activeTabId: string | null = null
   #isReady = false
   readonly #readiness = Promise.withResolvers<undefined>()
 
   constructor(panel: vscode.WebviewPanel, actions: PanelActions, environment: PanelEnvironment) {
     this.#panel = panel
+    this.#title = panel.title
     this.#actions = actions
     this.#environment = environment
     this.#handlers = new Map<string, Handler>([
@@ -75,6 +83,7 @@ export class ResultsPanel {
       route(WebviewMessageType.Copy, async (message) => this.#copy(message)),
       route(WebviewMessageType.Export, async (message) => this.#export(message)),
       route(WebviewMessageType.Cancel, async () => this.#cancel()),
+      route(WebviewMessageType.LoadAll, async (message) => this.#loadAll(message)),
       route(WebviewMessageType.Problem, async (message) => this.#problem(message)),
     ])
   }
@@ -94,6 +103,14 @@ export class ResultsPanel {
 
   reveal(): void {
     this.#panel.reveal(undefined, true)
+  }
+
+  // The connection the editor runs on, shown above the tabs; its environment goes in the title.
+  showConnection(connection: ConnectionConfig, policy: GuardPolicy): void {
+    const shown = panelConnection(connection, policy)
+    this.#connection = shown
+    this.#panel.title = panelTitle(this.#title, shown)
+    this.#post({ type: HostMessageType.Connection, connection: shown })
   }
 
   // A new run replaces the tabs of the previous one, and their rows.
@@ -149,6 +166,9 @@ export class ResultsPanel {
   async #ready(): Promise<void> {
     this.#isReady = true
     this.#readiness.resolve(undefined)
+    if (this.#connection !== undefined) {
+      this.#post({ type: HostMessageType.Connection, connection: this.#connection })
+    }
     const tabs = [...this.#tabs.values()].map((tab) => tab.toTab())
     this.#post({ type: HostMessageType.Tabs, tabs, activeTabId: this.#activeTabId })
     return Promise.resolve()
@@ -204,6 +224,13 @@ export class ResultsPanel {
     const tab = this.#tabs.get(message.tabId)
     if (tab !== undefined && this.#dialect !== undefined) {
       await this.#actions.export(tab, message.format, this.#dialect)
+    }
+  }
+
+  async #loadAll(message: MessageOf<typeof WebviewMessageType.LoadAll>): Promise<void> {
+    const tab = this.#tabs.get(message.tabId)
+    if (tab !== undefined && !tab.isRunning) {
+      await this.#actions.loadAll(tab)
     }
   }
 

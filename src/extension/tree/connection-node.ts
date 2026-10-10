@@ -58,16 +58,23 @@ function connectionItem(
   display: Display,
 ): vscode.TreeItem {
   const { state } = display
-  const badge = environmentBadge(connection.environment)
   const item = treeItem(node, {
     label: connection.name,
-    description: badge === '' ? connection.host : `${badge} · ${connection.host}`,
+    description: descriptionOf(connection),
     tooltip: tooltipOf(connection, display),
     icon: statusIcon(connection, state.status),
     isExpandable: true,
   })
-  item.contextValue = `${NodeKind.Connection}.${state.status}`
+  item.contextValue = `${NodeKind.Connection}.${state.status}.${connection.isReadOnly ? 'readOnly' : 'writable'}`
   return item
+}
+
+// "PROD · read-only · db.example.com": what matters before writing comes first.
+function descriptionOf(connection: ConnectionConfig): string {
+  const badge = environmentBadge(connection.environment)
+  return [badge, connection.isReadOnly ? 'read-only' : '', connection.host]
+    .filter((part) => part !== '')
+    .join(' · ')
 }
 
 // Failures are painted as errors; otherwise the color tells the environment, production in red.

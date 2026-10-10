@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 
 import { vi } from 'vitest'
 
+import { registerFileDecorationProvider, resetTabs, tabGroups } from './tabs.ts'
 import { FakeTextDocument, FakeTextEditor } from './text.ts'
 import { FakeUri } from './uri.ts'
 import { createWebviewPanel } from './webviews.ts'
@@ -65,6 +66,8 @@ export interface FakeStatusBarItem {
   text: string
   tooltip: string
   command: string | undefined
+  backgroundColor: { readonly id: string } | undefined
+  color: { readonly id: string } | undefined
   isVisible: boolean
   readonly show: () => void
   readonly hide: () => void
@@ -114,6 +117,8 @@ function statusBarItem(alignment: number, priority: number): FakeStatusBarItem {
     text: '',
     tooltip: '',
     command: undefined,
+    backgroundColor: undefined,
+    color: undefined,
     isVisible: false,
     show: () => {
       item.isVisible = true
@@ -208,6 +213,8 @@ export const window = {
   createOutputChannel: outputChannel,
   createStatusBarItem: statusBarItem,
   createWebviewPanel,
+  registerFileDecorationProvider,
+  tabGroups,
   withProgress: async <T>(...[, task]: [unknown, ProgressTask<T>]): Promise<T> =>
     task({ report: vi.fn() }, { isCancellationRequested: false }),
 }
@@ -243,6 +250,7 @@ export const env = {
 }
 
 export function resetWorkbench(): void {
+  resetTabs()
   treeViews.length = 0
   outputChannels.length = 0
   statusBarItems.length = 0

@@ -2,6 +2,7 @@ import * as vscode from 'vscode'
 
 import type { Logger } from '../../core/platform.ts'
 import { describeError } from '../../core/text/errors.ts'
+import { documentLabel } from '../editor/document-label.ts'
 import { createNonce, resultsHtml } from './results-html.ts'
 import { type PanelActions, type PanelEnvironment, ResultsPanel } from './results-panel.ts'
 
@@ -18,7 +19,7 @@ const SCRIPT = 'results.js'
 const STYLE = 'results.css'
 
 function title(uri: vscode.Uri): string {
-  return `Results: ${uri.path.slice(uri.path.lastIndexOf('/') + 1)}`
+  return `Results: ${documentLabel(uri)}`
 }
 
 // One result panel per SQL editor, beside it; it goes when the user closes it or the editor.

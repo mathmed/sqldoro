@@ -13,6 +13,7 @@ import {
   HostMessageType,
   WebviewMessageType,
 } from '../core/results/protocol.ts'
+import { ConnectionBanner } from './ConnectionBanner.tsx'
 import { listenToHost, type VsCodeApi } from './host.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStores } from './row-stores.ts'
@@ -88,6 +89,7 @@ export const App = ({ api }: { readonly api: VsCodeApi }): ReactElement => {
   const tab = activeTab(state)
   return (
     <main className="results">
+      {state.connection === null ? null : <ConnectionBanner connection={state.connection} />}
       <TabBar tabs={state.tabs} activeTabId={state.activeTabId} onActivate={activate} />
       {tab === undefined ? (
         <p className="empty-state">Run a query to see its results here.</p>

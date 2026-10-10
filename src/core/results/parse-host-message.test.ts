@@ -28,7 +28,7 @@ describe('parseHostMessage', () => {
       kind: TabKind.Plan,
       status: TabStatus.Cancelled,
       plan: ['Seq Scan'],
-      summary: { durationMs: 3, affectedRows: 7, isTruncated: true },
+      summary: { durationMs: 3, affectedRows: 7, isTruncated: true, autoLimit: 500 },
       error: { message: 'bad', line: 1, column: 4 },
       notice: '1 statement not run',
       view: { sort: [{ column: 0, isDescending: false }], filters: [{ column: 1, text: 'a' }] },
@@ -64,6 +64,15 @@ describe('parseHostMessage', () => {
     ).toStrictEqual({ type: 'cell', tabId: 't', viewVersion: 1, row: 2, column: 3, value: null })
   })
 
+  it('should read the connection of the editor', () => {
+    const connection = { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: true }
+
+    expect(parseHostMessage({ type: 'connection', connection })).toStrictEqual({
+      type: 'connection',
+      connection,
+    })
+  })
+
   it.each([
     [{ type: 'other' }, '"type" must be a known value'],
     [{ type: 'tab', tab: { ...resultTab(), status: 'done' } }, '"status" must be a known value'],
@@ -79,10 +88,28 @@ describe('parseHostMessage', () => {
     [
       {
         type: 'tab',
-        tab: { ...resultTab(), summary: { durationMs: 1, affectedRows: -1, isTruncated: false } },
+        tab: {
+          ...resultTab(),
+          summary: { durationMs: 1, affectedRows: -1, isTruncated: false, autoLimit: null },
+        },
       },
       '"affectedRows" must be a whole number of 0 or more',
     ],
+    [
+      {
+        type: 'tab',
+        tab: {
+          ...resultTab(),
+          summary: { durationMs: 1, affectedRows: null, isTruncated: true, autoLimit: 1.5 },
+        },
+      },
+      '"autoLimit" must be a whole number of 0 or more',
+    ],
+    [
+      { type: 'connection', connection: { name: 'Shop', environment: 'prod', isProduction: 1 } },
+      '"isProduction" must be a boolean',
+    ],
+    [{ type: 'connection', connection: null }, '"connection" must be an object'],
     [
       {
         type: 'rows',

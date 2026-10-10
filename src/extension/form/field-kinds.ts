@@ -2,6 +2,7 @@ import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { SecretKind } from '../../core/connection/secrets.ts'
 import type { ConnectionField } from '../../core/connection/validation.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
+import { labelOf } from '../labels.ts'
 import {
   type FormDraft,
   SecretState,
@@ -72,6 +73,13 @@ const NONE = '(none)'
 const CHOOSE_FILE = 'choose'
 const REMOVE = 'remove'
 const ENTER = 'enter'
+
+export function choicesOf<T extends string>(
+  values: readonly T[],
+  labels: ReadonlyMap<string, string>,
+): Choice<T>[] {
+  return values.map((value) => ({ label: labelOf(labels, value), value }))
+}
 
 function orElse(text: string, fallback: string): string {
   return text === '' ? fallback : text

@@ -8,7 +8,9 @@ import { CommandId, SQL_LANGUAGE } from '../command-id.ts'
 import { registerAll } from '../commands/command-context.ts'
 import { withTimeout } from '../platform/timeout.ts'
 import type { ResultsPanels } from '../results/results-panels.ts'
+import type { EditorTransactions } from '../transactions/editor-transactions.ts'
 import type { ExplorerNode } from '../tree/explorer-node.ts'
+import { activeSqlEditor } from './active-editor.ts'
 import type { EditorBindings } from './bindings.ts'
 import { explain } from './explain.ts'
 import type { QueryRunner } from './query-runner.ts'
@@ -16,6 +18,7 @@ import type { QueryRunner } from './query-runner.ts'
 export interface EditorCommandContext {
   readonly runner: QueryRunner
   readonly bindings: EditorBindings
+  readonly transactions: EditorTransactions
   readonly panels: ResultsPanels
   readonly connections: (id: string) => ConnectionConfig | undefined
   readonly pickBinding: () => Promise<EditorBinding | undefined>
@@ -38,17 +41,6 @@ export function registerEditorCommands(context: EditorCommandContext): vscode.Di
     ]),
     vscode.commands.registerCommand(CommandId.ShowResults, async () => showResults(context)),
   ]
-}
-
-function activeSqlEditor(): vscode.TextEditor | undefined {
-  const editor = vscode.window.activeTextEditor
-  if (editor?.document.languageId === SQL_LANGUAGE) {
-    return editor
-  }
-  void vscode.window.showInformationMessage(
-    'Open a SQL editor first: sqldoro runs the statements of SQL documents.',
-  )
-  return undefined
 }
 
 // From the explorer, the editor runs in the database or schema of the node; from anywhere else, the
@@ -84,10 +76,20 @@ function isNode(value: unknown): value is ExplorerNode {
   )
 }
 
+// An open transaction lives on the session of the editor: it ends before the editor moves.
 async function changeConnection(context: EditorCommandContext): Promise<void> {
   const editor = activeSqlEditor()
-  const binding = editor === undefined ? undefined : await context.pickBinding()
-  if (editor !== undefined && binding !== undefined) {
+  if (editor === undefined) {
+    return
+  }
+  if (context.transactions.isOpen(editor.document.uri.toString())) {
+    void vscode.window.showWarningMessage(
+      'Commit or roll back the open transaction of this editor before changing its connection.',
+    )
+    return
+  }
+  const binding = await context.pickBinding()
+  if (binding !== undefined) {
     await context.bindings.set(editor.document.uri, binding)
   }
 }

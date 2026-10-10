@@ -21,6 +21,7 @@ import {
 import {
   type HostMessage,
   HostMessageType,
+  type PanelConnection,
   type ResultTab,
   type TabError,
   TabKind,
@@ -42,6 +43,7 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   ],
   [HostMessageType.Rows, readRows],
   [HostMessageType.Cell, readCell],
+  [HostMessageType.Connection, readConnectionMessage],
 ])
 
 function isTabStatus(value: unknown): value is TabStatus {
@@ -97,6 +99,7 @@ function readSummary(summary: JsonRecord): TabSummary {
     durationMs: readNumber(summary, 'durationMs'),
     affectedRows: readNullable(summary, 'affectedRows', readCount),
     isTruncated: readBoolean(summary, 'isTruncated'),
+    autoLimit: readNullable(summary, 'autoLimit', readCount),
   }
 }
 
@@ -130,5 +133,21 @@ function readCell(message: JsonRecord): HostMessage {
     row: readCount(message, 'row'),
     column: readCount(message, 'column'),
     value: readCellValue(message, 'value'),
+  }
+}
+
+function readConnectionMessage(message: JsonRecord): HostMessage {
+  return {
+    type: HostMessageType.Connection,
+    connection: readConnection(readNested(message, 'connection')),
+  }
+}
+
+function readConnection(connection: JsonRecord): PanelConnection {
+  return {
+    name: readString(connection, 'name'),
+    environment: readString(connection, 'environment'),
+    isProduction: readBoolean(connection, 'isProduction'),
+    isReadOnly: readBoolean(connection, 'isReadOnly'),
   }
 }

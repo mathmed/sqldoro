@@ -27,6 +27,17 @@ export interface TabSummary {
   readonly affectedRows: number | null
   // More rows than the row limit: the rest were not kept.
   readonly isTruncated: boolean
+  // The limit sqldoro gave a query that had none (the automatic LIMIT), or null.
+  readonly autoLimit: number | null
+}
+
+// The connection of the editor, as the result view shows it above the tabs.
+export interface PanelConnection {
+  readonly name: string
+  // The environment tag (prod, staging...), empty when the connection has none.
+  readonly environment: string
+  readonly isProduction: boolean
+  readonly isReadOnly: boolean
 }
 
 // The server's message, and the place in the editor it points at (1-based) when it gave one.
@@ -77,6 +88,7 @@ export const HostMessageType = {
   Tab: 'tab',
   Rows: 'rows',
   Cell: 'cell',
+  Connection: 'connection',
 } as const
 
 export type HostMessage =
@@ -101,6 +113,7 @@ export type HostMessage =
       readonly column: number
       readonly value: CellValue
     }
+  | { readonly type: typeof HostMessageType.Connection; readonly connection: PanelConnection }
 
 // The whole value of one cell, sent when the webview asks for a value it only holds cut.
 export type CellMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Cell }>
@@ -113,6 +126,7 @@ export const WebviewMessageType = {
   Export: 'export',
   FetchCell: 'fetchCell',
   Cancel: 'cancel',
+  LoadAll: 'loadAll',
   Problem: 'problem',
 } as const
 
@@ -151,6 +165,8 @@ export type WebviewMessage =
       readonly column: number
     }
   | { readonly type: typeof WebviewMessageType.Cancel }
+  // Runs the statement of the tab again without its automatic limit.
+  | { readonly type: typeof WebviewMessageType.LoadAll; readonly tabId: string }
   // Something the webview could not handle, for the extension's log.
   | { readonly type: typeof WebviewMessageType.Problem; readonly message: string }
 

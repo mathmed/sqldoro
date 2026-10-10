@@ -55,6 +55,14 @@ describe('runServerView', () => {
       values: ['%a%'],
     })
     expect(harness.records).toHaveLength(1)
+    panel.webview.send({ type: 'fetchRows', tabId: 'id-1', viewVersion: 1, start: 0, count: 10 })
+    await vi.waitFor(() => {
+      expect(panel.webview.posted.at(-1)).toMatchObject({
+        type: 'rows',
+        tabId: 'id-1',
+        rows: [{ cells: ['ab'], truncated: [] }],
+      })
+    })
   })
 
   it('should show a failure of the run on the server in the tab only', async () => {

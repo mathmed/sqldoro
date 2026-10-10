@@ -22,7 +22,7 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     viewVersion: 0,
     isServerView: false,
     canServerView: true,
-    summary: { durationMs: 12.5, affectedRows: null, isTruncated: false },
+    summary: { durationMs: 12.5, affectedRows: null, isTruncated: false, autoLimit: null },
     error: null,
     notice: '',
     plan: [],
