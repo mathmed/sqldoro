@@ -14,6 +14,7 @@ README for the v1 scope and what is deliberately out of it.
 ```bash
 make setup             # install the locked dependencies and the git hooks
 make build             # bundle the extension (esbuild) and the result view (Vite) into dist/
+make package           # build, then pack and check sqldoro-<version>.vsix (vsce)
 make format            # format with Prettier and apply the fixes ESLint can make
 make lint              # ESLint (strict, complexity and security rules) and the Prettier check
 make typecheck         # tsc 7 strict: the whole project, then the platform-agnostic core alone
@@ -24,7 +25,7 @@ make audit             # known vulnerabilities in the dependencies (npm audit)
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
 make integration       # start the test servers (Docker Compose), run the integration tests against them
 make integration-down  # stop and remove the integration test servers
-make smoke             # build, then run the extension in a real VS Code
+make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
 make all               # everything CI runs on a pull request
@@ -41,7 +42,7 @@ src/drivers/    one folder per database (mysql/, postgres/) implementing the cor
 src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React result grid (TanStack Table and Virtual): a browser bundle built by Vite
-scripts/        CI tooling: build, smoke launcher, mutation runner and the Quality Report
+scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -92,7 +93,7 @@ test/           test support: the vscode and webview fakes for unit tests and th
   `node scripts/quality-report.ts run <analysis> -- <command>` and uploads the fragment; the
   `quality-report` job builds the single PR comment. A new analysis needs an `Analysis` value, an
   analyzer, a `Check` in `SECTIONS`, the wrapper and the artifact in its job, the job in the `needs` of
-  `quality-report`, and tests (see the README, "Quality Report"). The wrapper keeps the tool's exit
+  `quality-report`, and tests (see CONTRIBUTING.md, "Quality Report"). The wrapper keeps the tool's exit
   code: the job stays the gate.
 - Every change comes with tests.
 - Driver and network code:
@@ -114,7 +115,10 @@ test/           test support: the vscode and webview fakes for unit tests and th
    session (it needs Docker).
 5. Contributed commands, settings and views are not removed or renamed unless the task asks for it:
    they are the public contract of the extension.
-6. The README is updated if the change affects setup, commands, settings, scope or architecture.
+6. The docs are updated if the change affects setup, commands, settings, scope or architecture: the
+   README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
+   `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
+   `[Unreleased]`.
 
 ## Deterministic validation
 
@@ -139,7 +143,11 @@ contract needs the owner's explicit approval.
 - **Coverage**: 100% of statements, branches, functions and lines, as a ratchet (Vitest `autoUpdate`
   only ever raises the numbers in `vitest.config.ts`). Write the missing test or remove the unreachable
   code. Only the command-line entry points `scripts/*.ts` are excluded: CI runs them for real.
-- **Smoke**: `make smoke` launches a real VS Code with the built extension. It must activate, register
+- **Package**: `make package` packs the `.vsix` and checks it against `scripts/package/vsix-rules.ts`
+  (the allow list of `.vscodeignore`, the files the manifest names, a size budget); the build fails
+  on a bundled library whose license is not one sqldoro can ship. A new runtime file goes into both
+  `.vscodeignore` and the rules.
+- **Smoke**: `make smoke` installs the packaged `.vsix` in a real VS Code. It must activate, register
   every contributed command and view and answer `sqldoro.hello`.
 - **Integration**: the `integration` job runs `make integration`'s tests against real MySQL,
   PostgreSQL and OpenSSH service containers; `test/integration/compose.yaml` starts the same servers
