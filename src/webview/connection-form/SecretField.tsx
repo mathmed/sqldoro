@@ -3,9 +3,9 @@ import { type ReactElement, useState } from 'react'
 import { SecretState, secretState, typedSecret } from '../../core/connection-form/draft.ts'
 import { keepSecret, removeSecret, typeSecret } from '../../core/connection-form/form-state.ts'
 import type { SecretKind } from '../../core/connection/secrets.ts'
+import { Icon, IconName } from '../icons.tsx'
 import { describedBy, FieldFrame, LinkButton } from './controls.tsx'
 import type { FieldSpec, FormView } from './form-view.ts'
-import { Icon, IconName } from './icons.tsx'
 
 interface SecretFieldProps {
   readonly view: FormView

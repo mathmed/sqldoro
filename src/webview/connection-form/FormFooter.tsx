@@ -2,8 +2,8 @@ import type { ReactElement } from 'react'
 
 import { FormAction, TestState, type TestStatus } from '../../core/connection-form/form-state.ts'
 import { submit } from '../../core/connection-form/form-submit.ts'
+import { Icon, IconName } from '../icons.tsx'
 import type { FormView } from './form-view.ts'
-import { Icon, IconName } from './icons.tsx'
 
 function testText({ state, message }: TestStatus): string {
   switch (state) {

@@ -8,7 +8,7 @@ import { MYSQL_DIALECT, POSTGRES_DIALECT } from '../../../test/fixtures/dialects
 import { RESULT_COLUMNS } from '../../../test/fixtures/results.ts'
 import { env, resetVscode, Uri, window } from '../../../test/vscode.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import { copyRows, exportRows } from './results-actions.ts'
+import { copyColumnName, copyRows, exportRows } from './results-actions.ts'
 
 function result(sql = 'SELECT id, name FROM sales.orders', count = 2): ResultSet {
   const sut = new ResultSet({ id: 't', sql, kind: 'rows', canServerView: true, canRefresh: false })
@@ -33,6 +33,21 @@ beforeEach(() => {
   ]) {
     mock.mockReset()
   }
+})
+
+describe('copyColumnName', () => {
+  it('should copy the name of a column of the result', async () => {
+    await copyColumnName(result(), 1)
+
+    expect(env.clipboard.writeText).toHaveBeenCalledWith('name')
+    expect(window.setStatusBarMessage).toHaveBeenCalledWith('Copied the name of the column', 4000)
+  })
+
+  it('should copy nothing for a column the result does not have', async () => {
+    await copyColumnName(result(), 2)
+
+    expect(env.clipboard.writeText).not.toHaveBeenCalled()
+  })
 })
 
 describe('copyRows', () => {

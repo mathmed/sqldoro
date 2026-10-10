@@ -213,7 +213,7 @@ describe('the SQL editor features', () => {
     })
   })
 
-  it('should open a table on a connection of its own, read it again, and close it on Disconnect', async () => {
+  it('should open a table on a connection of its own, read it again with a WHERE, and close it on Disconnect', async () => {
     await activated()
     const orders = { database: 'shop', schema: 'public', name: 'orders' }
     const opening = vscode.commands.executeCommand(CommandId.OpenTableData, {
@@ -228,7 +228,7 @@ describe('the SQL editor features', () => {
     panel.webview.send({ type: 'ready' })
     await opening
     const tableClient = pg.clients.at(-1)
-    expect(panel.title).toBe('orders — public')
+    expect(panel.title).toBe('Shop/shop/public.orders')
     expect(tableClient?.cursors.map((cursor) => cursor.sql)).toStrictEqual([
       'SELECT * FROM "public"."orders" LIMIT 1001',
     ])
@@ -236,6 +236,12 @@ describe('the SQL editor features', () => {
     panel.webview.send({ type: 'refresh', tabId: tabIdIn(panel) })
     await vi.waitFor(() => {
       expect(tableClient?.cursors).toHaveLength(2)
+    })
+    panel.webview.send({ type: 'filterTable', tabId: tabIdIn(panel), condition: 'id > 1' })
+    await vi.waitFor(() => {
+      expect(tableClient?.cursors.at(-1)?.sql).toBe(
+        'SELECT * FROM "public"."orders" WHERE (id > 1\n) LIMIT 1001',
+      )
     })
 
     await vscode.commands.executeCommand(CommandId.Disconnect, 'shop')

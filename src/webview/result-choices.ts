@@ -55,6 +55,12 @@ export function toolbarActions(
       api.postMessage({ type: WebviewMessageType.Export, tabId: tab.id, format })
     },
     setServerSide: choices.setIsServerSide,
+    search: (text: string) => {
+      api.postMessage({ type: WebviewMessageType.Search, tabId: tab.id, text })
+    },
+    filterTable: (condition: string) => {
+      api.postMessage({ type: WebviewMessageType.FilterTable, tabId: tab.id, condition })
+    },
   }
 }
 

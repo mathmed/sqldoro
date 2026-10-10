@@ -1,9 +1,17 @@
-import { type KeyboardEvent, type ReactElement, useEffect, useState } from 'react'
+import { type ReactElement, useState } from 'react'
 
+import type { ResultColumn } from '../core/engine/query.ts'
 import { filterText, withFilter } from '../core/grid/view-state.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
+import { FilterPopover } from './FilterPopover.tsx'
+import { ariaColumnIndex, filterButtonId, pairs } from './grid-model.ts'
 import { ColumnSpacer } from './GridRows.tsx'
+import { columnMenu, type Header, type HeaderActions } from './header-menu.ts'
+import { Icon, IconName } from './icons.tsx'
+import { KindIcon, kindName } from './KindIcon.tsx'
+import { MenuButton } from './Menu.tsx'
+import { placeUnder, type PopupPlace } from './popup.ts'
 import type { ColumnWindow } from './use-column-window.ts'
 import type { GridTable } from './use-grid-table.ts'
 
@@ -12,107 +20,188 @@ interface GridHeaderProps {
   readonly tab: ResultTab
   // The columns in the page, as in the rows.
   readonly shown: ColumnWindow
+  // The width of the row numbers, on the left.
+  readonly gutter: number
   readonly isDisabled: boolean
   readonly onView: (view: ViewSpec) => void
+  readonly onCopyName: (column: number) => void
 }
 
-type Header = ReturnType<GridTable['getFlatHeaders']>[number]
+// The filter open under the header of a column.
+interface Filtering {
+  readonly column: number
+  readonly name: string
+  readonly place: PopupPlace
+}
 
-// Typing pauses this long before a filter applies: each change sorts and filters all the rows.
-const FILTER_DELAY_MS = 400
 const SORT_LABELS: ReadonlyMap<string, 'ascending' | 'descending'> = new Map([
   ['asc', 'ascending'],
   ['desc', 'descending'],
 ])
+const SORT_MARKS: ReadonlyMap<string, string> = new Map([
+  ['asc', '▲'],
+  ['desc', '▼'],
+])
 
-// The names of the columns (click to sort, Shift to sort by several, drag the edge to resize) and a
-// filter under each.
+// The names of the columns, each with the kind of its values, its filter and a menu: a click sorts,
+// Shift adds a column to the sort, the edge resizes the column. A column's filter opens under it.
 export const GridHeader = (props: GridHeaderProps): ReactElement => {
-  const { table, shown } = props
-  const headers = table.getFlatHeaders().slice(shown.first, shown.last + 1)
+  const { table, tab, shown, gutter, isDisabled, onView, onCopyName } = props
+  const [filtering, setFiltering] = useState<Filtering>()
+  const actions: HeaderActions = {
+    tab,
+    isDisabled,
+    onView,
+    onCopyName,
+    onFilter: (column, name) => {
+      const anchor = document.getElementById(filterButtonId(tab.id, column))
+      setFiltering({ column, name, place: placeUnder(anchor) })
+    },
+  }
   return (
     <div className="grid-header" role="rowgroup">
-      <div
-        className="grid-row header-row"
-        role="row"
-        aria-rowindex={1}
-        style={{ width: table.getTotalSize() }}
-      >
-        <ColumnSpacer width={shown.before} />
-        {headers.map((header) => (
-          <HeaderCell key={header.id} header={header} isDisabled={props.isDisabled} />
-        ))}
-      </div>
-      <FilterRow {...props} headers={headers} />
+      <HeaderRow table={table} shown={shown} gutter={gutter} actions={actions} />
+      <HeaderFilter filtering={filtering} actions={actions} onEnd={setFiltering} />
     </div>
   )
 }
 
-const FilterRow = ({
-  table,
-  tab,
-  shown,
-  isDisabled,
-  onView,
-  headers,
-}: GridHeaderProps & { readonly headers: readonly Header[] }): ReactElement => (
-  <div className="grid-row filter-row" role="row" style={{ width: table.getTotalSize() }}>
-    <ColumnSpacer width={shown.before} />
-    {headers.map((header, shift) => {
-      const index = shown.first + shift
-      return (
-        <FilterCell
-          key={`${header.id}:${filterText(tab.view, index)}`}
-          name={String(header.column.columnDef.header)}
-          width={header.getSize()}
-          text={filterText(tab.view, index)}
-          isDisabled={isDisabled}
-          onCommit={(text) => {
-            onView(withFilter(tab.view, index, text))
-          }}
-        />
-      )
-    })}
-  </div>
-)
+// The corner above the row numbers, then the headers of the columns in the page.
+interface HeaderRowProps extends Pick<GridHeaderProps, 'gutter' | 'shown' | 'table'> {
+  readonly actions: HeaderActions
+}
 
-const HeaderCell = ({
-  header,
-  isDisabled,
-}: {
+const HeaderRow = ({ table, shown, gutter, actions }: HeaderRowProps): ReactElement => {
+  const headers = table.getFlatHeaders().slice(shown.first, shown.last + 1)
+  const columns = pairs(headers, actions.tab.columns.slice(shown.first, shown.last + 1))
+  return (
+    <div
+      className="grid-row header-row"
+      role="row"
+      aria-rowindex={1}
+      style={{ width: gutter + table.getTotalSize() }}
+    >
+      <div className="row-number corner" aria-hidden="true" style={{ width: gutter }} />
+      <ColumnSpacer width={shown.before} />
+      {columns.map(([header, column], shift) => (
+        <HeaderCell
+          key={header.id}
+          header={header}
+          column={column}
+          index={shown.first + shift}
+          actions={actions}
+        />
+      ))}
+    </div>
+  )
+}
+
+interface HeaderFilterProps {
+  readonly filtering: Filtering | undefined
+  readonly actions: HeaderActions
+  readonly onEnd: (filtering: undefined) => void
+}
+
+// Closed from the keyboard or its buttons, the filter gives the focus back to its header.
+const HeaderFilter = ({ filtering, actions, onEnd }: HeaderFilterProps): ReactElement | null => {
+  if (filtering === undefined) {
+    return null
+  }
+  const { tab, onView } = actions
+  const { column } = filtering
+  return (
+    <FilterPopover
+      key={column}
+      name={filtering.name}
+      text={filterText(tab.view, column)}
+      place={filtering.place}
+      onApply={(text) => {
+        onView(withFilter(tab.view, column, text))
+      }}
+      onClose={() => {
+        onEnd(undefined)
+        document.getElementById(filterButtonId(tab.id, column))?.focus()
+      }}
+      onDismiss={() => {
+        onEnd(undefined)
+      }}
+    />
+  )
+}
+
+interface HeaderCellProps {
   readonly header: Header
-  readonly isDisabled: boolean
-}): ReactElement => (
+  readonly column: ResultColumn
+  // The position of the column in the result.
+  readonly index: number
+  readonly actions: HeaderActions
+}
+
+const HeaderCell = ({ header, column, index, actions }: HeaderCellProps): ReactElement => (
   <div
     className="grid-cell header-cell"
     role="columnheader"
+    aria-colindex={ariaColumnIndex(index)}
     aria-sort={SORT_LABELS.get(String(header.column.getIsSorted())) ?? 'none'}
     style={{ width: header.getSize() }}
   >
-    <SortButton header={header} isDisabled={isDisabled} />
+    <SortButton header={header} column={column} index={index} actions={actions} />
+    <FilterButton column={column} index={index} actions={actions} />
+    <MenuButton
+      label={`Actions of ${column.name}`}
+      icon={IconName.More}
+      items={columnMenu(header, { index, name: column.name, actions })}
+      isDisabled={false}
+      hasChevron={false}
+    />
     <Resizer header={header} />
   </div>
 )
 
-const SortButton = ({
-  header,
-  isDisabled,
-}: {
-  readonly header: Header
-  readonly isDisabled: boolean
-}): ReactElement => {
-  const sorted = header.column.getIsSorted()
+// The kind of the column, its name, and the arrow of its sort (with its place in a sort by several).
+const SortButton = ({ header, column, index, actions }: HeaderCellProps): ReactElement => {
+  const mark = SORT_MARKS.get(String(header.column.getIsSorted()))
   return (
     <button
       type="button"
       className="sort"
-      disabled={isDisabled}
+      title={`${column.name}: ${column.dataType} (${kindName(column.kind)}). Click to sort, Shift+click to sort by it too.`}
+      disabled={actions.isDisabled}
       onClick={header.column.getToggleSortingHandler()}
     >
-      {String(header.column.columnDef.header)}
-      {sorted === false ? null : (
-        <span className="sort-mark">{sorted === 'asc' ? ' ▲' : ' ▼'}</span>
+      <KindIcon kind={column.kind} />
+      <span className="column-name">{column.name}</span>
+      {mark === undefined ? null : (
+        <span className="sort-mark">{` ${mark}${sortOrder(actions.tab.view, index)}`}</span>
       )}
+    </button>
+  )
+}
+
+function sortOrder(view: ViewSpec, column: number): string {
+  return view.sort.length > 1 ? String(view.sort.findIndex((key) => key.column === column) + 1) : ''
+}
+
+// Highlighted while the column is filtered.
+const FilterButton = ({
+  column,
+  index,
+  actions,
+}: Omit<HeaderCellProps, 'header'>): ReactElement => {
+  const text = filterText(actions.tab.view, index)
+  return (
+    <button
+      type="button"
+      id={filterButtonId(actions.tab.id, index)}
+      className={text === '' ? 'header-action' : 'header-action is-active'}
+      aria-label={`Filter ${column.name}`}
+      title={text === '' ? `Filter ${column.name}` : `Filtered: ${column.name} contains "${text}"`}
+      disabled={actions.isDisabled}
+      onClick={() => {
+        actions.onFilter(index, column.name)
+      }}
+    >
+      <Icon name={IconName.Filter} />
     </button>
   )
 }
@@ -128,57 +217,5 @@ const Resizer = ({ header }: { readonly header: Header }): ReactElement => {
       onMouseDown={resize}
       onTouchStart={resize}
     />
-  )
-}
-
-interface FilterCellProps {
-  readonly name: string
-  readonly width: number
-  readonly text: string
-  readonly isDisabled: boolean
-  readonly onCommit: (text: string) => void
-}
-
-// What is typed applies after a pause, or at once with Enter.
-function useDraft(
-  text: string,
-  onCommit: (text: string) => void,
-): readonly [string, (draft: string) => void] {
-  const [draft, setDraft] = useState(text)
-  useEffect(() => {
-    if (draft === text) {
-      return undefined
-    }
-    const timer = setTimeout(() => {
-      onCommit(draft)
-    }, FILTER_DELAY_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [draft, text, onCommit])
-  return [draft, setDraft]
-}
-
-const FilterCell = ({ name, width, text, isDisabled, onCommit }: FilterCellProps): ReactElement => {
-  const [draft, setDraft] = useDraft(text, onCommit)
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === 'Enter' && draft !== text) {
-      onCommit(draft)
-    }
-  }
-  return (
-    <div className="grid-cell filter-cell" role="gridcell" style={{ width }}>
-      <input
-        type="search"
-        aria-label={`Filter ${name}`}
-        placeholder="Filter"
-        value={draft}
-        disabled={isDisabled}
-        onChange={(event) => {
-          setDraft(event.target.value)
-        }}
-        onKeyDown={onKeyDown}
-      />
-    </div>
   )
 }

@@ -59,7 +59,7 @@ describe('Open Table Data', () => {
     const { panel, tab } = await openTable(harness)
 
     expect(panel).toMatchObject({
-      title: 'orders — sales',
+      title: 'Shop/shop/sales.orders',
       showOptions: { viewColumn: -1, preserveFocus: true },
     })
     expect(sent()).toStrictEqual([`${ORDERS_SQL} LIMIT 1001`])
@@ -113,7 +113,7 @@ describe('Open Table Data', () => {
       objectNode(customers, { kind: 'table', connectionId: CRM.id }),
     )
 
-    expect(panel.title).toBe('customers — crm')
+    expect(panel.title).toBe('CRM/crm/customers')
     expect(sent()).toStrictEqual(['SELECT * FROM `crm`.`customers`'])
   })
 
@@ -126,7 +126,7 @@ describe('Open Table Data', () => {
       objectNode(view, { kind: 'view', connectionId: SHOP.id }),
     )
 
-    expect(panel.title).toBe('open_orders — sales')
+    expect(panel.title).toBe('Shop/shop/sales.open_orders')
     expect(sent()).toStrictEqual(['SELECT * FROM "sales"."open_orders"'])
   })
 

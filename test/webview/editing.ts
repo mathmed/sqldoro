@@ -39,6 +39,7 @@ export function editingView(shown: Shown = {}): EditingView {
       api,
       cell,
       connection: connection ?? null,
+      hasTabs: false,
     })
   const rendered = render(element(shown))
   act(() => {
@@ -79,7 +80,7 @@ export function focused(): string | null {
   return theGrid().getAttribute('aria-activedescendant')
 }
 
-// A row of the grid by its position in the grid: the header and the filters come first.
+// A row of the grid by its position in the grid: the header comes first.
 export function gridRow(row: number): HTMLElement | undefined {
-  return screen.getAllByRole('row').at(row + 2)
+  return screen.getAllByRole('row').at(row + 1)
 }

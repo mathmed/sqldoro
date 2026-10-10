@@ -31,6 +31,8 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     isServerView: false,
     canServerView: true,
     canRefresh: false,
+    tableFilter: '',
+    search: '',
     summary: { durationMs: 12.5, affectedRows: null, isTruncated: false, autoLimit: null },
     error: null,
     notice: '',

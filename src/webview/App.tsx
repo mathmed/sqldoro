@@ -84,14 +84,18 @@ function route(message: HostMessage, { stores, setCell, dispatch }: Routes): voi
   dispatch({ kind: 'host', message })
 }
 
-// The result view: the tabs of the last run and the result of the one in front.
+// The result view: the tabs of the last run (when it has several) and the result of the one in
+// front.
 export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
   const { state, stores, cell, activate } = useResults(api)
   const tab = activeTab(state)
+  const hasTabs = state.tabs.length > 1
   return (
     <main className="results">
       {state.connection === null ? null : <ConnectionBanner connection={state.connection} />}
-      <TabBar tabs={state.tabs} activeTabId={state.activeTabId} onActivate={activate} />
+      {hasTabs ? (
+        <TabBar tabs={state.tabs} activeTabId={state.activeTabId} onActivate={activate} />
+      ) : null}
       {tab === undefined ? (
         <p className="empty-state">Run a query to see its results here.</p>
       ) : (
@@ -102,6 +106,7 @@ export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
           api={api}
           cell={cell}
           connection={state.connection}
+          hasTabs={hasTabs}
         />
       )}
     </main>

@@ -33,22 +33,31 @@ built to make the dangerous queries hard and the everyday ones quick.
 - **Schema explorer**: databases, schemas, tables and views, columns, indexes and foreign keys,
   loaded as you open them, with a filter by name. Click a table or view to open its rows in a result
   panel of their own (**Open Table Data**, also an inline button and the first entry of its context
-  menu), without writing a query: sqldoro reads `SELECT * FROM` the table through the guards, with the
-  automatic `LIMIT`, on a session of the panel's own, and **Refresh** reads the rows again. These
-  reads are sqldoro's own: the query history does not keep them. Beside the names: the server version
-  of a connected connection (`8.0.45`), the size of each database (`2 GB`), how many tables and views
-  a group holds once it is open (`Tables 142`, or `3 of 142` under a filter), and the estimated rows
-  and size of each table (`~27k rows · 32 MB`, exact numbers in its tooltip), read from the catalog
-  statistics in the same query that lists them. **Refresh** reads them again.
+  menu), named `connection/database/table` (`connection/database/schema.table` in PostgreSQL),
+  without writing a query: sqldoro reads `SELECT * FROM` the table through the guards, with the
+  automatic `LIMIT`, on a session of the panel's own, and **Refresh** reads the rows again. Type a
+  condition in its **WHERE** box (`status = 'active'`) and press `Enter` to read only the rows that
+  meet it: it is your own SQL, run through the guards like a query in an editor, kept one condition
+  of one statement, and the rows stay editable. These reads are sqldoro's own: the query history does
+  not keep them. Beside the names: the server version of a connected connection (`8.0.45`), the size
+  of each database (`2 GB`), how many tables and views a group holds once it is open (`Tables 142`,
+  or `3 of 142` under a filter), and the estimated rows and size of each table (`~27k rows · 32 MB`,
+  exact numbers in its tooltip), read from the catalog statistics in the same query that lists them.
+  **Refresh** reads them again.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
 - **A result grid that stays fast**, beside each SQL editor and for each table opened from the
   explorer: virtualized in rows and columns, so a million rows or a thousand columns scroll smoothly.
-  Sort and filter (on the rows already fetched, or on the server), select cells, copy them as TSV,
-  CSV, JSON or `INSERT` statements, and export the whole result to CSV, JSON or SQL. `NULL` and the
-  empty string look different, `BIGINT`, `DECIMAL` and dates are shown exactly as the server sent
-  them, and long text, JSON and binary values open in a detail pane.
+  Row numbers stay on the left (click one to select its row). Each header shows the kind of its
+  column (`#` numbers, `abc` text, dates, booleans, `{}` JSON, binary), a filter button that lights
+  up while the column is filtered, and a menu to sort, filter and copy the column name. Sort and
+  filter (on the rows already fetched, or on the server), and **Quick Search** for a text in any
+  column. Compact icon buttons with tooltips refresh, cancel, apply and revert changes, add, duplicate
+  and delete rows, copy the selection as CSV, JSON or `INSERT` statements (TSV with `Ctrl+C`), and
+  export the result to CSV, JSON or SQL. `NULL` and the empty string look different, `BIGINT`,
+  `DECIMAL` and dates are shown exactly as the server sent them, and long text, JSON and binary
+  values open in a detail pane.
 - **Inline editing with an SQL preview**: change the rows of a table in the grid, add, duplicate and
   delete rows, then preview the exact statements and their bound values before anything is written.
   The changes apply in one transaction, all or nothing, and a row someone changed meanwhile is
@@ -69,9 +78,9 @@ built to make the dangerous queries hard and the everyday ones quick.
    password and database of **Main**; **SSL/TLS** and **SSH Tunnel** when you need them), then
    **Test Connection** and **Save**. New connections are read-only; tag production connections
    `prod`.
-2. Click a table in the explorer to see its rows, or select **New Query** on the connection, a
-   database or a schema. Type a statement and press `Ctrl+Enter` (`Cmd+Enter` on macOS): the results
-   open beside the editor.
+2. Click a table in the explorer to see its rows (type a condition in **WHERE** to narrow them),
+   or select **New Query** on the connection, a database or a schema. Type a statement and press
+   `Ctrl+Enter` (`Cmd+Enter` on macOS): the results open beside the editor.
 3. To change data, run **Allow Writes** on the connection, open a table with a primary key (or run a
    plain `SELECT` of one table that includes it), edit cells in the grid and press `Ctrl+S` (`Cmd+S`)
    to preview the changes.
@@ -132,16 +141,27 @@ editor where it applies.
 
 ### In the result grid
 
-| Keys                                        | What they do                                                                    |
-| ------------------------------------------- | ------------------------------------------------------------------------------- |
-| Arrows, `Page Up`/`Page Down`, `Home`/`End` | Move the cell selection; `Shift` extends it; `Ctrl+Home`/`Ctrl+End` go to ends. |
-| `Ctrl+A` (`Cmd+A`)                          | Selects every cell.                                                             |
-| `Ctrl+C` (`Cmd+C`)                          | Copies the selected cells as TSV.                                               |
-| `Enter`, double click                       | Edits the cell when the rows can be edited, or opens its whole value.           |
-| `F2`, or typing                             | Edits the cell.                                                                 |
-| `Enter`, `Shift+Enter`, `Tab`, `Escape`     | In a cell being edited: put the value in, add a new line, move on, cancel.      |
-| `Delete`                                    | Marks the selected rows for deletion.                                           |
-| `Ctrl+S` (`Cmd+S`)                          | Previews the pending changes.                                                   |
+| Keys                                        | What they do                                                                      |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| Arrows, `Page Up`/`Page Down`, `Home`/`End` | Move the cell selection; `Shift` extends it; `Ctrl+Home`/`Ctrl+End` go to ends.   |
+| Click a row number                          | Selects the row; `Shift` selects the rows from the selection to it.               |
+| Click a column name                         | Sorts by the column, ascending first; `Shift` adds it to the sort.                |
+| `Ctrl+A` (`Cmd+A`)                          | Selects every cell.                                                               |
+| `Ctrl+C` (`Cmd+C`)                          | Copies the selected cells as TSV.                                                 |
+| `Enter`, double click                       | Edits the cell when the rows can be edited, or opens its whole value.             |
+| `F2`, or typing                             | Edits the cell.                                                                   |
+| `Enter`, `Shift+Enter`, `Tab`, `Escape`     | In a cell being edited: put the value in, add a new line, move on, cancel.        |
+| `Delete`                                    | Marks the selected rows for deletion.                                             |
+| `Ctrl+S` (`Cmd+S`)                          | Previews the pending changes.                                                     |
+| `Enter`, `Escape`                           | In the filter of a column: apply it, close it; the focus goes back to the header. |
+| `Enter`, `Escape`                           | In **Quick Search**: search at once (it also searches as you pause), clear it.    |
+| `Enter`                                     | In the **WHERE** of a table: read the rows that meet the condition.               |
+
+The filter of a column keeps the rows whose value contains its text, without case. **Quick Search**
+keeps the rows with its text in any column, with the filters of the columns, and counts them. Both
+run in the extension host over the rows sqldoro fetched: on a result cut by the automatic limit,
+**Load All Rows** first to search every row (the filters of the columns can also run on the server).
+Copying and exporting take the rows as the grid shows them.
 
 ## Settings
 
@@ -166,11 +186,11 @@ seat belts, not as access control.
 
 **One gate for every statement.** Whatever runs a statement (Run Query, Run Script, the history, a
 saved query opened in an editor, EXPLAIN and EXPLAIN ANALYZE, the rows of a table opened from the
-explorer and their Refresh, sorting on the server, Load All Rows, and the changes applied from the
-grid) goes through the same guard before anything runs: it classifies each statement, applies the
-rules of the connection, asks for the confirmations they need and logs the decision. A script is
-checked whole before its first statement runs, and the runner refuses any statement the guard did not
-see. Only sqldoro's own statements bypass it: the catalog queries of the explorer,
+explorer, their Refresh and their WHERE, sorting on the server, Load All Rows, and the changes
+applied from the grid) goes through the same guard before anything runs: it classifies each
+statement, applies the rules of the connection, asks for the confirmations they need and logs the
+decision. A script is checked whole before its first statement runs, and the runner refuses any
+statement the guard did not see. Only sqldoro's own statements bypass it: the catalog queries of the explorer,
 `START TRANSACTION`, `COMMIT`, `ROLLBACK`, the savepoint of an apply that joins an open transaction
 (`SAVEPOINT`, `RELEASE SAVEPOINT`, `ROLLBACK TO SAVEPOINT`) and the transaction status probe.
 
@@ -243,9 +263,9 @@ The grid writes only what it can write exactly, to the row it read, and says so 
   dates and times are written and compared as the server shows them, in the time zone of the session;
   the statements of an apply are not kept in the history (they hold the values written).
 - **Large results**: sqldoro keeps up to `sqldoro.results.maxRows` rows in the extension host's
-  memory; sorting or filtering a million of them there takes under a second, during which the
-  extension host is busy. The detail pane shows the first 200,000 characters of a value: copy the
-  cell or export the result to get all of it.
+  memory; sorting, filtering or searching a million of them there takes under a second, during which
+  the extension host is busy. **Quick Search** only searches the rows fetched. The detail pane shows
+  the first 200,000 characters of a value: copy the cell or export the result to get all of it.
 - **Connections**: no SSH agent, jump hosts or passphrase-protected TLS client keys; passwords are
   saved, not asked every time. sqldoro is tested against MySQL 8.4 and PostgreSQL 18; MariaDB, other
   MySQL- or PostgreSQL-compatible servers and older versions should work but are not tested.

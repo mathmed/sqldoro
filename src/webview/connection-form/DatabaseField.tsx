@@ -12,9 +12,9 @@ import {
 } from '../../core/connection-form/form-state.ts'
 import { submit } from '../../core/connection-form/form-submit.ts'
 import { ConnectionField } from '../../core/connection/validation.ts'
+import { Icon, IconName } from '../icons.tsx'
 import { describedBy, FieldFrame } from './controls.tsx'
 import { edit, type FieldSpec, type FormView, specOf, touch } from './form-view.ts'
-import { Icon, IconName } from './icons.tsx'
 
 const LIST_ID = 'database-options'
 const LIST_TITLE = 'List the databases of the server'

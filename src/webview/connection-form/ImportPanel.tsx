@@ -2,9 +2,9 @@ import type { KeyboardEvent, ReactElement } from 'react'
 
 import { applyImport, closeImport, typeImport } from '../../core/connection-form/form-flow.ts'
 import { FormControl } from '../../core/connection-form/form-state.ts'
+import { Icon, IconName } from '../icons.tsx'
 import { describedBy, FieldFrame } from './controls.tsx'
 import { fieldId, type FieldSpec, type FormView } from './form-view.ts'
-import { Icon, IconName } from './icons.tsx'
 
 const HELP =
   "A URL such as postgres://user:password@host:5432/database. Its password is saved in VS Code's secret storage."

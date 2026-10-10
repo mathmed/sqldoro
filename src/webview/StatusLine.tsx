@@ -3,9 +3,15 @@ import type { ReactElement } from 'react'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { formatDuration, groupDigits, plural, summaryText } from '../core/results/tabs.ts'
 
-// What happened to the statement, read out by screen readers as it changes.
+// What happened to the statement, read out by screen readers as it changes; its tooltip shows the
+// statement.
 export const StatusLine = ({ tab }: { readonly tab: ResultTab }): ReactElement => (
-  <div className={`status-line status-line-${tab.status}`} role="status" aria-live="polite">
+  <div
+    className={`status-line status-line-${tab.status}`}
+    role="status"
+    aria-live="polite"
+    title={tab.sql}
+  >
     {[statusText(tab), viewText(tab), tab.notice].filter((part) => part !== '').join(' · ')}
   </div>
 )

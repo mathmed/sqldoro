@@ -3,9 +3,9 @@ import type { ReactElement } from 'react'
 import { chooseEngine, engineOf } from '../../core/connection-form/form-flow.ts'
 import { ConnectionField } from '../../core/connection/validation.ts'
 import type { EngineOption } from '../../core/engine/engine.ts'
+import { DatabaseGlyph } from '../icons.tsx'
 import { ImportLink, purposeOf } from './CardHeader.tsx'
 import { fieldId, type FormView } from './form-view.ts'
-import { DatabaseGlyph } from './icons.tsx'
 
 const TITLE_ID = 'picker-title'
 

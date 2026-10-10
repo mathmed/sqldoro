@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import { ColumnKind, type ResultColumn, type Row } from '../engine/query.ts'
-import { activeFilters, applyView, IDENTITY_VIEW, isIdentityView, matchesCell } from './view.ts'
+import {
+  activeFilters,
+  applyView,
+  IDENTITY_VIEW,
+  isIdentityView,
+  matchesCell,
+  searchRows,
+} from './view.ts'
 
 const COLUMNS: readonly ResultColumn[] = [
   { name: 'id', dataType: 'INT8', kind: ColumnKind.Number },
@@ -148,5 +155,26 @@ describe('applyView', () => {
     expect(
       applyView(ROWS, COLUMNS, { sort: [{ column: 7, isDescending: false }], filters: [] }),
     ).toStrictEqual([0, 1, 2, 3, 4])
+  })
+})
+
+describe('searchRows', () => {
+  it('should keep every row with the text in any column, without case, in order', () => {
+    expect(searchRows(ROWS, undefined, 'APP')).toStrictEqual([1, 4])
+    expect(searchRows(ROWS, undefined, '10')).toStrictEqual([0, 3])
+    expect(searchRows(ROWS, undefined, 'ru')).toStrictEqual([0, 3, 4])
+  })
+
+  it('should search the rows a view shows, in the order of the view', () => {
+    expect(searchRows(ROWS, [4, 2, 1, 0], 'a')).toStrictEqual([4, 1, 0])
+    expect(searchRows(ROWS, [], 'a')).toStrictEqual([])
+  })
+
+  it('should never match NULL, even with its name', () => {
+    expect(searchRows(ROWS, undefined, 'null')).toStrictEqual([])
+  })
+
+  it('should keep no row when nothing holds the text', () => {
+    expect(searchRows(ROWS, undefined, 'kiwi')).toStrictEqual([])
   })
 })

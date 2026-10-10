@@ -8,12 +8,14 @@ import { SHOP } from '../../../test/support/query.ts'
 import { createWebviewPanel, type FakeWebviewPanel } from '../../../test/vscode.ts'
 import { EnvironmentTag } from '../../core/connection/connection.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import { type PanelActions, ResultsPanel } from './results-panel.ts'
+import type { PanelActions } from './panel-actions.ts'
+import { ResultsPanel } from './results-panel.ts'
 
 let webviewPanel: FakeWebviewPanel
 let actions: { [K in keyof PanelActions]: ReturnType<typeof vi.fn> }
 let log: ReturnType<typeof recordingLogger>
 let now: number
+let title: string
 
 function panel(): ResultsPanel {
   webviewPanel = createWebviewPanel('sqldoro.results', 'Results', {}, {})
@@ -23,6 +25,7 @@ function panel(): ResultsPanel {
     {
       now: () => now,
       log,
+      title: () => title,
     },
   )
 }
@@ -54,13 +57,16 @@ beforeEach(() => {
     serverView: vi.fn(),
     loadAll: vi.fn(),
     refresh: vi.fn(),
+    filterTable: vi.fn(),
     copy: vi.fn(),
     export: vi.fn(),
+    copyColumnName: vi.fn(),
     applyEdits: vi.fn(),
     isInOpenTransaction: vi.fn(() => false),
   }
   log = recordingLogger()
   now = 1000
+  title = 'Results'
 })
 
 describe('ResultsPanel and its connection', () => {
@@ -97,6 +103,16 @@ describe('ResultsPanel and its connection', () => {
       type: 'connection',
       connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: true },
     })
+  })
+
+  it('should name itself as its source is named now', () => {
+    const sut = panel()
+    sut.showConnection(PROD, POLICY)
+
+    title = 'Store/shop/sales.orders'
+    sut.followConnection([{ ...PROD, name: 'Store' }], POLICY)
+
+    expect(webviewPanel.title).toBe('Store/shop/sales.orders · PROD')
   })
 
   it('should show no connection before its editor runs', () => {

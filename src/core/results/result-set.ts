@@ -11,7 +11,7 @@ import {
   type WireRow,
 } from './protocol.ts'
 import { tabTitle } from './tabs.ts'
-import { applyView, IDENTITY_VIEW, isIdentityView, type ViewSpec } from './view.ts'
+import { applyView, IDENTITY_VIEW, isIdentityView, searchRows, type ViewSpec } from './view.ts'
 import { toWireRow, toWireValue } from './wire.ts'
 
 export interface ResultSetSpec {
@@ -33,10 +33,14 @@ export interface ProjectedRows {
 const MAX_TAB_SQL = 2000
 
 // The rows of one statement, held by the extension host while the webview shows a window of them,
-// the view (filters and sort) they are shown through, and the changes the grid makes to them.
+// the view (filters and sort) and the quick search they are shown through, and the changes the grid
+// makes to them.
 export class ResultSet implements RowSource {
   readonly editor = new TabEditor()
   readonly #spec: ResultSetSpec
+  #sql: string
+  #tableFilter = ''
+  #search = ''
   #status: TabStatus = TabStatus.Running
   #columns: readonly ResultColumn[] = []
   #rows: Row[] = []
@@ -51,6 +55,7 @@ export class ResultSet implements RowSource {
 
   constructor(spec: ResultSetSpec) {
     this.#spec = spec
+    this.#sql = spec.sql
   }
 
   get id(): string {
@@ -58,7 +63,16 @@ export class ResultSet implements RowSource {
   }
 
   get sql(): string {
-    return this.#spec.sql
+    return this.#sql
+  }
+
+  // The condition the rows of a table are read with, as typed; empty without one.
+  get tableFilter(): string {
+    return this.#tableFilter
+  }
+
+  get searchText(): string {
+    return this.#search
   }
 
   get columns(): readonly ResultColumn[] {
@@ -99,8 +113,15 @@ export class ResultSet implements RowSource {
     this.#rows.push(...rows)
   }
 
+  // A table read with another condition (its WHERE): the same tab and view, another query, which the
+  // run that reads the rows again runs.
+  filterTable(sql: string, condition: string): void {
+    this.#sql = sql
+    this.#tableFilter = condition
+  }
+
   // A run again on the server brings rows already sorted and filtered by the view; the changes made
-  // to the old rows go with them.
+  // to the old rows go with them. The quick search applies again once the rows are all here.
   restart(view: ViewSpec): void {
     this.editor.reset()
     this.#status = TabStatus.Running
@@ -117,16 +138,19 @@ export class ResultSet implements RowSource {
     this.#status = TabStatus.Succeeded
     this.#summary = summary
     this.#plan = plan
+    this.#searchAgain()
   }
 
   fail(error: TabError): void {
     this.#status = TabStatus.Failed
     this.#error = error
+    this.#searchAgain()
   }
 
   cancel(durationMs: number): void {
     this.#status = TabStatus.Cancelled
     this.#summary = { durationMs, affectedRows: null, isTruncated: false, autoLimit: null }
+    this.#searchAgain()
   }
 
   // Notices add up: what the transaction did, then what did not run.
@@ -138,8 +162,29 @@ export class ResultSet implements RowSource {
   applyView(view: ViewSpec): void {
     this.#view = view
     this.#isServerView = false
-    this.#order = isIdentityView(view) ? undefined : applyView(this.#rows, this.#columns, view)
+    this.#reorder()
+  }
+
+  // Keeps the rows of the view with the text in any column, here, however the view sorts and
+  // filters them (here or on the server); an empty text shows them all again.
+  searchFor(text: string): void {
+    this.#search = text
+    this.#reorder()
+  }
+
+  // The rows the view shows, in order: undefined when it shows every row as it came.
+  #reorder(): void {
+    const isSortedHere = !this.#isServerView && !isIdentityView(this.#view)
+    const viewed = isSortedHere ? applyView(this.#rows, this.#columns, this.#view) : undefined
+    this.#order = this.#search === '' ? viewed : searchRows(this.#rows, viewed, this.#search)
     this.#viewVersion += 1
+  }
+
+  // A run that ends brought new rows: the quick search keeps those with its text.
+  #searchAgain(): void {
+    if (this.#search !== '') {
+      this.#reorder()
+    }
   }
 
   // Rows of the view, from `start`; past the end there are fewer.
@@ -195,8 +240,8 @@ export class ResultSet implements RowSource {
   toTab(): ResultTab {
     return {
       id: this.#spec.id,
-      title: tabTitle(this.#spec.sql),
-      sql: this.#spec.sql.slice(0, MAX_TAB_SQL),
+      title: tabTitle(this.#sql),
+      sql: this.#sql.slice(0, MAX_TAB_SQL),
       kind: this.#spec.kind,
       status: this.#status,
       // Where the columns come from stays here: the view only shows them.
@@ -208,6 +253,8 @@ export class ResultSet implements RowSource {
       isServerView: this.#isServerView,
       canServerView: this.#spec.canServerView && this.#spec.kind === TabKind.Rows,
       canRefresh: this.#spec.canRefresh,
+      tableFilter: this.#tableFilter,
+      search: this.#search,
       summary: this.#summary,
       error: this.#error,
       notice: this.#notice,

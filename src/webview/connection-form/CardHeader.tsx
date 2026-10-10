@@ -8,8 +8,8 @@ import {
 } from '../../core/connection-form/form-flow.ts'
 import { FormMode } from '../../core/connection-form/protocol.ts'
 import { ConnectionField } from '../../core/connection/validation.ts'
+import { DatabaseGlyph, Icon, IconName } from '../icons.tsx'
 import { fieldId, type FormView } from './form-view.ts'
-import { DatabaseGlyph, Icon, IconName } from './icons.tsx'
 
 export const TITLE_ID = 'form-title'
 export const SUBTITLE_ID = 'form-subtitle'

@@ -38,6 +38,20 @@ export function matchesCell(value: CellValue, filter: string): boolean {
   return value !== null && cellText(value).toLowerCase().includes(filter.toLowerCase())
 }
 
+// The quick search: of the rows shown (their positions in order, or every row without a view),
+// those with the text in any column, without case. NULL matches nothing, as with the filters.
+export function searchRows(
+  rows: readonly Row[],
+  shown: readonly number[] | undefined,
+  text: string,
+): number[] {
+  const needle = text.toLowerCase()
+  const isMatch = (value: CellValue): boolean =>
+    value !== null && cellText(value).toLowerCase().includes(needle)
+  const matching = new Set(rows.flatMap((row, index) => (row.some(isMatch) ? [index] : [])))
+  return (shown ?? [...rows.keys()]).filter((index) => matching.has(index))
+}
+
 interface SortColumn {
   readonly key: SortKey
   readonly values: readonly SortValue[]

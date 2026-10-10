@@ -12,7 +12,7 @@ import type { ResultSet } from '../../core/results/result-set.ts'
 import { plural } from '../../core/results/tabs.ts'
 import { significantTokens } from '../../core/sql/statement-kind.ts'
 import { writeExport } from './export-file.ts'
-import type { CopyRequest } from './results-panel.ts'
+import type { CopyRequest } from './panel-actions.ts'
 
 // Past this many rows, the clipboard is the wrong place: the result goes to a file.
 const MAX_COPY_ROWS = 100_000
@@ -52,6 +52,15 @@ export async function copyRows(
     `Copied ${plural(rows.length, 'row', 'rows')} as ${String(FORMAT_NAMES.get(format))}`,
     STATUS_MESSAGE_MS,
   )
+}
+
+// The name of a column of the result, as its header shows it.
+export async function copyColumnName(tab: ResultSet, column: number): Promise<void> {
+  const name = tab.columns.at(column)?.name
+  if (name !== undefined) {
+    await vscode.env.clipboard.writeText(name)
+    vscode.window.setStatusBarMessage('Copied the name of the column', STATUS_MESSAGE_MS)
+  }
 }
 
 async function askExportFile(format: ExportFormat): Promise<vscode.Uri | undefined> {

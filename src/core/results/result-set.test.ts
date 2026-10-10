@@ -48,6 +48,8 @@ describe('ResultSet', () => {
       isServerView: false,
       canServerView: true,
       canRefresh: false,
+      tableFilter: '',
+      search: '',
       summary: null,
       error: null,
       notice: '',
@@ -57,6 +59,8 @@ describe('ResultSet', () => {
     expect(sut.isRunning).toBe(true)
     expect(sut.id).toBe('t1')
     expect(sut.sql).toBe(SQL)
+    expect(sut.tableFilter).toBe('')
+    expect(sut.searchText).toBe('')
   })
 
   it('should hold the rows that arrive, in order', () => {
@@ -96,6 +100,141 @@ describe('ResultSet', () => {
     sut.applyView({ sort: [], filters: [] })
     expect(sut.rowCount).toBe(3)
     expect(sut.viewVersion).toBe(3)
+  })
+
+  it('should keep the rows with the text of the quick search in any column, through the view', () => {
+    const sut = resultSet()
+    sut.applyView({ sort: [{ column: 0, isDescending: true }], filters: [] })
+
+    sut.searchFor('B')
+
+    expect(sut.rows(0, 10)).toStrictEqual([['2', 'bbbbbbbbbb']])
+    expect(sut.searchText).toBe('B')
+    expect(sut.toTab()).toMatchObject({ search: 'B', rowCount: 1, loadedRows: 3, viewVersion: 2 })
+
+    sut.searchFor('')
+    expect(sut.rows(0, 10)).toStrictEqual([
+      ['3', 'c'],
+      ['2', 'bbbbbbbbbb'],
+      ['1', null],
+    ])
+    expect(sut.viewVersion).toBe(3)
+  })
+
+  it('should search every row as it came without a view, and keep searching through a new view', () => {
+    const sut = resultSet()
+
+    sut.searchFor('1')
+    expect(sut.rows(0, 10)).toStrictEqual([['1', null]])
+
+    sut.applyView({ sort: [], filters: [{ column: 1, text: 'c' }] })
+    expect(sut.rowCount).toBe(0)
+    sut.applyView({ sort: [], filters: [] })
+    expect(sut.rows(0, 10)).toStrictEqual([['1', null]])
+  })
+
+  it('should search the rows of a view sorted by the server as they came, and keep it on the server', () => {
+    const sut = resultSet()
+    const view = { sort: [{ column: 0, isDescending: false }], filters: [] }
+    sut.restart(view)
+    sut.addRows([
+      ['1', 'ann'],
+      ['2', 'bob'],
+      ['3', 'joanna'],
+    ])
+
+    sut.searchFor('ANN')
+
+    expect(sut.rows(0, 10)).toStrictEqual([
+      ['1', 'ann'],
+      ['3', 'joanna'],
+    ])
+    expect(sut.isServerView).toBe(true)
+    expect(sut.view).toStrictEqual(view)
+  })
+
+  it('should keep the order of the server, and search it without sorting it again here', () => {
+    const sut = resultSet()
+    sut.restart({ sort: [{ column: 1, isDescending: false }], filters: [] })
+    // The server's collation put b before a.
+    sut.addRows([
+      ['1', 'b'],
+      ['2', 'a'],
+      ['3', 'c'],
+    ])
+
+    sut.searchFor('2')
+    expect(sut.rows(0, 5)).toStrictEqual([['2', 'a']])
+    sut.searchFor('')
+
+    expect(sut.rows(0, 5)).toStrictEqual([
+      ['1', 'b'],
+      ['2', 'a'],
+      ['3', 'c'],
+    ])
+  })
+
+  it('should show again a row of NULLs once the quick search is cleared', () => {
+    const sut = resultSet()
+    sut.addRows([[null, null]])
+    sut.searchFor('c')
+
+    sut.searchFor('')
+
+    expect(sut.rowCount).toBe(4)
+    expect(sut.rows(3, 1)).toStrictEqual([[null, null]])
+  })
+
+  it('should search the rows of a run again once it ends, however it ends', () => {
+    const endings: readonly ((tab: ResultSet) => void)[] = [
+      (tab) => {
+        tab.succeed({ durationMs: 1, affectedRows: null, isTruncated: false, autoLimit: null })
+      },
+      (tab) => {
+        tab.fail({ message: 'x', line: null, column: null })
+      },
+      (tab) => {
+        tab.cancel(1)
+      },
+    ]
+    for (const end of endings) {
+      const sut = resultSet()
+      sut.searchFor('c')
+      sut.restart({ sort: [], filters: [] })
+      sut.addRows([
+        ['7', 'cat'],
+        ['8', 'dog'],
+      ])
+      expect(sut.rowCount).toBe(2)
+
+      end(sut)
+
+      expect(sut.rows(0, 10)).toStrictEqual([['7', 'cat']])
+      expect(sut.viewVersion).toBe(3)
+    }
+  })
+
+  it('should leave the rows of a run that ends as they came without a quick search', () => {
+    const sut = resultSet()
+
+    sut.succeed({ durationMs: 1, affectedRows: null, isTruncated: false, autoLimit: null })
+
+    expect(sut.viewVersion).toBe(0)
+    expect(sut.rowCount).toBe(3)
+  })
+
+  it('should read a table with another condition in the same tab', () => {
+    const sut = resultSet({ sql: 'SELECT * FROM t', canRefresh: true })
+
+    sut.filterTable("SELECT * FROM t WHERE (a = 'x'\n)", "a = 'x'")
+
+    expect(sut.sql).toBe("SELECT * FROM t WHERE (a = 'x'\n)")
+    expect(sut.tableFilter).toBe("a = 'x'")
+    expect(sut.toTab()).toMatchObject({
+      title: "SELECT * FROM t WHERE (a = 'x' )",
+      sql: "SELECT * FROM t WHERE (a = 'x'\n)",
+      tableFilter: "a = 'x'",
+    })
   })
 
   it('should send windows of rows with long text cut', () => {

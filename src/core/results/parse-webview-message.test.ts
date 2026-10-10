@@ -31,6 +31,46 @@ describe('parseWebviewMessage', () => {
     )
   })
 
+  it('should read a request to read the rows of a table with a condition', () => {
+    expect(
+      parseWebviewMessage({ type: 'filterTable', tabId: 't', condition: "status = 'open'" }),
+    ).toStrictEqual({ type: 'filterTable', tabId: 't', condition: "status = 'open'" })
+    expect(() => parseWebviewMessage({ type: 'filterTable', tabId: 't' })).toThrow(
+      new TypeError('"condition" must be a string'),
+    )
+    expect(() => parseWebviewMessage({ type: 'filterTable', condition: '' })).toThrow(
+      new TypeError('"tabId" must be a string'),
+    )
+  })
+
+  it('should read a quick search of the rows of a tab', () => {
+    expect(parseWebviewMessage({ type: 'search', tabId: 't', text: 'ann' })).toStrictEqual({
+      type: 'search',
+      tabId: 't',
+      text: 'ann',
+    })
+    expect(() => parseWebviewMessage({ type: 'search', tabId: 't', text: 1 })).toThrow(
+      new TypeError('"text" must be a string'),
+    )
+    expect(() => parseWebviewMessage({ type: 'search', text: '' })).toThrow(
+      new TypeError('"tabId" must be a string'),
+    )
+  })
+
+  it('should read a request to copy the name of a column', () => {
+    expect(parseWebviewMessage({ type: 'copyColumnName', tabId: 't', column: 2 })).toStrictEqual({
+      type: 'copyColumnName',
+      tabId: 't',
+      column: 2,
+    })
+    expect(() => parseWebviewMessage({ type: 'copyColumnName', tabId: 't', column: -1 })).toThrow(
+      new TypeError('"column" must be a whole number of 0 or more'),
+    )
+    expect(() => parseWebviewMessage({ type: 'copyColumnName', column: 0 })).toThrow(
+      new TypeError('"tabId" must be a string'),
+    )
+  })
+
   it('should read a request for rows', () => {
     expect(
       parseWebviewMessage({ type: 'fetchRows', tabId: 't', viewVersion: 2, start: 100, count: 50 }),

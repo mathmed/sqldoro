@@ -89,7 +89,7 @@ anything runs, and `QueryRunner.runJob` refuses any SQL the guard did not approv
 
 ```mermaid
 flowchart TB
-  sources["Run Query · Run Script · history · saved query in an editor ·<br/>EXPLAIN / EXPLAIN ANALYZE · sort on the server · Load All Rows ·<br/>apply the edits of the grid"]
+  sources["Run Query · Run Script · history · saved query in an editor ·<br/>EXPLAIN / EXPLAIN ANALYZE · sort on the server · Load All Rows ·<br/>a table opened from the explorer, its Refresh and its WHERE ·<br/>apply the edits of the grid"]
   sources --> work["RunWork: every statement the run may execute"]
   work --> perform["QueryRunner.perform"]
   perform --> classify["classify each statement (core, with the dialect's lexical rules):<br/>read · write · DDL · transaction · session · unknown (fails closed)<br/>+ every-row UPDATE / DELETE"]
@@ -156,7 +156,16 @@ only shows them; both rows and columns are virtualized, so a million rows or a t
 scroll smoothly. Long values reach the grid cut to 1,000 characters; the detail pane asks for more and
 shows up to 200,000. Every message is typed in `src/core/results/protocol.ts` and checked field by
 field by the core parsers on the side that receives it. The page has a strict Content Security
-Policy: one script with a nonce, styles and images from the extension only, no remote resource.
+Policy: one script with a nonce, styles and images from the extension only, no remote resource; its
+icons are inline SVG drawn in the spirit of the codicons, so the page loads no font.
+
+The view only shows what the host decides. Sorting, the filters of the columns and the quick search
+are views of the rows the host holds (`ResultSet`): the webview sends the view or the search text, the
+host computes the order with pure functions of the core (`applyView`, `searchRows`) and bumps the
+view version, and the webview asks for the windows of the new order. The search keeps applying over a
+view sorted and filtered on the server, and again once a run brings new rows. The host handles the
+messages of the view in `src/extension/results/panel-requests.ts`; the panel itself
+(`results-panel.ts`) keeps the tabs of the run and what it posts.
 
 ## The explorer and the catalog statistics
 
@@ -186,7 +195,21 @@ database session and its transaction, so opening the table again shows the panel
 the panel gives the session back; disconnecting or deleting the connection closes it. Its binding
 comes from the URI and its transaction mode is always auto-commit. The core builds its statement
 (`tableDataQuery`, with the quoting of the dialect), and it runs through `QueryRunner.perform` like
-any other run, so the guards, the automatic limit and the editing of rows apply unchanged.
+any other run, so the guards, the automatic limit and the editing of rows apply unchanged. The panel
+is titled after the connection as it is named now (`src/extension/results/source-title.ts`).
+
+Its **WHERE** is a condition the user writes, like SQL in an editor, and the only text sqldoro puts
+into a statement around it: `tableFilterQuery` builds `SELECT * FROM <table> WHERE (<condition>`, a
+line break, then `)`, so that a `--` comment at its end cannot hide the parenthesis. It refuses,
+before anything runs, a condition whose strings or comments do not end, one that holds only comments,
+one whose parentheses close outside it, and anything that makes the statement more than one (read
+with the statement splitter of the guards, so a `;` inside a MySQL executable comment counts). The
+statement then goes through `QueryRunner.perform` (`src/extension/tables/table-filter.ts`): the
+classifier sees the condition with the rest, so a function with effects makes it a write that a
+read-only connection refuses. The tab keeps its view (a view on the server wraps the new statement),
+gets the automatic limit again, and its Refresh, Load All Rows and server view all read with the
+condition; the editability analysis already accepts a `WHERE` after the table, and still fails
+closed for anything else. These reads stay out of the query history.
 
 ## The connection form
 
