@@ -9,23 +9,26 @@ A fast, safe MySQL and PostgreSQL client that lives inside VS Code. Open source 
 built to make the dangerous queries hard and the everyday ones quick.
 
 > [!NOTE]
-> Early development. Phase 1, the foundation, and phase 2, the SQL editor and the result grid, are in:
-> saved MySQL and PostgreSQL connections with SSL and SSH tunnels, a schema explorer, SQL editors with
-> autocomplete, a virtualized result grid, EXPLAIN, DDL, query history and saved queries. Inline
-> editing and the safety guards come next, each one judged by the same strict pipeline.
+> Early development. Phase 1 (the foundation), phase 2 (the SQL editor and the result grid) and
+> phase 3 (the safety guards) are in: saved MySQL and PostgreSQL connections with SSL and SSH tunnels,
+> a schema explorer, SQL editors with autocomplete, a virtualized result grid, EXPLAIN, DDL, query
+> history, saved queries, read-only connections enforced twice, confirmations for UPDATE and DELETE
+> without WHERE and for production, manual transactions and an automatic LIMIT. Inline editing comes
+> next, judged by the same strict pipeline.
 
 ## What works today
 
 - **Connections view** in the activity bar: add, edit, duplicate, delete, test, connect and
   disconnect connections. Each connection shows its status (disconnected, connecting, connected,
-  failed) and its environment: tagged connections show a badge such as `PROD`, and the icon takes the
-  environment's color (production in red).
+  failed), its environment (tagged connections show a badge such as `PROD`, and the icon takes the
+  environment's color, production in red) and whether it is read-only; **Allow Writes** and **Make
+  Read-Only** change that.
 - **Connection form**: a quick pick where each field shows its value and its problems; select a field
   to change it, then **Save** or **Test Connection**. Fields: name, engine, host, port, user, password,
   database, SSL (mode, CA certificate, client certificate and key, whether unauthorized certificates
   are rejected), SSH tunnel, environment tag (none, local, dev, staging, prod) and the read-only flag.
-  New connections are **read-only** and untagged until you decide otherwise; the read-only flag and
-  the environment tag are saved now and enforced by the safety guards of a later phase.
+  New connections are **read-only** and untagged until you decide otherwise, and tagging a connection
+  as production makes it read-only again (see [Safety model](#safety-model)).
 - **Import from URL**: `mysql://`, `postgres://` and `postgresql://` URLs, with percent-encoded user,
   password and database, IPv6 hosts in brackets and the SSL parameters of both dialects (`sslmode` or
   `ssl-mode`, `sslrootcert`/`ssl-ca`, `sslcert`/`ssl-cert`, `sslkey`/`ssl-key`, `ssl=true`). The
@@ -79,6 +82,13 @@ built to make the dangerous queries hard and the everyday ones quick.
 - **Show DDL** of a table or view (from the explorer) in a read-only SQL document; **Explain Query**
   shows the plan of a statement; **Explain Analyze Query** asks first, because it runs the statement,
   and only runs queries that only read.
+- **Safety guards** on every statement that runs (editor, script, history, EXPLAIN, server view, load
+  all): read-only connections refuse anything that may write, both in sqldoro and in the database
+  session; an `UPDATE` or `DELETE` that reaches every row waits for its table name to be typed; a
+  write on production waits for the connection name to be typed; manual transactions with **Commit
+  Transaction** and **Roll Back Transaction**; an automatic `LIMIT` with **Load All Rows**. The
+  environment shows in the status bar (red for production), on the editor tab and above the results.
+  Details in [Safety model](#safety-model).
 - **Query history** view: every statement that ran, per connection, newest first and searchable
   (**Search Query History**); open it in an editor, run it again, copy or delete it. Running the same
   statement again moves it to the top; statements that set a password are kept with their strings
@@ -88,10 +98,53 @@ built to make the dangerous queries hard and the everyday ones quick.
 
 ### Settings
 
-| Setting                                   | Default  | Description                                                                   |
-| ----------------------------------------- | -------- | ----------------------------------------------------------------------------- |
-| `sqldoro.results.maxRows`                 | `100000` | Rows kept of a result (1 to 5,000,000); past it the result is flagged as cut. |
-| `sqldoro.history.maxEntriesPerConnection` | `500`    | Statements the query history keeps per connection; the oldest go first.       |
+| Setting                                   | Default    | Description                                                                   |
+| ----------------------------------------- | ---------- | ----------------------------------------------------------------------------- |
+| `sqldoro.results.maxRows`                 | `100000`   | Rows kept of a result (1 to 5,000,000); past it the result is flagged as cut. |
+| `sqldoro.history.maxEntriesPerConnection` | `500`      | Statements the query history keeps per connection; the oldest go first.       |
+| `sqldoro.autoLimit.enabled`               | `true`     | Give queries without a limit of their own the automatic `LIMIT`.              |
+| `sqldoro.autoLimit.rows`                  | `1000`     | Rows the automatic limit keeps (never more than `results.maxRows`).           |
+| `sqldoro.safety.productionEnvironments`   | `["prod"]` | Environment tags treated as production; `prod` always is.                     |
+| `sqldoro.transactions.defaultMode`        | `"auto"`   | Transaction mode of new SQL editors: `auto` (auto-commit) or `manual`.        |
+
+## Safety model
+
+sqldoro makes the dangerous statements hard in layers. Each layer is honest about what it cannot do:
+**the guarantee is the permissions of the database user**. Connect with a user that has only the
+grants the work needs (a read-only role for browsing production), and treat the layers below as
+seat belts, not as access control.
+
+**One gate for every statement.** Whatever runs a statement (Run Query, Run Script, the history, a
+saved query opened in an editor, EXPLAIN and EXPLAIN ANALYZE, sorting on the server, Load All Rows,
+and the inline edits of the next phase) goes through the same guard before anything runs: it
+classifies each statement, applies the rules of the connection, asks for the confirmations they need
+and logs the decision. A script is checked whole before its first statement runs, and the runner
+refuses any statement the guard did not see. Only sqldoro's own statements bypass it: the catalog
+queries of the explorer, `START TRANSACTION`, `COMMIT`, `ROLLBACK` and the transaction status probe.
+
+**The classifier is best effort, and fails closed.** It reads each statement with the lexical rules
+of its dialect (strings, quoted names, comments, MySQL's `/*! */` comments, which MySQL runs,
+PostgreSQL's dollar quoting and nested comments) and sorts it as a read, a write, DDL, transaction
+control, a session or administrative statement, or unknown. It looks inside queries for what makes
+them more than a read: data-modifying `WITH` queries, `SELECT ... INTO`, `FOR UPDATE` and other
+locking reads, and calls to functions with side effects that the dialect lists (`nextval`,
+`set_config`, advisory locks, `GET_LOCK`...). `EXPLAIN` only reads unless `ANALYZE` runs the
+statement. Anything it cannot read or does not know counts as a write. It cannot see what a stored
+procedure, a trigger, a user function or a prepared statement does: that is what the next layer is
+for.
+
+| Guard                            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read-only connections            | Refuse every statement that is not a read or transaction control (`SET`, `CALL`, unknown statements and `BEGIN READ WRITE` included), with a message and an **Allow Writes…** button. Allowing writes is a setting of the connection, confirmed on its own (typed on production); it never re-runs the statement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Read-only sessions               | The second layer: sessions of a read-only connection are opened read-only by the database (`SET default_transaction_read_only = on` in PostgreSQL, on every database the session opens; `SET SESSION TRANSACTION READ ONLY` in MySQL), so a write the classifier misses (a function that writes, a procedure) fails on the server. A statement could switch this off again (`SET`, `set_config`), which is why the classifier blocks those on read-only connections; server permissions remain the real guarantee. MySQL still lets a read-only transaction change `TEMPORARY` tables.                                                                                                                                                                                                                                                                                                                                                                                              |
+| `UPDATE` / `DELETE` of every row | An `UPDATE` or `DELETE` (also inside a `WITH` query or under `EXPLAIN ANALYZE`) without its own `WHERE`, or whose `WHERE` is always true (`1 = 1`, `true`, a constant, `id = id`, an `OR` with such a branch), is held until the table name is typed, once, for that run; the override is logged. A `WHERE` inside a subquery does not count. A `JOIN ... ON` or `LIMIT` without `WHERE` is still held.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Production                       | Connections tagged with an environment of `sqldoro.safety.productionEnvironments` (`prod` always) ask for the connection name to be typed before any write, DDL, session or unknown statement, once per run; reads and transaction control run at once. Tagging a connection as production makes it read-only; the status bar turns red, the editor tab shows the badge and the result view a banner.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Manual transactions              | **Switch Transaction Mode** (status bar) per editor; `sqldoro.transactions.defaultMode` sets the mode of new editors. In manual mode the first statement opens a transaction (read-only on read-only connections) that stays open until **Commit Transaction** or **Roll Back Transaction**; the status bar shows it and counts its statements. After each statement sqldoro asks the server whether a transaction is open, so a transaction you open with `BEGIN`, one that DDL committed in MySQL, one a deadlock rolled back or one PostgreSQL aborted after an error (only a rollback ends it) all show as they are. Before DDL runs in a MySQL transaction, sqldoro warns that it commits. Closing the last tab of an editor with an open transaction asks to commit or roll back; closing the document, disconnecting or changing the connection rolls it back and says so. A transaction stays on its editor: the editor cannot change database or connection until it ends. |
+| Automatic `LIMIT`                | A `SELECT`, `WITH` or `TABLE` query that only reads and has no `LIMIT`, `FETCH` or `TOP` of its own gets `LIMIT n + 1` after its last token (comments after it are kept), and the result says **limited to n rows** with **Load All Rows**, which runs it again without the automatic limit. Where appending is not safe (an `OFFSET`, MySQL executable comments) the driver stops reading after n rows instead. Statements that write, `EXPLAIN`, `SHOW` and queries already limited at their top level run as written.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+**The log.** The `sqldoro` output channel says what the guard decided (blocked, confirmed, allowed,
+transactions opened, committed and rolled back) with the connection name, the statement verbs and
+the table names: never the SQL text, bound values or credentials.
 
 ## Planned v1 scope
 
@@ -103,7 +156,7 @@ built to make the dangerous queries hard and the everyday ones quick.
 - **Result grid**: virtualized, fast on large result sets.
 - **Inline editing** of results, with a preview of the SQL it will run before anything changes.
 - **Tooling**: DDL of any object, `EXPLAIN`, query history and saved queries.
-- **Safety guards**:
+- **Safety guards** (shipped, see [Safety model](#safety-model)):
   - read-only by default: writing is something you turn on per connection;
   - `UPDATE` and `DELETE` without a `WHERE` are blocked;
   - environment tags (local, staging, production) that make it obvious where you are;
@@ -163,7 +216,8 @@ servers running: connect the Extension Development Host to them (see
 ```
 src/
 ├── core/        # Engine interface, connection model, session opening, SQL splitting, autocomplete, the
-│                #   result model and its message protocol, history and saved queries: pure TypeScript
+│                #   result model and its message protocol, history, saved queries and the safety
+│                #   guards (statement classifier, guard policy, automatic LIMIT, transactions): pure TypeScript
 ├── drivers/     # One folder per database (mysql/ with mysql2, postgres/ with pg) implementing the engine interface
 ├── tunnel/      # The SSH tunnel (ssh2) implementing the core tunnel interface
 ├── extension/   # VS Code extension host: activation, commands, views, editors, result panels, storage
@@ -189,6 +243,13 @@ server or the network ends a session, the extension marks the connection as fail
 name, default port, URL schemes and dialect (identifier quote, whether it has schemas), and connects.
 Supporting another database means writing its driver and registering it in
 `src/extension/factories/engines.ts`; nothing else in the core or the extension changes.
+
+**The safety guards.** The statement classifier, the guard policy, the automatic `LIMIT` and the
+transaction state machine are pure functions in `src/core/safety/`; dialects declare what differs
+(lexical rules, functions with side effects, whether DDL is transactional). In the extension host,
+`StatementGuard` applies them and asks for confirmations, and `QueryRunner` runs only what it
+approved. Drivers add the session layer: read-only sessions, and the transaction status the server
+reports (`EngineSession.transactionStatus`).
 
 **The result view.** The extension host runs the statements and keeps their rows; the webview only
 shows them. They talk through a typed message protocol declared in the core
