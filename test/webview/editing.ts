@@ -3,7 +3,12 @@
 import { act, render, screen } from '@testing-library/react'
 import { createElement, type ReactElement } from 'react'
 
-import type { CellMessage, ResultTab, TabEditing } from '../../src/core/results/protocol.ts'
+import type {
+  CellMessage,
+  PanelConnection,
+  ResultTab,
+  TabEditing,
+} from '../../src/core/results/protocol.ts'
 import { ResultView } from '../../src/webview/ResultView.tsx'
 import { RowStore } from '../../src/webview/row-store.ts'
 import { editableTab } from '../fixtures/results.ts'
@@ -14,6 +19,7 @@ export interface Shown {
   readonly editing?: Partial<TabEditing>
   readonly changes?: Partial<ResultTab>
   readonly cell?: CellMessage
+  readonly connection?: PanelConnection
 }
 
 export interface EditingView {
@@ -26,8 +32,14 @@ const EDITOR_NAME = /^New value of /
 export function editingView(shown: Shown = {}): EditingView {
   const api = fakeVsCodeApi()
   const store = new RowStore()
-  const element = ({ editing = {}, changes = {}, cell }: Shown): ReactElement =>
-    createElement(ResultView, { tab: editableTab(editing, changes), store, api, cell })
+  const element = ({ editing = {}, changes = {}, cell, connection }: Shown): ReactElement =>
+    createElement(ResultView, {
+      tab: editableTab(editing, changes),
+      store,
+      api,
+      cell,
+      connection: connection ?? null,
+    })
   const rendered = render(element(shown))
   act(() => {
     store.store(0, 0, GRID_ROWS)

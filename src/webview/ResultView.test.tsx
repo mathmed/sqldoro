@@ -19,6 +19,7 @@ function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.El
       store={store}
       api={api}
       cell={answer}
+      connection={null}
     />
   )
 }

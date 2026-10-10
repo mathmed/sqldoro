@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { editingView, gridRow, hasEditor, setEdit, theEditor } from '../../test/webview/editing.ts'
@@ -136,7 +136,11 @@ describe('ResultView, editing the rows', () => {
   it('should apply the preview it shows, or close it', () => {
     const { sent } = editingView({
       editing: { preview: PREVIEW, rows: [{ row: 0, isDeleted: true, cells: [], problem: '' }] },
+      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
     })
+    expect(within(screen.getByRole('dialog')).getByRole('note').textContent).toBe(
+      'Production: PROD · Shop · writes allowed',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply 1 Statement' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))

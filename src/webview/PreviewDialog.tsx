@@ -1,10 +1,13 @@
 import { type KeyboardEvent, type ReactElement, useEffect, useRef } from 'react'
 
-import type { EditPreview, PreviewStatement } from '../core/results/protocol.ts'
+import type { EditPreview, PanelConnection, PreviewStatement } from '../core/results/protocol.ts'
 import { plural } from '../core/results/tabs.ts'
+import { ConnectionBanner } from './ConnectionBanner.tsx'
 
 interface PreviewDialogProps {
   readonly preview: EditPreview
+  // Where they run, production standing out, right where the user confirms.
+  readonly connection: PanelConnection | null
   readonly onApply: (previewId: number) => void
   readonly onClose: () => void
 }
@@ -15,7 +18,12 @@ const OPEN_TRANSACTION =
 
 // The statements the changes become, exactly as they will run, with their bound values and the rows
 // each must change: nothing reaches the server before the user applies them here.
-export const PreviewDialog = ({ preview, onApply, onClose }: PreviewDialogProps): ReactElement => {
+export const PreviewDialog = ({
+  preview,
+  connection,
+  onApply,
+  onClose,
+}: PreviewDialogProps): ReactElement => {
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
       event.preventDefault()
@@ -31,6 +39,7 @@ export const PreviewDialog = ({ preview, onApply, onClose }: PreviewDialogProps)
         aria-labelledby="preview-title"
         onKeyDown={onKeyDown}
       >
+        {connection === null ? null : <ConnectionBanner connection={connection} />}
         <PreviewBody preview={preview} />
         <PreviewButtons preview={preview} onApply={onApply} onClose={onClose} />
       </section>
@@ -56,7 +65,11 @@ const PreviewBody = ({ preview }: { readonly preview: EditPreview }): ReactEleme
 )
 
 // Cancel has the focus: applying is a deliberate act.
-const PreviewButtons = ({ preview, onApply, onClose }: PreviewDialogProps): ReactElement => {
+const PreviewButtons = ({
+  preview,
+  onApply,
+  onClose,
+}: Omit<PreviewDialogProps, 'connection'>): ReactElement => {
   const cancelRef = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     cancelRef.current?.focus()

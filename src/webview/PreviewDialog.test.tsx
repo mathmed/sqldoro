@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { EditPreview } from '../core/results/protocol.ts'
+import type { EditPreview, PanelConnection } from '../core/results/protocol.ts'
 import { PreviewDialog } from './PreviewDialog.tsx'
 
 const PREVIEW: EditPreview = {
@@ -25,13 +25,23 @@ const PREVIEW: EditPreview = {
   isInOpenTransaction: false,
 }
 
-function renderDialog(changes: Partial<EditPreview> = {}): {
+function renderDialog(
+  changes: Partial<EditPreview> = {},
+  connection: PanelConnection | null = null,
+): {
   readonly onApply: ReturnType<typeof vi.fn>
   readonly onClose: ReturnType<typeof vi.fn>
 } {
   const onApply = vi.fn()
   const onClose = vi.fn()
-  render(<PreviewDialog preview={{ ...PREVIEW, ...changes }} onApply={onApply} onClose={onClose} />)
+  render(
+    <PreviewDialog
+      preview={{ ...PREVIEW, ...changes }}
+      connection={connection}
+      onApply={onApply}
+      onClose={onClose}
+    />,
+  )
   return { onApply, onClose }
 }
 
@@ -93,6 +103,20 @@ describe('PreviewDialog', () => {
 
     expect(onApply).toHaveBeenCalledWith(7)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('should show where the statements run, production standing out', () => {
+    renderDialog({}, { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false })
+
+    const banner = within(screen.getByRole('dialog')).getByRole('note', { name: 'Connection' })
+    expect(banner.textContent).toBe('Production: PROD · Shop · writes allowed')
+    expect(banner.className).toBe('connection-banner production')
+  })
+
+  it('should show no connection when the result view has none', () => {
+    renderDialog()
+
+    expect(screen.queryByRole('note', { name: 'Connection' })).toBeNull()
   })
 
   it('should name a single statement', () => {

@@ -94,7 +94,14 @@ export const App = ({ api }: { readonly api: VsCodeApi }): ReactElement => {
       {tab === undefined ? (
         <p className="empty-state">Run a query to see its results here.</p>
       ) : (
-        <ResultView key={tab.id} tab={tab} store={stores.of(tab.id)} api={api} cell={cell} />
+        <ResultView
+          key={tab.id}
+          tab={tab}
+          store={stores.of(tab.id)}
+          api={api}
+          cell={cell}
+          connection={state.connection}
+        />
       )}
     </main>
   )

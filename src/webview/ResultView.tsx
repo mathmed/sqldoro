@@ -4,6 +4,7 @@ import { EditKind } from '../core/edits/edit-kind.ts'
 import type { ExportFormat } from '../core/results/export-format.ts'
 import {
   type CellMessage,
+  type PanelConnection,
   type ResultTab,
   TabKind,
   TabStatus,
@@ -30,15 +31,19 @@ interface ResultViewProps {
   readonly store: RowStore
   readonly api: VsCodeApi
   readonly cell: CellMessage | undefined
+  // Where the statements of the changes would run, for their preview.
+  readonly connection: PanelConnection | null
 }
 
 // The result of one statement: its actions, what happened, its rows or plan, and the editing of
 // its rows with the preview of their changes.
-export const ResultView = ({ tab, store, api, cell }: ResultViewProps): ReactElement => {
+export const ResultView = (props: ResultViewProps): ReactElement => {
+  const { tab, store, api, cell } = props
   const choices = useChoices(tab)
   const actions = toolbarActions(api, tab, choices)
   const edits = editActions(api, tab, choices.selection)
   const edit = gridEdit(tab, { editing: useCellEditor(api, tab, { store, cell }), edits })
+  const hasSelection = choices.selection !== undefined
   return (
     <section
       role="tabpanel"
@@ -48,17 +53,17 @@ export const ResultView = ({ tab, store, api, cell }: ResultViewProps): ReactEle
     >
       <Toolbar
         tab={tab}
-        hasSelection={choices.selection !== undefined}
+        hasSelection={hasSelection}
         isServerSide={choices.isServerSide}
         actions={actions}
       />
       <StatusLine tab={tab} />
-      <EditBar tab={tab} hasSelection={choices.selection !== undefined} actions={edits} />
+      <EditBar tab={tab} hasSelection={hasSelection} actions={edits} />
       <div className="result-body">
         <ResultContent content={{ tab, store, api, choices, edit }} onCopy={actions.copy} />
         <DetailPanel tab={tab} store={store} cell={cell} choices={choices} />
       </div>
-      <ChangesPreview tab={tab} edits={edits} />
+      <ChangesPreview tab={tab} edits={edits} connection={props.connection} />
     </section>
   )
 }
@@ -66,13 +71,20 @@ export const ResultView = ({ tab, store, api, cell }: ResultViewProps): ReactEle
 const ChangesPreview = ({
   tab,
   edits,
+  connection,
 }: {
   readonly tab: ResultTab
   readonly edits: EditActions
+  readonly connection: PanelConnection | null
 }): ReactElement | null => {
   const { preview } = tab.editing
   return preview === null ? null : (
-    <PreviewDialog preview={preview} onApply={edits.apply} onClose={edits.closePreview} />
+    <PreviewDialog
+      preview={preview}
+      connection={connection}
+      onApply={edits.apply}
+      onClose={edits.closePreview}
+    />
   )
 }
 
