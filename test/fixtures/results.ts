@@ -1,4 +1,5 @@
 // Result tabs and columns for the tests of the protocol, the extension host and the webview.
+import { NOT_EDITING } from '../../src/core/edits/tab-editor.ts'
 import { ColumnKind, type ResultColumn } from '../../src/core/engine/query.ts'
 import { type ResultTab, TabKind, TabStatus } from '../../src/core/results/protocol.ts'
 import { IDENTITY_VIEW } from '../../src/core/results/view.ts'
@@ -26,6 +27,7 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     error: null,
     notice: '',
     plan: [],
+    editing: NOT_EDITING,
     ...changes,
   }
 }

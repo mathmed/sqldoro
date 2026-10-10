@@ -1,7 +1,10 @@
+import { EditKind } from '../edits/edit-kind.ts'
 import {
   type JsonRecord,
   readBoolean,
   readCount,
+  readNested,
+  readNullable,
   readOneOf,
   readRecord,
   readString,
@@ -22,7 +25,22 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [WebviewMessageType.FetchCell, readFetchCell],
   [WebviewMessageType.LoadAll, readLoadAll],
   [WebviewMessageType.Problem, readProblem],
+  [WebviewMessageType.Edit, readEdit],
+  [
+    WebviewMessageType.PreviewEdits,
+    (message) => ({ type: WebviewMessageType.PreviewEdits, tabId: readString(message, 'tabId') }),
+  ],
+  [
+    WebviewMessageType.ClosePreview,
+    (message) => ({ type: WebviewMessageType.ClosePreview, tabId: readString(message, 'tabId') }),
+  ],
+  [WebviewMessageType.ApplyEdits, readApplyEdits],
 ])
+const EDIT_KINDS: ReadonlySet<string> = new Set(Object.values(EditKind))
+
+function isEditKind(value: unknown): value is EditKind {
+  return typeof value === 'string' && EDIT_KINDS.has(value)
+}
 
 // What the webview sent, checked field by field: a TypeError names the first field that is wrong.
 export function parseWebviewMessage(data: unknown): WebviewMessage {
@@ -91,4 +109,26 @@ function readLoadAll(message: JsonRecord): WebviewMessage {
 
 function readProblem(message: JsonRecord): WebviewMessage {
   return { type: WebviewMessageType.Problem, message: readString(message, 'message') }
+}
+
+function readEdit(message: JsonRecord): WebviewMessage {
+  const edit = readNested(message, 'edit')
+  return {
+    type: WebviewMessageType.Edit,
+    tabId: readString(message, 'tabId'),
+    viewVersion: readCount(message, 'viewVersion'),
+    edit: {
+      kind: readOneOf(edit, 'kind', isEditKind),
+      range: readNullable(edit, 'range', readRange),
+      input: readString(edit, 'input'),
+    },
+  }
+}
+
+function readApplyEdits(message: JsonRecord): WebviewMessage {
+  return {
+    type: WebviewMessageType.ApplyEdits,
+    tabId: readString(message, 'tabId'),
+    previewId: readCount(message, 'previewId'),
+  }
 }

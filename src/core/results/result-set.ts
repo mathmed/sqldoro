@@ -1,3 +1,5 @@
+import type { RowSource } from '../edits/edit-targets.ts'
+import { TabEditor } from '../edits/tab-editor.ts'
 import type { CellValue, ResultColumn, Row } from '../engine/query.ts'
 import {
   type CellRange,
@@ -29,8 +31,9 @@ export interface ProjectedRows {
 const MAX_TAB_SQL = 2000
 
 // The rows of one statement, held by the extension host while the webview shows a window of them,
-// and the view (filters and sort) they are shown through.
-export class ResultSet {
+// the view (filters and sort) they are shown through, and the changes the grid makes to them.
+export class ResultSet implements RowSource {
+  readonly editor = new TabEditor()
   readonly #spec: ResultSetSpec
   #status: TabStatus = TabStatus.Running
   #columns: readonly ResultColumn[] = []
@@ -90,8 +93,10 @@ export class ResultSet {
     this.#rows.push(...rows)
   }
 
-  // A run again on the server brings rows already sorted and filtered by the view.
+  // A run again on the server brings rows already sorted and filtered by the view; the changes made
+  // to the old rows go with them.
   restart(view: ViewSpec): void {
+    this.editor.reset()
     this.#status = TabStatus.Running
     this.#rows = []
     this.#order = undefined
@@ -140,6 +145,27 @@ export class ResultSet {
       : this.#order.slice(from, to).flatMap((index) => this.#rows.slice(index, index + 1))
   }
 
+  // The position in the result of the row a view position shows.
+  readonly sourceIndex = (viewRow: number): number | undefined =>
+    viewRow < this.rowCount ? (this.#order?.at(viewRow) ?? viewRow) : undefined
+
+  // Where the view shows rows of the result; the rows its filters hide are left out.
+  readonly viewPositions = (indexes: readonly number[]): ReadonlyMap<number, number> => {
+    const wanted = new Set(indexes.filter((index) => index < this.#rows.length))
+    if (this.#order === undefined) {
+      return new Map([...wanted].map((index) => [index, index]))
+    }
+    const positions = new Map<number, number>()
+    this.#order.forEach((index, position) => {
+      if (wanted.has(index)) {
+        positions.set(index, position)
+      }
+    })
+    return positions
+  }
+
+  readonly sourceRow = (index: number): Row | undefined => this.#rows.at(index)
+
   window(start: number, count: number, maxCellLength: number): WireRow[] {
     return this.rows(start, count).map((row) => toWireRow(row, maxCellLength))
   }
@@ -167,7 +193,8 @@ export class ResultSet {
       sql: this.#spec.sql.slice(0, MAX_TAB_SQL),
       kind: this.#spec.kind,
       status: this.#status,
-      columns: this.#columns,
+      // Where the columns come from stays here: the view only shows them.
+      columns: this.#columns.map(({ name, dataType, kind }) => ({ name, dataType, kind })),
       rowCount: this.rowCount,
       loadedRows: this.#rows.length,
       view: this.#view,
@@ -178,6 +205,7 @@ export class ResultSet {
       error: this.#error,
       notice: this.#notice,
       plan: this.#plan,
+      editing: this.editor.toWire(this),
     }
   }
 }
