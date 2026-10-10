@@ -11,6 +11,7 @@ import { analyzeIntegration } from './analyzers/integration.ts'
 import { analyzeKnip } from './analyzers/knip.ts'
 import { analyzeMutation } from './analyzers/mutation.ts'
 import { analyzeNpmAudit } from './analyzers/npm-audit.ts'
+import { analyzePackage } from './analyzers/package.ts'
 import { analyzePrettier } from './analyzers/prettier.ts'
 import { analyzeSmoke } from './analyzers/smoke.ts'
 import { analyzeTsc } from './analyzers/tsc.ts'
@@ -25,6 +26,7 @@ export const Job = {
   Quality: 'quality',
   Integration: 'integration',
   Architecture: 'architecture',
+  Package: 'package',
   Smoke: 'smoke',
   Mutation: 'mutation',
 } as const
@@ -121,11 +123,15 @@ export const SECTIONS: readonly Section[] = [
     ],
   },
   {
-    title: 'Extension smoke (VS Code)',
+    title: 'Build and package (esbuild, Vite, vsce)',
     checks: [
-      { analysis: Analysis.Build, job: Job.Smoke, label: 'build', analyze: analyzeBuild },
-      { analysis: Analysis.Smoke, job: Job.Smoke, label: 'VS Code', analyze: analyzeSmoke },
+      { analysis: Analysis.Build, job: Job.Package, label: 'build', analyze: analyzeBuild },
+      { analysis: Analysis.Package, job: Job.Package, label: 'vsix', analyze: analyzePackage },
     ],
+  },
+  {
+    title: 'Extension smoke (VS Code)',
+    checks: [{ analysis: Analysis.Smoke, job: Job.Smoke, label: 'VS Code', analyze: analyzeSmoke }],
   },
   {
     title: 'Mutation testing (Stryker)',

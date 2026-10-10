@@ -1,8 +1,8 @@
 {
   "name": "sqldoro",
   "displayName": "sqldoro",
-  "description": "A fast, safe MySQL and PostgreSQL client for VS Code.",
-  "version": "0.0.1",
+  "description": "A fast, safe MySQL and PostgreSQL client: schema explorer, SQL editor with autocomplete, a virtualized result grid, inline editing with an SQL preview, and safety guards for every statement. No telemetry.",
+  "version": "0.1.0",
   "publisher": "mathmed",
   "license": "MIT",
   "private": true,
@@ -15,14 +15,32 @@
     "url": "https://github.com/mathmed/sqldoro/issues"
   },
   "homepage": "https://github.com/mathmed/sqldoro#readme",
+  "qna": "https://github.com/mathmed/sqldoro/issues",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#16285C",
+    "theme": "dark"
+  },
+  "pricing": "Free",
   "keywords": [
     "database",
+    "sql",
     "mysql",
     "postgres",
     "postgresql",
-    "sql"
+    "database client",
+    "sql client",
+    "sql editor",
+    "query",
+    "schema explorer",
+    "ssh tunnel",
+    "result grid",
+    "data editor",
+    "read-only",
+    "safe"
   ],
   "categories": [
+    "Programming Languages",
     "Other"
   ],
   "engines": {
@@ -725,6 +743,7 @@
   "scripts": {
     "hooks": "lefthook install",
     "build": "node scripts/build.ts",
+    "package": "node scripts/package.ts",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -769,6 +788,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^5.0.3",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
     "dependency-cruiser": "^18.5.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.12.0",

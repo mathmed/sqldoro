@@ -7,6 +7,10 @@ export async function readText(path: string): Promise<string> {
   return readFile(path, 'utf8')
 }
 
+export async function readBytes(path: string): Promise<Buffer> {
+  return readFile(path)
+}
+
 export async function writeText(path: string, text: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, text)

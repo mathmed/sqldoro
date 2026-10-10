@@ -6,6 +6,9 @@ import manifest from '../../package.json' with { type: 'json' }
 import { CommandId, SQL_LANGUAGE } from '../../src/extension/command-id.ts'
 
 const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`
+// Where scripts/smoke.ts installed the package: the extension must come from there, not from the
+// working tree.
+const PACKAGE_EXTENSIONS = process.env['SQLDORO_SMOKE_EXTENSIONS'] ?? ''
 const CONTRIBUTED_COMMANDS = manifest.contributes.commands.map(({ command }) => command)
 const CONTRIBUTED_VIEWS = Object.values(manifest.contributes.views)
   .flat()
@@ -43,6 +46,12 @@ function findExtension(): vscode.Extension<unknown> {
   if (extension === undefined) {
     throw new Error(`extension ${EXTENSION_ID} is not installed`)
   }
+  if (PACKAGE_EXTENSIONS === '' || !extension.extensionPath.startsWith(PACKAGE_EXTENSIONS)) {
+    throw new Error(
+      `extension ${EXTENSION_ID} runs from ${extension.extensionPath}, not from the package`,
+    )
+  }
+  report(`extension ${EXTENSION_ID} ${manifest.version} installed from the package`)
   return extension
 }
 
