@@ -19,6 +19,7 @@ function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.El
       store={store}
       api={api}
       cell={answer}
+      connection={null}
     />
   )
 }
@@ -65,7 +66,7 @@ describe('ResultView', () => {
     render(element({ rowCount: 300 }))
 
     expect(screen.getAllByRole('row')[2]?.className).toBe('grid-row loading')
-    expect(cellAt(0, 1).className).toBe('grid-cell look-loading  ')
+    expect(cellAt(0, 1).className).toBe('grid-cell look-loading')
   })
 
   it('should copy the selection in the format picked, from the toolbar or the keyboard', () => {

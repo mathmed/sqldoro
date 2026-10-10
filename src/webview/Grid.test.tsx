@@ -30,6 +30,13 @@ let api: FakeVsCodeApi
 let store: RowStore
 let handlers: Handlers
 
+const NO_EDIT = {
+  editor: undefined,
+  start: vi.fn(),
+  deleteRows: vi.fn(),
+  preview: vi.fn(),
+}
+
 function grid(changes: Partial<ResultTab> = {}, selection?: GridSelection): void {
   render(
     <Grid
@@ -37,6 +44,7 @@ function grid(changes: Partial<ResultTab> = {}, selection?: GridSelection): void
       tab={resultTab({ rowCount: 4, loadedRows: 4, ...changes })}
       store={store}
       selection={selection}
+      edit={NO_EDIT}
       {...handlers}
     />,
   )
@@ -84,9 +92,9 @@ describe('Grid', () => {
     grid({}, { anchor: { row: 0, column: 0 }, focus: { row: 1, column: 1 } })
 
     expect([cellAt(0, 0), cellAt(1, 1), cellAt(2, 0)].map((cell) => cell.className)).toStrictEqual([
-      'grid-cell look-number selected ',
+      'grid-cell look-number selected',
       'grid-cell look-null selected focused',
-      'grid-cell look-number  ',
+      'grid-cell look-number',
     ])
     expect(theGrid().getAttribute('aria-activedescendant')).toBe('cell-tab-1-1-1')
   })

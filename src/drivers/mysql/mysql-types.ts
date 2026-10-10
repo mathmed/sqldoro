@@ -1,6 +1,6 @@
 import mysql, { type FieldPacket } from 'mysql2'
 
-import { ColumnKind, type ResultColumn } from '../../core/engine/query.ts'
+import { ColumnKind, type ColumnOrigin, type ResultColumn } from '../../core/engine/query.ts'
 
 const UNKNOWN_TYPE = 'UNKNOWN'
 // The character set MySQL gives binary strings (BINARY, VARBINARY, BLOB).
@@ -46,7 +46,20 @@ const KINDS: ReadonlyMap<string, ColumnKind> = new Map([
 export function toResultColumn(field: FieldPacket): ResultColumn {
   const code = field.columnType ?? field.type
   const dataType = (code === undefined ? undefined : TYPE_NAMES.get(code)) ?? UNKNOWN_TYPE
-  return { name: field.name, dataType, kind: kindOf(dataType, field.characterSet) }
+  const column = { name: field.name, dataType, kind: kindOf(dataType, field.characterSet) }
+  const origin = originOf(field)
+  return origin === undefined ? column : { ...column, origin }
+}
+
+// A column of a table or a view is named by its database, table and column; the server leaves them
+// empty for a computed value.
+function originOf(field: FieldPacket): ColumnOrigin | undefined {
+  const database = field.db ?? field.schema ?? ''
+  const parts = [database, field.orgTable, field.orgName]
+  if (parts.includes('')) {
+    return undefined
+  }
+  return { table: [database, field.orgTable], column: field.orgName }
 }
 
 // Text and binary strings share their type codes: the binary character set tells them apart.

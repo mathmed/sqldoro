@@ -9,12 +9,13 @@ A fast, safe MySQL and PostgreSQL client that lives inside VS Code. Open source 
 built to make the dangerous queries hard and the everyday ones quick.
 
 > [!NOTE]
-> Early development. Phase 1 (the foundation), phase 2 (the SQL editor and the result grid) and
-> phase 3 (the safety guards) are in: saved MySQL and PostgreSQL connections with SSL and SSH tunnels,
-> a schema explorer, SQL editors with autocomplete, a virtualized result grid, EXPLAIN, DDL, query
-> history, saved queries, read-only connections enforced twice, confirmations for UPDATE and DELETE
-> without WHERE and for production, manual transactions and an automatic LIMIT. Inline editing comes
-> next, judged by the same strict pipeline.
+> Early development. Phase 1 (the foundation), phase 2 (the SQL editor and the result grid), phase 3
+> (the safety guards) and phase 4 (inline editing) are in: saved MySQL and PostgreSQL connections with
+> SSL and SSH tunnels, a schema explorer, SQL editors with autocomplete, a virtualized result grid,
+> EXPLAIN, DDL, query history, saved queries, read-only connections enforced twice, confirmations for
+> UPDATE and DELETE without WHERE and for production, manual transactions, an automatic LIMIT, and
+> editing the rows of a table in the grid with a preview of the SQL that applies the changes. Polish
+> and packaging come next, judged by the same strict pipeline.
 
 ## What works today
 
@@ -73,6 +74,18 @@ built to make the dangerous queries hard and the everyday ones quick.
   SQL, streamed to the file you pick. `NULL` and the empty string look different; long text, JSON and
   binary values open whole in a detail pane (double click or `Enter`), with JSON pretty-printed without
   losing digits. The grid follows the VS Code theme.
+- **Inline editing**: the rows of a query that reads one table (a plain `SELECT` of its columns that
+  includes its primary key, or a unique key without NULLs) can be edited in the grid; any other result
+  says why it stays read-only (see [Editing rows](#editing-rows)). `Enter`, `F2` or typing edits a
+  cell, `Enter` puts the value in, `Tab` and `Shift+Tab` move along the row and `Escape` leaves the cell
+  as it was. Values are checked as you type, for the type of their column (whole numbers in range,
+  decimals within their precision, dates and times, JSON, enums and sets, lengths); nothing is coerced,
+  and binary values stay read-only. The edit bar adds, duplicates and deletes rows (`Delete` marks the
+  selected ones), sets cells to `NULL` or `DEFAULT`, and reverts cells or everything. Changes stay
+  pending, and look it (changed cells, new rows and rows to delete each in their own theme color), until
+  **Preview Changes…** (`Ctrl+S`, `Cmd+S` on macOS) shows the exact statements, their bound values and
+  the rows each must change, and you apply them: in one transaction, all or nothing, then the rows are
+  read again where you were. **Copy Rows as INSERT** copies the selected rows whole.
 - **Exact values**: `BIGINT`, `DECIMAL`/`NUMERIC` and dates are shown exactly as the server sent them,
   whatever the time zone of the machine; numbers are never rounded through JavaScript numbers.
 - **Autocomplete**: databases or schemas, tables and views, the columns of the tables in the statement
@@ -89,8 +102,9 @@ built to make the dangerous queries hard and the everyday ones quick.
   Transaction** and **Roll Back Transaction**; an automatic `LIMIT` with **Load All Rows**. The
   environment shows in the status bar (red for production), on the editor tab and above the results.
   Details in [Safety model](#safety-model).
-- **Query history** view: every statement that ran, per connection, newest first and searchable
-  (**Search Query History**); open it in an editor, run it again, copy or delete it. Running the same
+- **Query history** view: every statement you ran, per connection, newest first and searchable
+  (**Search Query History**); open it in an editor, run it again, copy or delete it. The statements
+  that apply the changes of the grid are not kept: they hold the values that were written. Running the same
   statement again moves it to the top; statements that set a password are kept with their strings
   masked.
 - **Saved queries** view: named queries in folders; save the selection or the editor, open or insert
@@ -116,11 +130,13 @@ seat belts, not as access control.
 
 **One gate for every statement.** Whatever runs a statement (Run Query, Run Script, the history, a
 saved query opened in an editor, EXPLAIN and EXPLAIN ANALYZE, sorting on the server, Load All Rows,
-and the inline edits of the next phase) goes through the same guard before anything runs: it
+and the changes applied from the grid) goes through the same guard before anything runs: it
 classifies each statement, applies the rules of the connection, asks for the confirmations they need
 and logs the decision. A script is checked whole before its first statement runs, and the runner
 refuses any statement the guard did not see. Only sqldoro's own statements bypass it: the catalog
-queries of the explorer, `START TRANSACTION`, `COMMIT`, `ROLLBACK` and the transaction status probe.
+queries of the explorer, `START TRANSACTION`, `COMMIT`, `ROLLBACK`, the savepoint of an apply that
+joins an open transaction (`SAVEPOINT`, `RELEASE SAVEPOINT`, `ROLLBACK TO SAVEPOINT`) and the
+transaction status probe.
 
 **The classifier is best effort, and fails closed.** It reads each statement with the lexical rules
 of its dialect (strings, quoted names, comments, MySQL's `/*! */` comments, which MySQL runs,
@@ -143,8 +159,44 @@ for.
 | Automatic `LIMIT`                | A `SELECT`, `WITH` or `TABLE` query that only reads and has no `LIMIT`, `FETCH` or `TOP` of its own gets `LIMIT n + 1` after its last token (comments after it are kept), and the result says **limited to n rows** with **Load All Rows**, which runs it again without the automatic limit. Where appending is not safe (an `OFFSET`, MySQL executable comments) the driver stops reading after n rows instead. Statements that write, `EXPLAIN`, `SHOW` and queries already limited at their top level run as written.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **The log.** The `sqldoro` output channel says what the guard decided (blocked, confirmed, allowed,
-transactions opened, committed and rolled back) with the connection name, the statement verbs and
-the table names: never the SQL text, bound values or credentials.
+transactions opened, committed and rolled back, and how each apply of the grid ended) with the
+connection name, the statement verbs and the table names: never the SQL text, bound values or
+credentials.
+
+### Editing rows
+
+The grid writes only what it can write exactly, to the row it read, and says so before it does.
+
+- **What can be edited.** The query must be one `SELECT` of plain columns from one table: no join,
+  `DISTINCT`, `GROUP BY`, `UNION`, `WITH`, subquery or expression (`ORDER BY`, `WHERE`, `LIMIT` and
+  aliases are fine). The server must say that every column comes from that table, and the catalog must
+  describe it as a table that can roll changes back: views (updatable or not), materialized views,
+  foreign tables, PostgreSQL tables that other tables inherit from and MySQL tables on an engine
+  other than InnoDB are read-only. The result must hold the primary key, or a unique key without
+  NULLs whose columns compare exactly (not floating point, JSON, binary or `SET`). Columns the server
+  computes (generated, identity `ALWAYS`) and columns shown twice are read-only; adding rows needs
+  every column without a default in the result. The analysis fails closed: what it cannot tell is
+  read-only, and the grid says why. Read-only connections get no editing at all.
+- **The statements.** One per changed row, every value bound as a parameter and every name quoted:
+  deletions, then updates, then insertions. The `WHERE` names the row by its whole key and checks that
+  the edited columns (every column, for a deletion) still hold what the grid read, text compared
+  exactly (`COLLATE utf8mb4_bin` in MySQL) and `NULL` with `IS NULL`. A row that changed or went
+  meanwhile is a conflict, reported on that row, never overwritten. No statement of the grid lacks a
+  `WHERE`, and if one did the guard would hold it like any other.
+- **The guard.** The statements of an apply, and the query that reads the rows again, go through the
+  guard like typed SQL: blocked on read-only connections, the connection name typed on production,
+  the decision logged. Deleting rows also asks for their number: typed on production, a button
+  elsewhere.
+- **The transaction.** An apply runs in a transaction of its own and commits only if every statement
+  changed exactly the row it had to; a failure, a conflict or any other count rolls everything back,
+  and the result says which row stopped it and why (every conflict is listed). In manual mode, or
+  when the editor has a transaction open, the apply runs inside a savepoint of it that a failure rolls
+  back to, and committing stays yours. MySQL edits need strict SQL mode, so that a value the column
+  cannot hold is refused instead of cut.
+- **Limits.** The changes wait in their result tab, at most 1,000 rows at a time. Running the editor
+  again asks before dropping them, Load All Rows and sorting on the server wait until they are applied
+  or reverted, and closing the result view warns that they were dropped. Dates and times are written
+  and compared as the server shows them, in the time zone of the session.
 
 ## Planned v1 scope
 
@@ -154,7 +206,8 @@ the table names: never the SQL text, bound values or credentials.
 - **Schema tree**: databases, schemas, tables, views, columns, indexes and the rest of the catalog.
 - **SQL editor** with schema-aware autocomplete.
 - **Result grid**: virtualized, fast on large result sets.
-- **Inline editing** of results, with a preview of the SQL it will run before anything changes.
+- **Inline editing** of results, with a preview of the SQL it will run before anything changes
+  (shipped, see [Editing rows](#editing-rows)).
 - **Tooling**: DDL of any object, `EXPLAIN`, query history and saved queries.
 - **Safety guards** (shipped, see [Safety model](#safety-model)):
   - read-only by default: writing is something you turn on per connection;
@@ -216,8 +269,9 @@ servers running: connect the Extension Development Host to them (see
 ```
 src/
 ├── core/        # Engine interface, connection model, session opening, SQL splitting, autocomplete, the
-│                #   result model and its message protocol, history, saved queries and the safety
-│                #   guards (statement classifier, guard policy, automatic LIMIT, transactions): pure TypeScript
+│                #   result model and its message protocol, history, saved queries, the safety guards
+│                #   (statement classifier, guard policy, automatic LIMIT, transactions) and the editing
+│                #   of results (what can be edited, pending changes, their statements): pure TypeScript
 ├── drivers/     # One folder per database (mysql/ with mysql2, postgres/ with pg) implementing the engine interface
 ├── tunnel/      # The SSH tunnel (ssh2) implementing the core tunnel interface
 ├── extension/   # VS Code extension host: activation, commands, views, editors, result panels, storage
@@ -257,6 +311,15 @@ shows them. They talk through a typed message protocol declared in the core
 webview asks for windows of rows around what is in view and keeps a bounded cache of them; sorting,
 filtering, copying and exporting happen in the host on all the rows. The webview gets a strict Content
 Security Policy with a nonce: no inline script, no remote resource.
+
+**Editing rows.** Drivers say which table and column each result column comes from
+(`ResultColumn.origin`, from the result metadata of the server) and describe a table for editing
+(`EngineSession.describeTable`: its kind, columns, how each takes and compares values, and its
+keys). `src/core/edits/` decides from these and from the text of the query whether a result can be
+edited (`resultEditability`), keeps the pending changes as pure reducers, turns them into one
+statement per row (`planEdits`) and judges what each statement did. The extension host keeps the
+changes of each tab, previews the plan, and applies it through `QueryRunner.perform` like any other
+run: the guard approves every statement first, and the batch runs only statements it approved.
 
 **Exact values.** Drivers keep `DECIMAL`/`NUMERIC` and `BIGINT` as the text the server sent, dates
 and JSON as the server formats them, and binary data as hexadecimal text: nothing depends on the time
@@ -308,7 +371,10 @@ These are throwaway credentials of local test containers. The SSH server reaches
 `mysql:3306` and `postgres:5432`. Each address can be overridden with `SQLDORO_IT_<SERVER>_HOST` and
 `SQLDORO_IT_<SERVER>_PORT` (`MYSQL`, `POSTGRES`, `SSH`). The tests create their own tables and
 schemas, wait for the servers to accept connections, and generate their SSH keys on the fly: no
-private key is stored in the repository.
+private key is stored in the repository. The edits of the grid run there too: which results can be
+edited, every type written and found again, conflicts, read-only sessions, and the extension host
+wired as in VS Code (with the fake of the `vscode` module) applying, rolling back and confirming
+changes on both servers.
 
 ### Extension smoke test (`make smoke`)
 
@@ -317,7 +383,8 @@ private key is stored in the repository.
 extension (`dist/`) in a fresh profile without telemetry, and runs `test/smoke/suite.ts` inside it:
 the extension must activate, every command and view contributed in `package.json` must be registered
 (each view opens and refreshes), `sqldoro.hello` must answer, and the result view of a SQL editor must
-load (the React bundle runs under its Content Security Policy and tells the extension it is ready).
+load (the React bundle runs under its Content Security Policy and tells the extension it is ready),
+then close and load again.
 Each step prints a `>> ` line (VS Code version, activation time, commands, views, result view load
 time) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
 `make smoke` does the same on a headless machine that has it installed.

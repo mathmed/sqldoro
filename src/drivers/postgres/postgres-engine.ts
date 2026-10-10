@@ -21,6 +21,7 @@ import { clientConfig, closeClient, openClient } from './postgres-connection.ts'
 import { objectDdl } from './postgres-ddl.ts'
 import { POSTGRES_DIALECT } from './postgres-dialect.ts'
 import { executeQuery } from './postgres-query.ts'
+import { describeTable } from './postgres-tables.ts'
 
 const DEFAULT_PORT = 5432
 const SESSION_INFO = `SELECT current_setting('server_version') AS version, pg_backend_pid() AS pid,
@@ -81,9 +82,14 @@ class Clients {
   }
 
   async use(scope: ObjectScope): Promise<void> {
-    const target = await this.of(scope.database === '' ? this.#request.database : scope.database)
+    const target = await this.in(scope.database)
     await setSearchPath(target.client, scope.schema)
     this.#current = target
+  }
+
+  // The connection to a database; an empty name is the database the session opened in.
+  async in(database: string): Promise<DatabaseClient> {
+    return this.of(database === '' ? this.#request.database : database)
   }
 
   async of(database: string): Promise<DatabaseClient> {
@@ -192,6 +198,9 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
     useScope: async (scope) => clients.use(scope),
     execute: (query) => executeOn(clients.current, request, query),
     transactionStatus: async () => transactionStatusOf(clients.current.client),
+    describeTable: async (database, table) => describeTable(await clients.in(database), table),
+    // PostgreSQL refuses a value its column cannot hold.
+    writeProblem: async () => Promise.resolve(undefined),
   }
 }
 

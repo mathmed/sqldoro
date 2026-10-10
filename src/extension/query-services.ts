@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../core/connection/connection.ts'
+import { BatchMode, batchMode } from '../core/edits/batch.ts'
 import type { EngineSession } from '../core/engine/engine.ts'
 import type { Logger } from '../core/platform.ts'
 import type { Session } from '../core/session/open-session.ts'
@@ -17,17 +18,20 @@ import { EnvironmentDecorations } from './editor/environment-decorations.ts'
 import { loadAllRows } from './editor/load-all.ts'
 import { QueryRunner } from './editor/query-runner.ts'
 import { runServerView } from './editor/server-view.ts'
+import { applyEdits } from './edits/apply-edits.ts'
+import { checkEditing } from './edits/edit-check.ts'
 import { HistoryStore } from './history/history-store.ts'
 import { HistoryView } from './history/history-view.ts'
 import { systemClock } from './platform/clock.ts'
 import { copyRows, exportRows } from './results/results-actions.ts'
+import type { PanelActions } from './results/results-panel.ts'
 import { ResultsPanels } from './results/results-panels.ts'
 import { StatementGuard } from './safety/statement-guard.ts'
 import type { Services } from './services.ts'
 import { readSettings } from './settings.ts'
 import { SavedQueryStore } from './snippets/saved-query-store.ts'
 import { SavedQueryView } from './snippets/saved-query-view.ts'
-import { EditorTransactions } from './transactions/editor-transactions.ts'
+import { CloseReason, EditorTransactions } from './transactions/editor-transactions.ts'
 import { TransactionStatusItem } from './transactions/transaction-status.ts'
 
 export type WorkbenchContext = Pick<
@@ -164,17 +168,43 @@ function createRunParts(
     extensionUri: context.extensionUri,
     now: systemClock.now,
     log: access.log,
-    actionsFor: (uri) => ({
-      cancel: () => void runner.cancel(uri),
-      serverView: async (tab, view) =>
-        runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
-      loadAll: async (tab) => loadAllRows(runner, uri, tab),
-      copy: copyRows,
-      export: exportRows,
-    }),
+    actionsFor: (uri) => actionsOf(uri, { runner, editors, access }),
   })
   const runner: QueryRunner = createRunner(access, editors, panels)
   return { panels, runner }
+}
+
+interface ActionParts {
+  readonly runner: QueryRunner
+  readonly editors: EditorParts
+  readonly access: Access
+}
+
+// What the result view of an editor asks of the extension.
+function actionsOf(uri: vscode.Uri, { runner, editors, access }: ActionParts): PanelActions {
+  return {
+    cancel: () => void runner.cancel(uri),
+    serverView: async (tab, view) =>
+      runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
+    loadAll: async (tab) => loadAllRows(runner, uri, tab),
+    copy: copyRows,
+    export: exportRows,
+    applyEdits: async (tab, plan) =>
+      applyEdits(
+        {
+          runner,
+          policy: () => readSettings().policy,
+          transactions: editors.transactions,
+          log: access.log,
+          closeSession: async (editor) =>
+            editors.editorSessions.release(editor, CloseReason.RollbackFailed),
+        },
+        uri,
+        { tab, plan },
+      ),
+    isInOpenTransaction: () =>
+      batchMode(editors.transactions.of(uri.toString())) === BatchMode.Joined,
+  }
 }
 
 function createRunner(access: Access, editors: EditorParts, panels: ResultsPanels): QueryRunner {
@@ -192,6 +222,9 @@ function createRunner(access: Access, editors: EditorParts, panels: ResultsPanel
     settings: readSettings,
     clock: systemClock,
     createId: randomUUID,
+    checkEditing: (parts, tab) => {
+      void checkEditing(parts, tab, access.log)
+    },
     log: access.log,
   })
 }

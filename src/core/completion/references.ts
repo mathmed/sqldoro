@@ -81,7 +81,8 @@ export function readName(tokens: readonly Token[], start: number): Read<readonly
   return { value: [identifierName(part), ...rest.value], next: rest.next }
 }
 
-function readAlias(tokens: readonly Token[], start: number): Read<string | undefined> {
+// The alias after a name: AS x, or x when it is not a word that can follow a table.
+export function readAlias(tokens: readonly Token[], start: number): Read<string | undefined> {
   const aliasAt = isKeyword(tokens.at(start), ALIAS_KEYWORD) ? start + 1 : start
   const candidate = tokens.at(aliasAt)
   if (!isIdentifier(candidate) || isReserved(candidate)) {

@@ -25,7 +25,9 @@ export interface Page {
   readonly rows?: readonly unknown[]
   readonly command?: string
   readonly rowCount?: number | null
-  readonly fields?: readonly Pick<FieldDef, 'dataTypeID' | 'name'>[]
+  // Computed values unless they name the relation and the column they come from.
+  readonly fields?: readonly (Pick<FieldDef, 'dataTypeID' | 'name'> &
+    Partial<Pick<FieldDef, 'columnID' | 'tableID'>>)[]
 }
 
 export interface PgScript {
@@ -60,7 +62,7 @@ export class FakeCursor {
         command: page.command ?? 'SELECT',
         rowCount: page.rowCount ?? null,
         oid: 0,
-        fields: [...(page.fields ?? [])],
+        fields: (page.fields ?? []).map((field) => ({ tableID: 0, columnID: 0, ...field })),
         rows: [],
       } as unknown as QueryResult
       callback(page.error, [...(page.rows ?? [])], result)

@@ -18,6 +18,7 @@ import {
   readStrings,
   readViewSpec,
 } from './parse-common.ts'
+import { readEditing } from './parse-editing.ts'
 import {
   type HostMessage,
   HostMessageType,
@@ -91,6 +92,7 @@ function readTab(tab: JsonRecord): ResultTab {
     error: readNullable(tab, 'error', (record, key) => readError(readNested(record, key))),
     notice: readString(tab, 'notice'),
     plan: readStrings(tab, 'plan'),
+    editing: readEditing(readNested(tab, 'editing')),
   }
 }
 

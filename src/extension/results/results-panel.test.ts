@@ -54,6 +54,8 @@ beforeEach(() => {
     loadAll: vi.fn(),
     copy: vi.fn(),
     export: vi.fn(),
+    applyEdits: vi.fn(),
+    isInOpenTransaction: vi.fn(() => false),
   }
   log = recordingLogger()
   now = 1000

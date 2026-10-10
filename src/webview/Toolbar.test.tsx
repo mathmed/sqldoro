@@ -10,6 +10,7 @@ let actions: {
   cancel: Mock<() => void>
   loadAll: Mock<() => void>
   copy: Mock<(format: ExportFormat) => void>
+  copyRows: Mock<() => void>
   export: Mock<(format: ExportFormat) => void>
   setServerSide: Mock<(isServerSide: boolean) => void>
 }
@@ -43,6 +44,7 @@ beforeEach(() => {
     cancel: vi.fn(),
     loadAll: vi.fn(),
     copy: vi.fn(),
+    copyRows: vi.fn(),
     export: vi.fn(),
     setServerSide: vi.fn(),
   }
@@ -65,7 +67,19 @@ describe('Toolbar', () => {
     toolbar({ columns: [] }, false)
 
     expect(button('Copy selection as', 'CSV').disabled).toBe(true)
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Copy Rows as INSERT' }).disabled,
+    ).toBe(true)
     expect(button('Export as', 'SQL').disabled).toBe(true)
+  })
+
+  it('should copy the selected rows whole as INSERT statements', () => {
+    toolbar()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Rows as INSERT' }))
+
+    expect(actions.copyRows).toHaveBeenCalledOnce()
+    expect(actions.copy).not.toHaveBeenCalled()
   })
 
   it('should cancel a statement that runs, and not export it yet', () => {

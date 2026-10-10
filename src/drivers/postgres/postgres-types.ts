@@ -1,6 +1,6 @@
 import pg, { type FieldDef } from 'pg'
 
-import { ColumnKind, type ResultColumn } from '../../core/engine/query.ts'
+import { ColumnKind, type ColumnOrigin, type ResultColumn } from '../../core/engine/query.ts'
 
 const UNKNOWN_TYPE = 'UNKNOWN'
 const TYPE_NAMES: ReadonlyMap<number, string> = new Map(
@@ -22,7 +22,19 @@ const KINDS: ReadonlyMap<string, ColumnKind> = new Map([
   ['BYTEA', ColumnKind.Binary],
 ])
 
-export function toResultColumn(field: Pick<FieldDef, 'dataTypeID' | 'name'>): ResultColumn {
+type FieldDescription = Pick<FieldDef, 'columnID' | 'dataTypeID' | 'name' | 'tableID'>
+
+export function toResultColumn(field: FieldDescription): ResultColumn {
   const dataType = TYPE_NAMES.get(field.dataTypeID) ?? UNKNOWN_TYPE
-  return { name: field.name, dataType, kind: KINDS.get(dataType) ?? ColumnKind.Other }
+  const column = { name: field.name, dataType, kind: KINDS.get(dataType) ?? ColumnKind.Other }
+  const origin = originOf(field)
+  return origin === undefined ? column : { ...column, origin }
+}
+
+// A column of a table or a view is named by the object id of the relation and the number of the
+// column in it; both are 0 for a computed value.
+function originOf({ tableID, columnID }: FieldDescription): ColumnOrigin | undefined {
+  return tableID > 0 && columnID > 0
+    ? { table: [String(tableID)], column: String(columnID) }
+    : undefined
 }

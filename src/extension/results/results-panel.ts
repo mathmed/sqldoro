@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
+import type { EditPlan } from '../../core/edits/plan.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import type { Logger } from '../../core/platform.ts'
 import type { ExportFormat } from '../../core/results/export-format.ts'
@@ -31,6 +32,10 @@ export interface PanelActions {
   readonly loadAll: (tab: ResultSet) => Promise<void>
   readonly copy: (tab: ResultSet, request: CopyRequest, dialect: Dialect) => Promise<void>
   readonly export: (tab: ResultSet, format: ExportFormat, dialect: Dialect) => Promise<void>
+  // Runs the statements of the changes of a tab, through the guards; the tab hears how it went.
+  readonly applyEdits: (tab: ResultSet, plan: EditPlan) => Promise<void>
+  // Whether the changes would join the transaction open in the editor.
+  readonly isInOpenTransaction: () => boolean
 }
 
 export interface PanelEnvironment {
@@ -54,6 +59,8 @@ function route<T extends WebviewMessage['type']>(
 const MAX_CELL_PREVIEW = 1000
 // While rows stream in, a tab tells the webview about them at most this often.
 const PROGRESS_INTERVAL_MS = 100
+const KEEP_CHANGES =
+  'Apply or revert the changes first: running the query again would read the rows again and drop them.'
 
 // The result webview of one editor: the tabs of its last run, and the rows the grid asks for.
 export class ResultsPanel {
@@ -85,7 +92,16 @@ export class ResultsPanel {
       route(WebviewMessageType.Cancel, async () => this.#cancel()),
       route(WebviewMessageType.LoadAll, async (message) => this.#loadAll(message)),
       route(WebviewMessageType.Problem, async (message) => this.#problem(message)),
+      route(WebviewMessageType.Edit, async (message) => this.#edit(message)),
+      route(WebviewMessageType.PreviewEdits, async (message) => this.#previewEdits(message)),
+      route(WebviewMessageType.ClosePreview, async (message) => this.#closePreview(message)),
+      route(WebviewMessageType.ApplyEdits, async (message) => this.#applyEdits(message)),
     ])
+  }
+
+  // Changes made in the grid and not applied, in any tab.
+  hasChanges(): boolean {
+    return [...this.#tabs.values()].some((tab) => tab.editor.hasChanges)
   }
 
   get panel(): vscode.WebviewPanel {
@@ -206,7 +222,7 @@ export class ResultsPanel {
       return
     }
     if (message.isServerSide) {
-      await this.#actions.serverView(tab, message.view)
+      await this.#unlessChanged(tab, async () => this.#actions.serverView(tab, message.view))
       return
     }
     tab.applyView(message.view)
@@ -230,8 +246,64 @@ export class ResultsPanel {
   async #loadAll(message: MessageOf<typeof WebviewMessageType.LoadAll>): Promise<void> {
     const tab = this.#tabs.get(message.tabId)
     if (tab !== undefined && !tab.isRunning) {
-      await this.#actions.loadAll(tab)
+      await this.#unlessChanged(tab, async () => this.#actions.loadAll(tab))
     }
+  }
+
+  // Reading the rows of a tab again would drop its changes: the user applies or reverts them first.
+  async #unlessChanged(tab: ResultSet, run: () => Promise<void>): Promise<void> {
+    if (!tab.editor.hasChanges) {
+      await run()
+      return
+    }
+    tab.editor.notify(KEEP_CHANGES, true)
+    this.updateTab(tab, true)
+  }
+
+  // An edit names the view it was made on: made on another one, it is dropped.
+  async #edit(message: MessageOf<typeof WebviewMessageType.Edit>): Promise<void> {
+    const tab = this.#current(message.tabId, message.viewVersion)
+    if (tab?.editor.act(message.edit, tab) !== true) {
+      this.#environment.log.debug(
+        'An edit of a result that changed since, or cannot be edited, was dropped',
+      )
+      return
+    }
+    this.updateTab(tab, true)
+    return Promise.resolve()
+  }
+
+  async #previewEdits(message: MessageOf<typeof WebviewMessageType.PreviewEdits>): Promise<void> {
+    const tab = this.#tabs.get(message.tabId)
+    const dialect = this.#dialect
+    if (tab !== undefined && dialect !== undefined) {
+      const setting = { dialect, isInOpenTransaction: this.#actions.isInOpenTransaction() }
+      tab.editor.preview(tab, setting)
+      this.updateTab(tab, true)
+    }
+    return Promise.resolve()
+  }
+
+  async #closePreview(message: MessageOf<typeof WebviewMessageType.ClosePreview>): Promise<void> {
+    const tab = this.#tabs.get(message.tabId)
+    if (tab !== undefined) {
+      tab.editor.closePreview()
+      this.updateTab(tab, true)
+    }
+    return Promise.resolve()
+  }
+
+  // The preview the user confirmed applies once: a click again, or an older preview, does nothing.
+  async #applyEdits(message: MessageOf<typeof WebviewMessageType.ApplyEdits>): Promise<void> {
+    const tab = this.#tabs.get(message.tabId)
+    const plan = tab?.editor.take(message.previewId)
+    if (tab === undefined || plan === undefined) {
+      this.#environment.log.debug('An apply of a preview that is gone was dropped')
+      return
+    }
+    this.updateTab(tab, true)
+    await this.#actions.applyEdits(tab, plan)
+    this.updateTab(tab, true)
   }
 
   async #cancel(): Promise<void> {

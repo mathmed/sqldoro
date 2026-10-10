@@ -18,6 +18,7 @@ import { closeConnection, openConnection } from './mysql-connection.ts'
 import { objectDdl, useDatabase } from './mysql-ddl.ts'
 import { MYSQL_DIALECT } from './mysql-dialect.ts'
 import { executeQuery, type QueryTarget } from './mysql-query.ts'
+import { describeTable, writeProblem } from './mysql-tables.ts'
 
 const DEFAULT_PORT = 3306
 const VERSION = 'SELECT VERSION() AS version'
@@ -79,6 +80,30 @@ function createSession(
       watch.close()
       await closeConnection(connection)
     },
+    ...catalogOf(connection),
+    useScope: async (scope) => useDatabase(connection, scope.database),
+    execute: (query) => executeQuery(target, query),
+    transactionStatus: async () => statusOf(await runQuery(connection, STATUS_PROBE, [])),
+    writeProblem: async () => writeProblem(connection),
+  }
+}
+
+type Catalog = Pick<
+  EngineSession,
+  | 'describeTable'
+  | 'listColumns'
+  | 'listDatabases'
+  | 'listForeignKeys'
+  | 'listIndexes'
+  | 'listSchemas'
+  | 'listTables'
+  | 'listViews'
+  | 'objectDdl'
+>
+
+// What the session reads from information_schema and SHOW CREATE.
+function catalogOf(connection: Connection): Catalog {
+  return {
     listDatabases: async () => listDatabases(connection),
     listSchemas: async () => Promise.resolve([]),
     listTables: async (scope) => listTables(connection, scope),
@@ -87,9 +112,8 @@ function createSession(
     listIndexes: async (table) => listIndexes(connection, table),
     listForeignKeys: async (table) => listForeignKeys(connection, table),
     objectDdl: async (object, kind) => objectDdl(connection, object, kind),
-    useScope: async (scope) => useDatabase(connection, scope.database),
-    execute: (query) => executeQuery(target, query),
-    transactionStatus: async () => statusOf(await runQuery(connection, STATUS_PROBE, [])),
+    // The table key names the database: MySQL reads any database's catalog from this connection.
+    describeTable: async (...[, table]) => describeTable(connection, table),
   }
 }
 

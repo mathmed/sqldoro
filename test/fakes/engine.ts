@@ -45,6 +45,8 @@ export function fakeSession(overrides: Partial<EngineSession> = {}): EngineSessi
       cancel: async () => Promise.resolve(),
     }),
     transactionStatus: async () => Promise.resolve(TransactionStatus.Idle),
+    describeTable: async () => Promise.resolve(undefined),
+    writeProblem: async () => Promise.resolve(undefined),
     ...overrides,
   }
 }

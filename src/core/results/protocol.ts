@@ -1,7 +1,10 @@
 // The messages between the extension host and the result webview. Both sides validate what they
 // receive (parse-host-message.ts, parse-webview-message.ts); values that may be absent are null,
 // which survives the trip where undefined would not.
+import type { EditKind } from '../edits/edit-kind.ts'
+import type { PendingValue } from '../edits/pending.ts'
 import type { CellValue, ResultColumn } from '../engine/query.ts'
+import type { ValueSpec } from '../engine/table.ts'
 import type { ExportFormat } from './export-format.ts'
 import type { ViewSpec } from './view.ts'
 
@@ -47,6 +50,78 @@ export interface TabError {
   readonly column: number | null
 }
 
+// The editing of the rows of a tab. Rows are named by their position in the view; positions past
+// the rows of the view name the rows added in the grid, in order.
+export const EditingState = {
+  // A running or failed statement, or a plan: nothing to edit.
+  None: 'none',
+  Checking: 'checking',
+  ReadOnly: 'readOnly',
+  Editable: 'editable',
+  Applying: 'applying',
+} as const
+
+export type EditingState = (typeof EditingState)[keyof typeof EditingState]
+
+export interface PendingCell {
+  readonly column: number
+  readonly value: PendingValue
+}
+
+// A changed row the view shows, by its position in the view.
+export interface PendingRow {
+  readonly row: number
+  readonly isDeleted: boolean
+  readonly cells: readonly PendingCell[]
+  // Why the last apply did not take it, for people; empty otherwise.
+  readonly problem: string
+}
+
+export interface NewRowView {
+  readonly id: number
+  readonly cells: readonly PendingCell[]
+  readonly problem: string
+}
+
+export interface PreviewStatement {
+  readonly sql: string
+  // The bound values, in the order of their placeholders, as people read them.
+  readonly values: readonly string[]
+  readonly expectedRows: number
+  readonly label: string
+}
+
+export interface EditPreview {
+  // Applying names the preview it confirms: an older one applies nothing.
+  readonly id: number
+  readonly summary: string
+  readonly statements: readonly PreviewStatement[]
+  readonly deletions: number
+  // Whether the statements join the open transaction of the editor instead of their own.
+  readonly isInOpenTransaction: boolean
+}
+
+export interface TabEditing {
+  readonly state: EditingState
+  // Why the rows cannot be edited, when they cannot.
+  readonly problem: string
+  // The table and the columns of its key, when the rows can be edited.
+  readonly table: string
+  readonly key: readonly string[]
+  // How each column of the result takes values; read-only ones say why.
+  readonly columns: readonly ValueSpec[]
+  // Why rows cannot be added; empty when they can.
+  readonly insertProblem: string
+  readonly rows: readonly PendingRow[]
+  readonly newRows: readonly NewRowView[]
+  // Changed rows the filters of the view hide.
+  readonly hiddenRows: number
+  readonly preview: EditPreview | null
+  // What the last edit or apply said, for people; an error is shown as such.
+  readonly notice: string
+  readonly isNoticeError: boolean
+}
+
 // One statement of a run. Rows are not part of it: the webview asks for the ones it shows.
 export interface ResultTab {
   readonly id: string
@@ -67,6 +142,7 @@ export interface ResultTab {
   readonly error: TabError | null
   readonly notice: string
   readonly plan: readonly string[]
+  readonly editing: TabEditing
 }
 
 // A row as the grid gets it: long text is cut, and `truncated` lists the columns that were.
@@ -128,7 +204,19 @@ export const WebviewMessageType = {
   Cancel: 'cancel',
   LoadAll: 'loadAll',
   Problem: 'problem',
+  Edit: 'edit',
+  PreviewEdits: 'previewEdits',
+  ClosePreview: 'closePreview',
+  ApplyEdits: 'applyEdits',
 } as const
+
+// An edit of the grid: the cells or rows of the view it acts on (null for adding a row and
+// reverting everything), and what was typed, for setting a value.
+export interface EditMessage {
+  readonly kind: EditKind
+  readonly range: CellRange | null
+  readonly input: string
+}
 
 export type WebviewMessage =
   | { readonly type: typeof WebviewMessageType.Ready }
@@ -169,6 +257,20 @@ export type WebviewMessage =
   | { readonly type: typeof WebviewMessageType.LoadAll; readonly tabId: string }
   // Something the webview could not handle, for the extension's log.
   | { readonly type: typeof WebviewMessageType.Problem; readonly message: string }
+  // Edits name the view they were made on: one made on another view is dropped.
+  | {
+      readonly type: typeof WebviewMessageType.Edit
+      readonly tabId: string
+      readonly viewVersion: number
+      readonly edit: EditMessage
+    }
+  | { readonly type: typeof WebviewMessageType.PreviewEdits; readonly tabId: string }
+  | { readonly type: typeof WebviewMessageType.ClosePreview; readonly tabId: string }
+  | {
+      readonly type: typeof WebviewMessageType.ApplyEdits
+      readonly tabId: string
+      readonly previewId: number
+    }
 
 // The webview asks for at most this many rows at a time.
 export const MAX_WINDOW_ROWS = 1000

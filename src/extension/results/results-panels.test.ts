@@ -20,6 +20,8 @@ function panels(): ResultsPanels {
       loadAll: vi.fn(),
       copy: vi.fn(),
       export: vi.fn(),
+      applyEdits: vi.fn(),
+      isInOpenTransaction: () => false,
     }),
   })
 }

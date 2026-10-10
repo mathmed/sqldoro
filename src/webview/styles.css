@@ -338,3 +338,168 @@ input:focus-visible,
   font-family: var(--grid-font);
   font-size: var(--grid-font-size);
 }
+
+/* Editing: pending changes take the colors of the diff editor of the theme, and a mark at the left
+   of the cell or row, so that they show without color too (high contrast themes, color blindness). */
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 2px 8px 4px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.edit-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.edit-notice.error {
+  color: var(--vscode-errorForeground);
+}
+
+button.primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.grid-cell.pending {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, inherit);
+  background: var(--vscode-diffEditor-insertedTextBackground, transparent);
+  box-shadow: inset 2px 0 0 var(--vscode-editorGutter-modifiedBackground, currentColor);
+}
+
+.grid-row.row-added .grid-cell {
+  background: var(--vscode-diffEditor-insertedLineBackground, transparent);
+}
+
+.grid-row.row-added .grid-cell:first-child {
+  box-shadow: inset 3px 0 0 var(--vscode-editorGutter-addedBackground, currentColor);
+}
+
+.grid-row.row-deleted .grid-cell {
+  text-decoration: line-through;
+  background: var(--vscode-diffEditor-removedLineBackground, transparent);
+}
+
+.grid-row.row-deleted .grid-cell:first-child {
+  box-shadow: inset 3px 0 0 var(--vscode-editorGutter-deletedBackground, currentColor);
+}
+
+.grid-row.has-problem .grid-cell {
+  outline: 1px dashed var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  outline-offset: -1px;
+}
+
+.look-default {
+  font-style: italic;
+  color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+}
+
+.cell-editor-box {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  min-width: 100%;
+}
+
+.cell-editor {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 200px;
+  height: var(--row-height);
+  padding: 0 6px;
+  overflow: hidden;
+  resize: none;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-focusBorder);
+  font: inherit;
+  line-height: calc(var(--row-height) - 2px);
+  white-space: pre;
+}
+
+.cell-editor[aria-invalid='true'] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.cell-editor-problem {
+  display: block;
+  padding: 2px 6px;
+  white-space: normal;
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+  background: var(--vscode-inputValidation-errorBackground, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vscode-widget-shadow, rgb(0 0 0 / 40%));
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+  width: min(900px, 92vw);
+  max-height: 86vh;
+  padding: 12px 16px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+
+.preview h2 {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.preview p {
+  margin: 0;
+}
+
+.preview-warning {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-foreground));
+}
+
+.preview-statements {
+  flex: 1;
+  margin: 0;
+  padding-left: 24px;
+  overflow: auto;
+}
+
+.preview-statements li {
+  margin-bottom: 8px;
+}
+
+.preview-statements pre {
+  margin: 2px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--grid-font);
+  font-size: var(--grid-font-size);
+}
+
+.preview-label,
+.preview-values {
+  color: var(--vscode-descriptionForeground);
+}
+
+.preview footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

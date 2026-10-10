@@ -11,18 +11,41 @@ interface Press {
   readonly modifiers?: Readonly<Record<string, boolean>>
   readonly isOwnTarget?: boolean
   readonly selection?: GridSelection | null
+  readonly isEditable?: boolean
+}
+
+interface Actions {
+  readonly select: Mock
+  readonly copy: Mock
+  readonly openDetail: Mock
+  readonly canEdit: Mock<() => boolean>
+  readonly edit: Mock
+  readonly deleteRows: Mock
+  readonly preview: Mock
 }
 
 interface Pressed {
-  readonly actions: { select: Mock; copy: Mock; openDetail: Mock }
+  readonly actions: Actions
   readonly isPrevented: boolean
 }
 
-const DEFAULTS = { modifiers: {}, isOwnTarget: true, selection: MIDDLE }
+function keyActions(isEditable = false): Actions {
+  return {
+    select: vi.fn(),
+    copy: vi.fn(),
+    openDetail: vi.fn(),
+    canEdit: vi.fn(() => isEditable),
+    edit: vi.fn(),
+    deleteRows: vi.fn(),
+    preview: vi.fn(),
+  }
+}
+
+const DEFAULTS = { modifiers: {}, isOwnTarget: true, selection: MIDDLE, isEditable: false }
 
 function press(key: string, options: Press = {}): Pressed {
-  const { modifiers, isOwnTarget, selection } = { ...DEFAULTS, ...options }
-  const actions = { select: vi.fn(), copy: vi.fn(), openDetail: vi.fn() }
+  const { modifiers, isOwnTarget, selection, isEditable } = { ...DEFAULTS, ...options }
+  const actions = keyActions(isEditable)
   const target = {}
   let isPrevented = false
   const event = {
@@ -107,9 +130,52 @@ describe('handleGridKey', () => {
   })
 })
 
+describe('handleGridKey, editing', () => {
+  it('should edit a cell that takes values with Enter or F2, from its value', () => {
+    for (const key of ['Enter', 'F2']) {
+      const { actions, isPrevented } = press(key, { isEditable: true })
+
+      expect(actions.edit).toHaveBeenCalledWith({ row: 5, column: 1 }, undefined)
+      expect(actions.openDetail).not.toHaveBeenCalled()
+      expect(isPrevented).toBe(true)
+    }
+  })
+
+  it('should show the whole value of a cell that takes none with Enter, and of any with Shift+Enter', () => {
+    expect(press('Enter').actions.openDetail).toHaveBeenCalledWith({ row: 5, column: 1 })
+    const shifted = press('Enter', { isEditable: true, modifiers: { shiftKey: true } })
+    expect(shifted.actions.openDetail).toHaveBeenCalledWith({ row: 5, column: 1 })
+    expect(shifted.actions.edit).not.toHaveBeenCalled()
+  })
+
+  it('should start editing with the character typed on a cell that takes values', () => {
+    const typed = press('K', { isEditable: true, modifiers: { shiftKey: true } })
+
+    expect(typed.actions.edit).toHaveBeenCalledWith({ row: 5, column: 1 }, 'K')
+    expect(typed.isPrevented).toBe(true)
+  })
+
+  it('should leave typing and F2 alone where cells take no value, and Alt with a character', () => {
+    for (const result of [
+      press('k'),
+      press('F2'),
+      press('k', { isEditable: true, modifiers: { altKey: true } }),
+    ]) {
+      expect(result.actions.edit).not.toHaveBeenCalled()
+      expect(result.isPrevented).toBe(false)
+    }
+  })
+
+  it('should delete the selected rows with Delete and preview the changes with Ctrl or Cmd and S', () => {
+    expect(press('Delete').actions.deleteRows).toHaveBeenCalledOnce()
+    expect(press('s', { modifiers: { ctrlKey: true } }).actions.preview).toHaveBeenCalledOnce()
+    expect(press('S', { modifiers: { metaKey: true } }).actions.preview).toHaveBeenCalledOnce()
+  })
+})
+
 describe('an empty grid', () => {
   it('should not move anywhere', () => {
-    const actions = { select: vi.fn(), copy: vi.fn(), openDetail: vi.fn() }
+    const actions = keyActions()
     const target = {}
     handleGridKey(
       {

@@ -69,14 +69,22 @@ test/           test support: the vscode and webview fakes for unit tests and th
   user and stand in for VS Code with `fakeVsCodeApi()` and `fromHost()` from
   `test/webview/vscode-api.ts`; `test/webview/setup.ts` gives elements a panel's size, since jsdom lays
   nothing out.
-- Every statement a user (or a later feature, such as inline editing) runs goes through the safety
-  guards: build a `RunWork` with every statement it may execute and run it through
-  `QueryRunner.perform`; `StatementGuard` classifies, applies the guards and confirms, and
-  `QueryRunner.runJob` refuses SQL the guard did not approve. Never call `EngineSession.execute` with
-  user SQL anywhere else. Only sqldoro's own statements (catalog queries, `START TRANSACTION`,
-  `COMMIT`, `ROLLBACK`, the transaction status probe) bypass the guard. The classifier, the guard
-  policy, the automatic `LIMIT` and the transaction state machine live in `src/core/safety/` as pure
-  functions; what differs between engines is declared by their `Dialect`.
+- Every statement a user or the grid runs goes through the safety guards: build a `RunWork` with
+  every statement it may execute and run it through `QueryRunner.perform`; `StatementGuard`
+  classifies, applies the guards and confirms, and `QueryRunner.runJob` refuses SQL the guard did not
+  approve. The inline edits do the same: their `RunWork` lists the statements of the plan, and
+  `edits/edit-batch.ts` asks `approval.classOf` for each one before it runs. Never call
+  `EngineSession.execute` with user SQL anywhere else: `src/extension/safety/guarded-execution.test.ts`
+  pins every call site and fails on a new one. Only sqldoro's own statements (catalog queries,
+  `START TRANSACTION`, `COMMIT`, `ROLLBACK`, the savepoint statements of an apply, the transaction
+  status probe) bypass the guard. The classifier, the guard policy, the automatic `LIMIT` and the
+  transaction state machine live in `src/core/safety/` as pure functions; what differs between
+  engines is declared by their `Dialect`.
+- Editing results is decided and planned in `src/core/edits/` (pure functions: what can be edited,
+  the pending changes, their statements and outcomes) from what the drivers report: the origin of
+  each result column and `EngineSession.describeTable`. It fails closed: what the analysis cannot
+  prove editable is read-only. Generated statements bind every value as a parameter, with the cast
+  the driver declares for its column (`ValueSql`), so that no value is cut or rounded.
 - Contributed commands are declared in `package.json` (`contributes.commands`) with their id in
   `src/extension/command-id.ts`. The smoke test fails when a contributed command is not registered on
   activation.

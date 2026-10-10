@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { RESULT_COLUMNS } from '../../../test/fixtures/results.ts'
+import { NOT_EDITING } from '../edits/tab-editor.ts'
 import { ResultSet } from './result-set.ts'
 
 const SQL = 'SELECT id, name\nFROM orders'
@@ -37,6 +38,7 @@ describe('ResultSet', () => {
       error: null,
       notice: '',
       plan: [],
+      editing: NOT_EDITING,
     })
     expect(sut.isRunning).toBe(true)
     expect(sut.id).toBe('t1')

@@ -7,10 +7,8 @@ import { classifyStatement } from '../../core/safety/classify.ts'
 import {
   assessRun,
   type Confirmation,
-  confirmationProblem,
   type GuardPolicy,
   type GuardTarget,
-  isConfirmed,
   Verdict,
 } from '../../core/safety/guard.ts'
 import {
@@ -21,6 +19,7 @@ import {
 import { type EditorTransaction, implicitCommitWarning } from '../../core/safety/transaction.ts'
 import { CommandId } from '../command-id.ts'
 import { Approval } from './approval.ts'
+import { askTyped } from './typed-confirmation.ts'
 
 export interface StatementGuardDependencies {
   readonly policy: () => GuardPolicy
@@ -140,15 +139,4 @@ function offerToAllowWrites(message: string, connection: ConnectionConfig): void
       await vscode.commands.executeCommand(CommandId.AllowWrites, connection.id)
     }
   })
-}
-
-async function askTyped(confirmation: Confirmation): Promise<boolean> {
-  const typed = await vscode.window.showInputBox({
-    title: confirmation.title,
-    prompt: confirmation.prompt,
-    placeHolder: confirmation.expected,
-    ignoreFocusOut: true,
-    validateInput: (value) => confirmationProblem(value, confirmation.expected),
-  })
-  return typed !== undefined && isConfirmed(typed, confirmation.expected)
 }

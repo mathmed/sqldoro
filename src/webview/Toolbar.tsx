@@ -8,6 +8,8 @@ export interface ToolbarActions {
   readonly cancel: () => void
   readonly loadAll: () => void
   readonly copy: (format: ExportFormat) => void
+  // The selected rows, whole, as INSERT statements.
+  readonly copyRows: () => void
   readonly export: (format: ExportFormat) => void
   readonly setServerSide: (isServerSide: boolean) => void
 }
@@ -38,6 +40,9 @@ export const Toolbar = (props: ToolbarProps): ReactElement => {
       {isRunning ? <CancelButton onClick={actions.cancel} /> : null}
       {canLoadAll(tab) ? <LoadAllButton onClick={actions.loadAll} /> : null}
       <FormatButtons kind="copy" isDisabled={!props.hasSelection} onClick={actions.copy} />
+      <button type="button" disabled={!props.hasSelection} onClick={actions.copyRows}>
+        Copy Rows as INSERT
+      </button>
       <FormatButtons
         kind="export"
         isDisabled={isRunning || tab.columns.length === 0}
