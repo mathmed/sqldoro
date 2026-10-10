@@ -2,6 +2,7 @@ import type { Connection } from 'mysql2'
 
 import { ConnectionWatch } from '../../core/engine/connection-watch.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../core/engine/engine.ts'
+import { TransactionStatus } from '../../core/engine/transaction-status.ts'
 import { readString } from '../../core/json/record.ts'
 import {
   listColumns,
@@ -21,6 +22,12 @@ import { executeQuery, type QueryTarget } from './mysql-query.ts'
 const DEFAULT_PORT = 3306
 const VERSION = 'SELECT VERSION() AS version'
 const KILL_QUERY = 'KILL QUERY ?'
+// Every transaction of the session is read-only: the server refuses writes whatever the statement.
+const READ_ONLY_SESSION = 'SET SESSION TRANSACTION READ ONLY'
+// A statement that does nothing and answers with an OK packet, whose status tells whether the
+// session is in a transaction.
+const STATUS_PROBE = 'DO 0'
+const SERVER_STATUS_IN_TRANS = 1
 
 export const mysqlEngine: Engine = {
   id: 'mysql',
@@ -36,6 +43,9 @@ async function connectMysql(request: ConnectRequest): Promise<EngineSession> {
   const connection = await openConnection(request, watch.report)
   try {
     const [row] = await queryRows(connection, VERSION, [])
+    if (request.isReadOnly) {
+      await runQuery(connection, READ_ONLY_SESSION, [])
+    }
     return createSession(
       { connection, request, watch },
       row === undefined ? '' : readString(row, 'version'),
@@ -79,7 +89,24 @@ function createSession(
     objectDdl: async (object, kind) => objectDdl(connection, object, kind),
     useScope: async (scope) => useDatabase(connection, scope.database),
     execute: (query) => executeQuery(target, query),
+    transactionStatus: async () => statusOf(await runQuery(connection, STATUS_PROBE, [])),
   }
+}
+
+// The status flags of the OK packet the probe gets back.
+export function statusOf(result: unknown): TransactionStatus {
+  const flags = serverStatusOf(result)
+  if (flags === undefined) {
+    return TransactionStatus.Unknown
+  }
+  return (flags & SERVER_STATUS_IN_TRANS) === 0 ? TransactionStatus.Idle : TransactionStatus.Open
+}
+
+function serverStatusOf(result: unknown): number | undefined {
+  if (typeof result !== 'object' || result === null || !('serverStatus' in result)) {
+    return undefined
+  }
+  return typeof result.serverStatus === 'number' ? result.serverStatus : undefined
 }
 
 async function ping(connection: Connection): Promise<void> {

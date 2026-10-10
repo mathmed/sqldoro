@@ -12,6 +12,7 @@ import type {
 } from './catalog.ts'
 import type { Dialect } from './dialect.ts'
 import type { QueryExecution, QueryRequest } from './query.ts'
+import type { TransactionStatus } from './transaction-status.ts'
 
 export interface Endpoint {
   readonly host: string
@@ -37,6 +38,9 @@ export interface ConnectRequest {
   // Empty for the default database of the engine.
   readonly database: string
   readonly tls: TlsSettings | undefined
+  // The session refuses to write whatever it is asked to run (read-only transactions): the layer
+  // under the statement checks, for what they miss.
+  readonly isReadOnly: boolean
   // Called at most once, when the server or the network ends the session without close().
   readonly onUnexpectedClose: (error: Error) => void
 }
@@ -70,4 +74,6 @@ export interface EngineSession {
   // resolve there.
   readonly useScope: (scope: ObjectScope) => Promise<void>
   readonly execute: (request: QueryRequest) => QueryExecution
+  // Asks the server whether the session is in a transaction, after the statements before it ended.
+  readonly transactionStatus: () => Promise<TransactionStatus>
 }

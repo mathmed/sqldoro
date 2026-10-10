@@ -113,7 +113,6 @@ describe('changesSession', () => {
   it.each([
     { field: 'the name', changes: { name: 'Shop (prod)' } },
     { field: 'the environment', changes: { environment: EnvironmentTag.Production } },
-    { field: 'the read-only flag', changes: { isReadOnly: false } },
   ])('should keep the session when only $field changes', ({ changes }) => {
     expect(changesSession(connection, { ...connection, ...changes })).toBe(false)
   })
@@ -126,6 +125,7 @@ describe('changesSession', () => {
     { field: 'database', changes: { database: 'shop' } },
     { field: 'ssl', changes: { ssl: { ...DEFAULT_SSL, mode: SslMode.Require } } },
     { field: 'ssh', changes: { ssh: DEFAULT_SSH_TUNNEL } },
+    { field: 'read-only flag', changes: { isReadOnly: false } },
   ])('should need a new session when the $field changes', ({ changes }) => {
     expect(changesSession(connection, { ...connection, ...changes })).toBe(true)
   })

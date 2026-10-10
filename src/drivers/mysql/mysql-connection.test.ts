@@ -18,6 +18,7 @@ const REQUEST: ConnectRequest = {
   password: 's3cret',
   database: 'shop',
   tls: undefined,
+  isReadOnly: false,
   onUnexpectedClose: vi.fn(),
 }
 const TLS: TlsSettings = {

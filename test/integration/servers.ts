@@ -75,6 +75,7 @@ export function connectRequest(
     password: server.password,
     database: server.database,
     tls: undefined,
+    isReadOnly: false,
     onUnexpectedClose: () => undefined,
     ...changes,
   }

@@ -3,6 +3,7 @@
 import type { Dialect } from '../../src/core/engine/dialect.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../src/core/engine/engine.ts'
 import type { QueryResult } from '../../src/core/engine/query.ts'
+import { TransactionStatus } from '../../src/core/engine/transaction-status.ts'
 import { POSTGRES_DIALECT } from '../fixtures/dialects.ts'
 
 export interface FakeEngineOptions {
@@ -43,6 +44,7 @@ export function fakeSession(overrides: Partial<EngineSession> = {}): EngineSessi
       result: Promise.resolve(EMPTY_RESULT),
       cancel: async () => Promise.resolve(),
     }),
+    transactionStatus: async () => Promise.resolve(TransactionStatus.Idle),
     ...overrides,
   }
 }

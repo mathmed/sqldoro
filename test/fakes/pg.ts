@@ -31,6 +31,8 @@ export interface Page {
 export interface PgScript {
   connectError?: Error | undefined
   endError?: Error | undefined
+  // What getTransactionStatus() answers: I (idle), T (in a transaction), E (failed) or null.
+  transactionStatus?: string | null
   answer: (query: ScriptedQuery, client: FakeClient) => Answer
   read: (cursor: FakeCursor, size: number) => Page
 }
@@ -102,6 +104,10 @@ export class FakeClient extends EventEmitter {
     return after.then(async () => (error === undefined ? { rows } : Promise.reject(error)))
   }
 
+  getTransactionStatus(): string | null {
+    return pg.script.transactionStatus === undefined ? 'I' : pg.script.transactionStatus
+  }
+
   async end(): Promise<void> {
     this.isEnded = true
     const error = pg.script.endError
@@ -145,6 +151,7 @@ export function pgRequest(changes: Partial<ConnectRequest> = {}): ConnectRequest
     password: 's3cret',
     database: 'shop',
     tls: undefined,
+    isReadOnly: false,
     onUnexpectedClose: vi.fn(),
     ...changes,
   }
