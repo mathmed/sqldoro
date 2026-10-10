@@ -5,21 +5,17 @@ export type LiteralDialect = Pick<Dialect, 'binaryLiteral' | 'lexical'>
 
 const HEX_VALUE = /^0x[\da-f]*$/i
 const HEX_PREFIX_LENGTH = 2
-const NUMBER_PART = /^\d+$/
 const INTEGER_PART = /^-?\d+$/
-const MAX_NUMBER_PARTS = 2
+const FRACTION_PART = /^\d+$/
 const QUOTE = "'"
 const BACKSLASH = '\\'
 
 // Digits with an optional sign and fraction: the form exact numbers come back from the server in.
 export function isPlainNumber(text: string): boolean {
-  const parts = text.split('.')
-  const [whole = '', fraction] = parts
-  return (
-    parts.length <= MAX_NUMBER_PARTS &&
-    INTEGER_PART.test(whole) &&
-    (fraction === undefined || NUMBER_PART.test(fraction))
-  )
+  const point = text.indexOf('.')
+  return point === -1
+    ? INTEGER_PART.test(text)
+    : INTEGER_PART.test(text.slice(0, point)) && FRACTION_PART.test(text.slice(point + 1))
 }
 
 export function stringLiteral(text: string, dialect: Pick<Dialect, 'lexical'>): string {

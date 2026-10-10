@@ -25,8 +25,8 @@ export class RowCache {
   // count as pending until stored.
   windowsToFetch(first: number, last: number, rowCount: number): number[] {
     const starts: number[] = []
-    const end = Math.min(last, rowCount - 1)
-    for (let start = this.#windowStart(first); start <= end; start += this.#windowSize) {
+    const end = Math.min(last + 1, rowCount)
+    for (let start = this.#windowStart(first); start < end; start += this.#windowSize) {
       if (!this.#pending.has(start) && !this.#isLoaded(start, rowCount)) {
         this.#pending.add(start)
         starts.push(start)
@@ -50,7 +50,7 @@ export class RowCache {
   }
 
   #windowStart(index: number): number {
-    return Math.max(0, index - (index % this.#windowSize))
+    return index - (index % this.#windowSize)
   }
 
   #isLoaded(start: number, rowCount: number): boolean {

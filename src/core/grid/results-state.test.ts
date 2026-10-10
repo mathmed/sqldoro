@@ -5,6 +5,7 @@ import { activateTab, activeTab, EMPTY_RESULTS, reduceResults } from './results-
 
 const FIRST = resultTab({ id: 'a' })
 const SECOND = resultTab({ id: 'b' })
+const THIRD = resultTab({ id: 'c' })
 
 describe('reduceResults', () => {
   it('should replace the tabs with a run, in front the one the host says or the last', () => {
@@ -15,9 +16,13 @@ describe('reduceResults', () => {
       activeTabId: 'a',
     })
     expect(
-      reduceResults(EMPTY_RESULTS, { type: 'tabs', tabs: [FIRST, SECOND], activeTabId: null }),
+      reduceResults(EMPTY_RESULTS, {
+        type: 'tabs',
+        tabs: [FIRST, SECOND, THIRD],
+        activeTabId: null,
+      }),
     ).toMatchObject({
-      activeTabId: 'b',
+      activeTabId: 'c',
     })
     expect(
       reduceResults(
@@ -75,6 +80,7 @@ describe('activateTab and activeTab', () => {
 
   it('should find the tab in front', () => {
     expect(activeTab(state)).toBe(FIRST)
+    expect(activeTab({ ...state, activeTabId: 'b' })).toBe(SECOND)
     expect(activeTab(EMPTY_RESULTS)).toBeUndefined()
   })
 })

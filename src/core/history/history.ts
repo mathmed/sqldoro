@@ -39,7 +39,7 @@ export interface HistoryEntry {
 // Longer statements (a whole dump) are not kept: the history stays small and quick to search.
 export const MAX_HISTORY_SQL_LENGTH = 20_000
 
-const WORDS = /\s+/
+const WORD = /\S+/g
 
 function isRunOutcome(value: unknown): value is RunOutcome {
   return typeof value === 'string' && RUN_OUTCOMES.has(value)
@@ -93,10 +93,7 @@ export function addHistoryEntry(
 
 // Entries whose statement or message holds every word of the query, without case.
 export function searchHistory(entries: readonly HistoryEntry[], query: string): HistoryEntry[] {
-  const words = query
-    .toLowerCase()
-    .split(WORDS)
-    .filter((word) => word !== '')
+  const words = query.toLowerCase().match(WORD) ?? []
   return entries.filter((entry) => {
     const text = `${entry.sql}\n${entry.message}`.toLowerCase()
     return words.every((word) => text.includes(word))

@@ -114,10 +114,61 @@ describe('analyzeCompletion', () => {
       expect(at(sql).clause).toBe(clause)
     })
 
+    it.each(['AND', 'BY', 'CASE', 'DISTINCT', 'ELSE', 'HAVING', 'NOT', 'ON', 'OR', 'RETURNING'])(
+      'should expect columns right after %s, the closest keyword',
+      (keyword) => {
+        expect(at(`SELECT * FROM t ${keyword} |`).clause).toBe(Clause.Column)
+      },
+    )
+
+    it.each(['SELECT', 'SET', 'THEN', 'USING', 'WHEN', 'WHERE'])(
+      'should expect columns right after %s, the closest keyword',
+      (keyword) => {
+        expect(at(`SELECT * FROM t ${keyword} |`).clause).toBe(Clause.Column)
+      },
+    )
+
+    it.each(['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE'])(
+      'should expect a table right after %s, the closest keyword',
+      (keyword) => {
+        expect(at(`SELECT a FROM t WHERE b ${keyword} |`).clause).toBe(Clause.Table)
+      },
+    )
+
+    it('should skip a subquery between the cursor and its clause', () => {
+      expect(at('SELECT * FROM t, (SELECT 1) AS s, |').clause).toBe(Clause.Table)
+      expect(at('SELECT * FROM t JOIN (SELECT 1) s ON s.a = (SELECT 2) AND |').clause).toBe(
+        Clause.Column,
+      )
+    })
+
+    it('should not take a qualifier that is a keyword for the clause', () => {
+      expect(at('SELECT * FROM t JOIN set.|').clause).toBe(Clause.Table)
+    })
+
     it('should skip a closed parenthesis inside another one', () => {
       expect(at('SELECT * FROM t WHERE f((a), |').clause).toBe(Clause.Column)
       expect(at('SELECT * FROM t WHERE x IN ((SELECT 1 FROM u), |').clause).toBe(Clause.Column)
     })
+  })
+
+  it('should read every table when the cursor is at the very start', () => {
+    expect(at('|FROM orders')).toMatchObject({
+      prefix: '',
+      prefixStart: 0,
+      references: [{ parts: ['orders'] }],
+    })
+  })
+
+  it('should keep the tables whose names touch the name being typed', () => {
+    expect(at('SELECT * FROM orders"x|').references).toMatchObject([{ parts: ['orders'] }])
+    expect(at('SELECT * FROM "ord|"o').references).toMatchObject([{ parts: ['o'] }])
+  })
+
+  it('should leave out only the name being typed', () => {
+    expect(at('SELECT * FROM orders o WHERE o.|').references).toStrictEqual([
+      { parts: ['orders'], alias: 'o' },
+    ])
   })
 
   it('should read the tables of the whole statement, also after the cursor', () => {
@@ -154,11 +205,27 @@ describe('completionAt', () => {
     const sut = around('SELECT 1;\n\n|  \n\nSELECT 2')
 
     expect(sut.base).toBe(11)
-    expect(sut.context).toMatchObject({
+    expect(sut.context).toStrictEqual({
+      isInText: false,
       prefix: '',
       prefixStart: 0,
+      isQuoted: false,
+      qualifier: [],
       clause: 'other',
       references: [],
     })
+  })
+
+  it('should read the statement that starts at the cursor', () => {
+    const sut = around('SELECT 1;\n|SELECT * FROM orders')
+
+    expect(sut.base).toBe(10)
+    expect(sut.context.references).toMatchObject([{ parts: ['orders'] }])
+  })
+
+  it('should read the statement whose semicolon is right before the cursor', () => {
+    expect(around('SELECT * FROM orders;|').context.references).toMatchObject([
+      { parts: ['orders'] },
+    ])
   })
 })

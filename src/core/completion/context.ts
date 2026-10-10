@@ -72,6 +72,15 @@ const COLUMN_CLAUSES = [
   'WHERE',
 ]
 const SUBQUERY_OPENERS = ['FROM', 'JOIN']
+const OUTSIDE_STATEMENTS: CompletionContext = {
+  isInText: false,
+  prefix: '',
+  prefixStart: 0,
+  isQuoted: false,
+  qualifier: [],
+  clause: Clause.Other,
+  references: [],
+}
 const PART_AND_DOT = 2
 
 // Reads what is being typed at `offset` of a statement, without parsing it: the clause comes from
@@ -192,7 +201,7 @@ export function completionAt(
     (candidate) => candidate.start <= offset && offset <= candidate.terminatorEnd,
   )
   if (statement === undefined) {
-    return { context: analyzeCompletion('', 0, rules), base: offset }
+    return { context: OUTSIDE_STATEMENTS, base: offset }
   }
   const end = Math.max(offset, statement.end)
   return {

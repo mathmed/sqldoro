@@ -56,17 +56,12 @@ export function applyView(
       ? [index]
       : [],
   )
-  if (spec.sort.length === 0) {
-    return shown
-  }
   const sortColumns = spec.sort.map((key) => ({
     key,
     values: rows.map((row) => sortValue(row.at(key.column) ?? null, kindOf(columns, key.column))),
   }))
-  return shown.sort((left, right) => {
-    const order = compareRows(sortColumns, left, right)
-    return order === 0 ? left - right : order
-  })
+  // Array#sort is stable: rows that compare equal (all of them without a sort) keep their order.
+  return shown.sort((left, right) => compareRows(sortColumns, left, right))
 }
 
 function kindOf(columns: readonly ResultColumn[], column: number): ColumnKind {

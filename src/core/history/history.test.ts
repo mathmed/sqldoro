@@ -94,6 +94,10 @@ describe('searchHistory', () => {
     expect(ids(searchHistory(entries, 'denied'))).toStrictEqual(['b'])
   })
 
+  it('should look for whole words, not for their letters', () => {
+    expect(ids(searchHistory(entries, 'sredro'))).toStrictEqual([])
+  })
+
   it('should find everything for an empty query', () => {
     expect(ids(searchHistory(entries, '  '))).toStrictEqual(['a', 'b', 'c'])
   })

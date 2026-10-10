@@ -189,6 +189,13 @@ describe('buildSuggestions', () => {
     expect(names(suggest('SELECT | FROM orders'))).toContain('alias:orders')
   })
 
+  it('should offer the table of a qualified name without an alias by its last part', () => {
+    const sut = suggest('SELECT | FROM sales.orders')
+
+    expect(names(sut).filter((name) => name.startsWith('alias:'))).toStrictEqual(['alias:orders'])
+    expect(item(sut, 'orders')?.detail).toBe('sales.orders')
+  })
+
   it('should write keywords in lower case when the prefix is in lower case', () => {
     expect(item(suggest('sel|'), 'SELECT')).toMatchObject({
       insertText: 'select',
@@ -226,6 +233,7 @@ describe('buildSuggestions', () => {
       true,
     )
     expect(sut.items.some((candidate) => candidate.label === 't1999')).toBe(true)
+    expect(suggest('SELECT * FROM t|', catalog).items).toHaveLength(MAX_SUGGESTIONS)
   })
 
   it('should keep every suggestion at the limit', () => {

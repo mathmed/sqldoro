@@ -94,7 +94,7 @@ export function folderContents(queries: readonly SavedQuery[], folder: string): 
     (path) => path.startsWith(prefix) && !path.slice(prefix.length).includes(FOLDER_SEPARATOR),
   )
   return {
-    folders: folders.filter((path) => path !== folder),
+    folders,
     queries: queries
       .filter((saved) => saved.folder === folder)
       .toSorted((left, right) => left.name.localeCompare(right.name, 'en')),

@@ -107,10 +107,11 @@ describe('JSON', () => {
       { name: 'id', dataType: 'INT4', kind: ColumnKind.Number },
       { name: 'id', dataType: 'INT4', kind: ColumnKind.Number },
       { name: 'id (2)', dataType: 'INT4', kind: ColumnKind.Number },
+      { name: 'id', dataType: 'INT4', kind: ColumnKind.Number },
     ]
 
-    expect(format(ExportFormat.Json, [[1, 2, 3]], { ...TARGET, columns })).toBe(
-      '[\n  {"id": 1, "id (2)": 2, "id (2) (2)": 3}\n]\n',
+    expect(format(ExportFormat.Json, [[1, 2, 3, 4]], { ...TARGET, columns })).toBe(
+      '[\n  {"id": 1, "id (2)": 2, "id (2) (2)": 3, "id (3)": 4}\n]\n',
     )
   })
 

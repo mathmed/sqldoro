@@ -54,6 +54,9 @@ describe('BINDING_FORMAT', () => {
         BINDING_FORMAT,
       ).items,
     ).toStrictEqual(bindings)
+    expect(decodeList({ version: 1, bindings: 'none' }, BINDING_FORMAT).problems).toStrictEqual([
+      'The editor connections cannot be read: "bindings" must be a list',
+    ])
     expect(decodeList({ version: 1, bindings: [{}] }, BINDING_FORMAT).problems).toStrictEqual([
       'Editor connection #1 cannot be read: "uri" must be a string',
     ])

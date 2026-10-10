@@ -63,6 +63,23 @@ describe('tableReferences', () => {
     ])
   })
 
+  it.each([
+    ['PostgreSQL', 'SELECT * FROM t TABLESAMPLE SYSTEM (10)'],
+    ['PostgreSQL', 'SELECT * FROM t FETCH FIRST 1 ROW ONLY'],
+    ['PostgreSQL', 'SELECT * FROM t, LATERAL f(t.a)'],
+    ['PostgreSQL', 'SELECT * FROM t WINDOW w AS (ORDER BY a)'],
+    ['PostgreSQL', 'DELETE FROM t RETURNING a'],
+    ['MySQL', 'SELECT * FROM t FORCE INDEX (a)'],
+    ['MySQL', 'SELECT * FROM t IGNORE INDEX (a)'],
+    ['MySQL', 'SELECT * FROM t USE INDEX (a)'],
+    ['MySQL', 'SELECT * FROM t PARTITION (p0)'],
+    ['MySQL', 'SELECT * FROM t STRAIGHT_JOIN u ON u.a = t.a'],
+  ])('should read only the table, without an alias, in %s: %s', (dialect, sql) => {
+    const rules = dialect === 'MySQL' ? MYSQL_LEXICAL : POSTGRES_LEXICAL
+
+    expect(references(sql, rules)).toStrictEqual([{ parts: ['t'], alias: undefined }])
+  })
+
   it('should read a quoted alias', () => {
     expect(references('SELECT * FROM t "My Alias"')).toStrictEqual([
       { parts: ['t'], alias: 'My Alias' },

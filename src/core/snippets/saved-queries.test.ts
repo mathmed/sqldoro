@@ -81,6 +81,7 @@ describe('folderName', () => {
 describe('folderPaths and folderContents', () => {
   it('should list every folder with the ones above it, in order', () => {
     expect(folderPaths(QUERIES)).toStrictEqual(['admin', 'reports', 'reports/monthly'])
+    expect(folderPaths([query('x', { folder: 'a/b/c' })])).toStrictEqual(['a', 'a/b', 'a/b/c'])
   })
 
   it('should list the folders right under a folder and its queries by name', () => {
@@ -138,6 +139,12 @@ describe('exportQueries and importQueries', () => {
     const sut = importQueries(text, [], () => 'id')
 
     expect(sut.queries.map((saved) => saved.name)).toStrictEqual(['Same', 'Same (2)'])
+  })
+
+  it('should name the saved queries when the whole list cannot be read', () => {
+    expect(decodeList({ version: 1, queries: 'none' }, SAVED_QUERY_FORMAT).problems).toStrictEqual([
+      'The saved queries cannot be read: "queries" must be a list',
+    ])
   })
 
   it('should report the entries it cannot read and import the others', () => {

@@ -29,7 +29,9 @@ describe('view state', () => {
         [
           { id: 'x', isDescending: true },
           { id: '1a', isDescending: false },
+          { id: 'a1', isDescending: false },
           { id: '3', isDescending: false },
+          { id: '12', isDescending: true },
         ],
         [
           { id: '1', value: 5 },
@@ -38,7 +40,10 @@ describe('view state', () => {
         ],
       ),
     ).toStrictEqual({
-      sort: [{ column: 3, isDescending: false }],
+      sort: [
+        { column: 3, isDescending: false },
+        { column: 12, isDescending: true },
+      ],
       filters: [{ column: 4, text: '' }],
     })
   })

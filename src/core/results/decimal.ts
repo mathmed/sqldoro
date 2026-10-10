@@ -53,10 +53,7 @@ export function compareNumericKeys(left: NumericKey, right: NumericKey): number 
 }
 
 function compareText(left: string, right: string): number {
-  if (left === right) {
-    return 0
-  }
-  return left < right ? -1 : 1
+  return Number(left > right) - Number(left < right)
 }
 
 function parseDecimal(text: string): Decimal | undefined {
@@ -90,11 +87,8 @@ function normalized(mantissa: string, exponent: number): Decimal {
 }
 
 function withoutTrailingZeros(digits: string): string {
-  let end = digits.length
-  while (end > 0 && digits.charAt(end - 1) === '0') {
-    end -= 1
-  }
-  return digits.slice(0, end)
+  const lastSignificant = Array.from(digits).findLastIndex((digit) => digit !== '0')
+  return digits.slice(0, lastSignificant + 1)
 }
 
 function compareDecimals(left: Decimal, right: Decimal): number {

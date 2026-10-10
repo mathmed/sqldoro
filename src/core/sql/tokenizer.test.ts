@@ -46,12 +46,12 @@ describe('tokenize', () => {
   })
 
   it('should read numbers with decimals, exponents and underscores', () => {
-    expect(brief('1 2.5 .5 3. 1e10 2.5E-3 1_000 7e', POSTGRES_LEXICAL)).toStrictEqual([
+    expect(brief('1 2.5 .55 3. 1e10 2.5E-3 1_000 7e', POSTGRES_LEXICAL)).toStrictEqual([
       ['number', '1'],
       ['whitespace', ' '],
       ['number', '2.5'],
       ['whitespace', ' '],
-      ['number', '.5'],
+      ['number', '.55'],
       ['whitespace', ' '],
       ['number', '3.'],
       ['whitespace', ' '],
@@ -224,6 +224,11 @@ describe('tokenize', () => {
     it('should read double-quoted identifiers with doubled quotes in PostgreSQL', () => {
       expect(brief('"a ""b"";" c', POSTGRES_LEXICAL)).toStrictEqual([
         ['quotedIdentifier', '"a ""b"";"'],
+        ['whitespace', ' '],
+        ['word', 'c'],
+      ])
+      expect(brief('"a\\" c', POSTGRES_LEXICAL)).toStrictEqual([
+        ['quotedIdentifier', '"a\\"'],
         ['whitespace', ' '],
         ['word', 'c'],
       ])

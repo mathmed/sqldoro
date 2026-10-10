@@ -49,6 +49,16 @@ describe('parseWebviewMessage', () => {
         format: 'tsv',
       }),
     ).toStrictEqual({ type: 'copy', tabId: 't', viewVersion: 1, range: RANGE, format: 'tsv' })
+    const oneCell = { firstRow: 2, lastRow: 2, firstColumn: 1, lastColumn: 1 }
+    expect(
+      parseWebviewMessage({
+        type: 'copy',
+        tabId: 't',
+        viewVersion: 1,
+        range: oneCell,
+        format: 'csv',
+      }),
+    ).toMatchObject({ range: oneCell })
     expect(parseWebviewMessage({ type: 'export', tabId: 't', format: 'sql' })).toStrictEqual({
       type: 'export',
       tabId: 't',

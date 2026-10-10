@@ -10,9 +10,8 @@ const MASK = "'***'"
 
 export function redactSqlSecrets(sql: string, rules: LexicalRules): string {
   const tokens = tokenize(sql, rules)
-  const hasSecretWord = tokens.some(
-    (token) => token.kind === TokenKind.Word && SECRET_WORDS.has(token.text.toUpperCase()),
-  )
+  // Only a word can be exactly one of these: strings, names and comments keep their delimiters.
+  const hasSecretWord = tokens.some((token) => SECRET_WORDS.has(token.text.toUpperCase()))
   return tokens.map((token) => (isSecret(token, hasSecretWord) ? MASK : token.text)).join('')
 }
 

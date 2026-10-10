@@ -72,6 +72,13 @@ describe('numeric keys', () => {
     expect(compare('a', 'a')).toBe(0)
   })
 
+  it.each(['.', '-', '+.', '1-2', '1+', '1.a', 'a.1', '1e2.5'])(
+    'should not read %s as a number',
+    (text) => {
+      expect(numericKey(text).rank).toBe(3)
+    },
+  )
+
   it('should read the parts of the key', () => {
     expect(numericKey('-12.50')).toStrictEqual({
       rank: 0,
@@ -89,5 +96,6 @@ describe('numeric keys', () => {
       text: '000',
     })
     expect(numericKey('1e5e3')).toMatchObject({ rank: 3 })
+    expect(numericKey('120.0300')).toMatchObject({ decimal: { digits: '12003', exponent: 3 } })
   })
 })

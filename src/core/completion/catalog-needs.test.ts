@@ -66,11 +66,13 @@ describe('findReference', () => {
   const references = [
     { parts: ['orders'], alias: 'O' },
     { parts: ['sales', 'Customers'], alias: undefined },
+    { parts: ['items'], alias: undefined },
   ]
 
   it('should find a reference by its alias or, without one, by its table, without case', () => {
     expect(findReference(references, 'o')).toBe(references[0])
     expect(findReference(references, 'CUSTOMERS')).toBe(references[1])
+    expect(findReference(references, 'Items')).toBe(references[2])
   })
 
   it('should not find a table by its name when it has an alias', () => {
@@ -81,6 +83,8 @@ describe('findReference', () => {
 describe('catalogNeeds', () => {
   it('should need nothing in text or anywhere names do not go', () => {
     expect(pgNeeds("SELECT 'a|")).toStrictEqual(NO_NEEDS)
+    expect(pgNeeds("SELECT * FROM t WHERE a = 'x|")).toStrictEqual(NO_NEEDS)
+    expect(pgNeeds('SELECT * FROM /* t|')).toStrictEqual(NO_NEEDS)
     expect(pgNeeds('|')).toStrictEqual(NO_NEEDS)
   })
 

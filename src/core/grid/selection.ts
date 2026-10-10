@@ -59,10 +59,8 @@ export function extendSelection(selection: GridSelection, focus: CellPosition): 
 }
 
 export function selectAll(bounds: GridBounds): GridSelection {
-  return {
-    anchor: { row: 0, column: 0 },
-    focus: clampPosition({ row: bounds.rowCount - 1, column: bounds.columnCount - 1 }, bounds),
-  }
+  const anchor = Moves.gridStart()
+  return { anchor, focus: clampPosition(Moves.gridEnd(anchor, bounds), bounds) }
 }
 
 export function moveSelection(

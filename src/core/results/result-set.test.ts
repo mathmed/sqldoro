@@ -106,6 +106,9 @@ describe('ResultSet', () => {
       columns: [RESULT_COLUMNS[1]],
       rows: [['c'], ['bbbbbbbbbb']],
     })
+    expect(
+      sut.project({ firstRow: 1, lastRow: 1, firstColumn: 0, lastColumn: 0 }).rows,
+    ).toHaveLength(1)
   })
 
   it('should record how the statement ended', () => {
@@ -133,6 +136,9 @@ describe('ResultSet', () => {
       notice: '2 statements were not run',
     })
     expect(resultSet().toTab().plan).toStrictEqual([])
+    const withoutPlan = resultSet()
+    withoutPlan.succeed({ durationMs: 1, affectedRows: 2, isTruncated: false })
+    expect(withoutPlan.toTab().plan).toStrictEqual([])
   })
 
   it('should start over for a run on the server with the view it applies', () => {

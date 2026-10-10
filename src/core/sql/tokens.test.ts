@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { MYSQL_LEXICAL, POSTGRES_LEXICAL } from '../../../test/fixtures/lexical.ts'
 import { tokenize } from './tokenizer.ts'
-import { identifierName, isIdentifier, isKeyword, isText, isTrivia, type Token } from './tokens.ts'
+import {
+  identifierName,
+  isIdentifier,
+  isKeyword,
+  isText,
+  isTrivia,
+  type Token,
+  tokenAt,
+} from './tokens.ts'
 
 function only(text: string, rules = POSTGRES_LEXICAL): Token {
   const [first] = tokenize(text, rules)
@@ -75,5 +83,16 @@ describe('isIdentifier', () => {
     expect(isIdentifier(only('"a"'))).toBe(true)
     expect(isIdentifier(only("'a'"))).toBe(false)
     expect(isIdentifier(undefined)).toBe(false)
+  })
+})
+
+describe('tokenAt', () => {
+  it('should find the token at an index, and none before the first', () => {
+    const tokens = tokenize('a b', POSTGRES_LEXICAL)
+
+    expect(tokenAt(tokens, 0)).toBe(tokens[0])
+    expect(tokenAt(tokens, 2)).toBe(tokens[2])
+    expect(tokenAt(tokens, -1)).toBeUndefined()
+    expect(tokenAt(tokens, 3)).toBeUndefined()
   })
 })

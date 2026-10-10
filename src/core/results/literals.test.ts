@@ -9,12 +9,24 @@ describe('isPlainNumber', () => {
     expect(isPlainNumber(text)).toBe(true)
   })
 
-  it.each(['', '1.', '.5', '+1', '1e5', '1.2.3', 'NaN', '1 ', '-', '1.x'])(
-    'should refuse %s',
-    (text) => {
-      expect(isPlainNumber(text)).toBe(false)
-    },
-  )
+  it.each([
+    '',
+    '1.',
+    '.5',
+    '+1',
+    '1e5',
+    '1.2.3',
+    'NaN',
+    '1 ',
+    '-',
+    '1.x',
+    '1.x5',
+    '1.5x',
+    'x1',
+    '1x5',
+  ])('should refuse %s', (text) => {
+    expect(isPlainNumber(text)).toBe(false)
+  })
 })
 
 describe('stringLiteral', () => {
@@ -60,6 +72,7 @@ describe('sqlLiteral', () => {
 
   it('should quote binary columns that do not hold hexadecimal text, and hex text elsewhere', () => {
     expect(sqlLiteral('0xzz', ColumnKind.Binary, MYSQL_DIALECT)).toBe("'0xzz'")
+    expect(sqlLiteral('a0x00', ColumnKind.Binary, MYSQL_DIALECT)).toBe("'a0x00'")
     expect(sqlLiteral('0x00', ColumnKind.Text, MYSQL_DIALECT)).toBe("'0x00'")
   })
 

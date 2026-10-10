@@ -18,10 +18,17 @@ describe('RowCache', () => {
     expect(sut.windowsToFetch(0, 30, 1000)).toStrictEqual([30])
   })
 
+  it('should start at the window of the first row, and end at the window of the last', () => {
+    expect(new RowCache(10, 100).windowsToFetch(25, 40, 1000)).toStrictEqual([20, 30, 40])
+    expect(new RowCache(10, 100).windowsToFetch(0, 9, 1000)).toStrictEqual([0])
+    expect(new RowCache(10, 100).windowsToFetch(0, -1, 1000)).toStrictEqual([])
+  })
+
   it('should not ask past the last row', () => {
     const sut = new RowCache(10, 100)
 
     expect(sut.windowsToFetch(0, 50, 15)).toStrictEqual([0, 10])
+    expect(new RowCache(10, 100).windowsToFetch(0, 50, 20)).toStrictEqual([0, 10])
     expect(sut.windowsToFetch(0, 50, 0)).toStrictEqual([])
   })
 
@@ -47,6 +54,16 @@ describe('RowCache', () => {
     expect(sut.windowsToFetch(0, 3, 10)).toStrictEqual([0])
   })
 
+  it('should stop waiting for a window once it is stored, even partly', () => {
+    const sut = new RowCache(10, 100)
+    expect(sut.windowsToFetch(0, 9, 100)).toStrictEqual([0])
+    expect(sut.windowsToFetch(0, 9, 100)).toStrictEqual([])
+
+    sut.store(0, rows(0, 4))
+
+    expect(sut.windowsToFetch(0, 9, 100)).toStrictEqual([0])
+  })
+
   it('should forget the rows stored first past its limit', () => {
     const sut = new RowCache(10, 20)
 
@@ -61,12 +78,11 @@ describe('RowCache', () => {
     expect(sut.get(29)).toBeDefined()
   })
 
-  it('should forget everything when cleared', () => {
+  it('should forget the rows and the windows it waits for when cleared', () => {
     const sut = new RowCache(10, 100)
     sut.windowsToFetch(0, 9, 100)
-    sut.store(0, [])
-
     sut.store(10, rows(10, 10))
+
     sut.clear()
 
     expect(sut.size).toBe(0)

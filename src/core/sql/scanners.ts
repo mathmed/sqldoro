@@ -117,9 +117,10 @@ function flatCommentEnd(text: string, start: number): number {
   return close === -1 ? -1 : close + BLOCK_CLOSE.length
 }
 
+// Counts the comments opened inside the one at `start`, which is open already.
 function nestedCommentEnd(text: string, start: number): number {
-  let depth = 0
-  COMMENT_MARK.lastIndex = start
+  let depth = 1
+  COMMENT_MARK.lastIndex = start + BLOCK_OPEN.length
   for (let mark = COMMENT_MARK.exec(text); mark !== null; mark = COMMENT_MARK.exec(text)) {
     depth += mark[0] === BLOCK_OPEN ? 1 : -1
     if (depth === 0) {
