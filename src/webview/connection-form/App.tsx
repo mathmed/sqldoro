@@ -1,17 +1,15 @@
 import type { ReactElement } from 'react'
 
-import { shownIssues } from '../../core/connection-form/form-state.ts'
-import { ConfigTabs } from './ConfigTabs.tsx'
-import { EngineRow } from './EngineRow.tsx'
+import { shownIssues } from '../../core/connection-form/form-issues.ts'
+import { FormStep } from '../../core/connection-form/form-state.ts'
+import { ConnectionCard } from './ConnectionCard.tsx'
+import { EnginePicker } from './EnginePicker.tsx'
 import type { FormApi } from './form-api.ts'
 import type { FormView } from './form-view.ts'
-import { FormFooter } from './FormFooter.tsx'
-import { FormHeader, TITLE_ID } from './FormHeader.tsx'
-import { TopRow } from './TopRow.tsx'
 import { useConnectionForm } from './use-connection-form.ts'
 
-// The connection form: the name and the safety of the connection on top, the engine, the settings
-// in tabs, and the actions at the bottom. Enter in a field saves.
+// The connection form: the engines to choose from for a new connection, then the connection in a
+// card, centered in the panel.
 export const App = ({ api }: { readonly api: FormApi }): ReactElement => {
   const { state, actions } = useConnectionForm(api)
   if (state === null) {
@@ -19,22 +17,12 @@ export const App = ({ api }: { readonly api: FormApi }): ReactElement => {
   }
   const view: FormView = { state, actions, issues: shownIssues(state) }
   return (
-    <form
-      className="connection-form"
-      aria-labelledby={TITLE_ID}
-      noValidate
-      onSubmit={(event) => {
-        event.preventDefault()
-        actions.save()
-      }}
-    >
-      <FormHeader mode={state.setup.mode} notices={state.setup.notices} />
-      <div className="form-body">
-        <TopRow view={view} />
-        <EngineRow view={view} />
-        <ConfigTabs view={view} />
-      </div>
-      <FormFooter state={state} actions={actions} />
-    </form>
+    <main className="page">
+      {state.step === FormStep.Picker ? (
+        <EnginePicker view={view} />
+      ) : (
+        <ConnectionCard view={view} />
+      )}
+    </main>
   )
 }

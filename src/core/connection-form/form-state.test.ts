@@ -6,48 +6,53 @@ import {
   openedForm as opened,
   validForm as valid,
 } from '../../../test/fixtures/connection-form.ts'
-import { DEFAULT_SSH_TUNNEL } from '../connection/connection.ts'
+import { DEFAULT_SSH_TUNNEL, DEFAULT_SSL, SslMode } from '../connection/connection.ts'
 import { SecretKind } from '../connection/secrets.ts'
 import { PathField } from '../connection/transitions.ts'
 import { ConnectionField } from '../connection/validation.ts'
 import {
+  changed,
   chooseFile,
-  ConfigTab,
+  CLOSED_IMPORT,
   editConnection,
-  issuesOf,
+  FormControl,
+  FormStep,
   keepSecret,
+  ListingState,
+  NO_DATABASES,
   openForm,
   policyOf,
-  receiveHostMessage,
   removeSecret,
-  selectTab,
-  shownIssues,
-  tabsWithIssues,
   TestState,
   touchField,
   typeSecret,
   updateForm,
+  usesSsl,
 } from './form-state.ts'
+import { FormStart } from './protocol.ts'
 
-const NAME_ISSUE = { field: ConnectionField.Name, message: 'Enter a name for the connection' }
-const USER_ISSUE = { field: ConnectionField.User, message: 'Enter the user to log in as' }
 const CONFLICT = { field: ConnectionField.Name, message: 'Another connection is named "Shop"' }
+const LISTED = { state: ListingState.Listed, names: ['shop'], message: '', isOpen: true }
 
 describe('openForm', () => {
-  it('should open on the main tab with the name in focus and nothing to say yet', () => {
+  it('should open on the fields with the name in focus and nothing to say yet', () => {
     const setup = formSetup({ heldSecrets: [SecretKind.Password] })
 
     expect(openForm(setup)).toStrictEqual({
       setup,
+      step: FormStep.Details,
       draft: {
         connection: NEW_CONNECTION,
         secretChanges: new Map(),
         heldSecrets: new Set([SecretKind.Password]),
+        urlSecrets: new Set(),
       },
       touched: new Set(),
       isShowingAllIssues: false,
       hostIssues: [],
-      activeTab: ConfigTab.Main,
+      isAdvancedOpen: false,
+      importer: { isOpen: false, text: '', isApplying: false, problem: '', warnings: [] },
+      databases: { state: ListingState.Idle, names: [], message: '', isOpen: false },
       test: { state: TestState.Idle, message: '' },
       isSaving: false,
       notice: '',
@@ -55,62 +60,51 @@ describe('openForm', () => {
       focus: { field: ConnectionField.Name },
     })
   })
+
+  it('should open on the engines with the engine in focus', () => {
+    expect(openForm(formSetup({ start: FormStart.Picker }))).toMatchObject({
+      step: FormStep.Picker,
+      importer: CLOSED_IMPORT,
+      focus: { field: ConnectionField.Engine },
+    })
+  })
+
+  it('should open on the input of a connection string, in focus', () => {
+    expect(openForm(formSetup({ start: FormStart.Import }))).toMatchObject({
+      step: FormStep.Details,
+      importer: { ...CLOSED_IMPORT, isOpen: true },
+      focus: { field: FormControl.ConnectionString },
+    })
+  })
+
+  it('should open the SSL settings of a connection that uses SSL', () => {
+    const ssl = { ...DEFAULT_SSL, mode: SslMode.Require }
+
+    expect(openForm(formSetup({ connection: { ...NEW_CONNECTION, ssl } })).isAdvancedOpen).toBe(
+      true,
+    )
+  })
 })
 
-describe('receiveHostMessage', () => {
-  it('should open the form, again when the extension sends it again', () => {
-    const setup = formSetup()
-
-    expect(receiveHostMessage(null, { type: 'open', setup })).toStrictEqual(openForm(setup))
-    expect(
-      receiveHostMessage(opened({ activeTab: ConfigTab.Ssh }), { type: 'open', setup }),
-    ).toStrictEqual(openForm(setup))
-  })
-
-  it('should wait for the form to open before anything else', () => {
-    expect(receiveHostMessage(null, { type: 'tested', isSuccess: true, message: 'ok' })).toBeNull()
-  })
-
-  it('should put a chosen file in its field', () => {
-    const sut = receiveHostMessage(opened(), {
-      type: 'file',
-      field: PathField.SslCa,
-      path: '/ca.pem',
-    })
-
-    expect(sut?.draft.connection.ssl.caPath).toBe('/ca.pem')
-    expect(sut?.touched).toStrictEqual(new Set([ConnectionField.SslCaPath]))
-  })
-
-  it('should show how a test went', () => {
-    const testing = opened({ test: { state: TestState.Testing, message: '' } })
-
-    expect(
-      receiveHostMessage(testing, { type: 'tested', isSuccess: true, message: 'MySQL 8.4' })?.test,
-    ).toStrictEqual({ state: TestState.Succeeded, message: 'MySQL 8.4' })
-    expect(
-      receiveHostMessage(testing, { type: 'tested', isSuccess: false, message: 'refused' })?.test,
-    ).toStrictEqual({ state: TestState.Failed, message: 'refused' })
-  })
-
-  it('should show why the extension did not save', () => {
-    const sut = receiveHostMessage(opened({ isSaving: true }), {
-      type: 'saveRefused',
-      message: 'Fix the connection first',
-      issues: [CONFLICT],
-    })
-
-    expect(sut).toMatchObject({ isSaving: false, notice: 'Fix the connection first' })
-    expect(sut?.hostIssues).toStrictEqual([CONFLICT])
+describe('usesSsl', () => {
+  it('should tell SSL on, or certificate files without it, from no SSL at all', () => {
+    expect(usesSsl(DEFAULT_SSL)).toBe(false)
+    expect(usesSsl({ ...DEFAULT_SSL, mode: SslMode.VerifyCa })).toBe(true)
+    expect(usesSsl({ ...DEFAULT_SSL, caPath: '/ca' })).toBe(true)
+    expect(usesSsl({ ...DEFAULT_SSL, certPath: '/cert' })).toBe(true)
+    expect(usesSsl({ ...DEFAULT_SSL, keyPath: '/key' })).toBe(true)
   })
 })
 
 describe('updateForm', () => {
   it('should change an open form, and nothing before it opens', () => {
-    expect(updateForm(null, (state) => selectTab(state, ConfigTab.Ssh))).toBeNull()
-    expect(updateForm(opened(), (state) => selectTab(state, ConfigTab.Ssh))?.activeTab).toBe(
-      ConfigTab.Ssh,
-    )
+    const toPicker = (state: ReturnType<typeof opened>): ReturnType<typeof opened> => ({
+      ...state,
+      step: FormStep.Picker,
+    })
+
+    expect(updateForm(null, toPicker)).toBeNull()
+    expect(updateForm(opened(), toPicker)?.step).toBe(FormStep.Picker)
   })
 })
 
@@ -119,69 +113,6 @@ describe('policyOf', () => {
     expect(policyOf(formSetup())).toStrictEqual({
       productionEnvironments: new Set(['prod', 'staging']),
     })
-  })
-})
-
-describe('issuesOf and shownIssues', () => {
-  it('should find the problems of the connection, then those the extension reported', () => {
-    expect(issuesOf(opened({ hostIssues: [CONFLICT] }))).toStrictEqual([
-      NAME_ISSUE,
-      USER_ISSUE,
-      CONFLICT,
-    ])
-  })
-
-  it('should find a name another connection has', () => {
-    const sut = editConnection(valid(), null, (connection) => ({ ...connection, name: 'Billing' }))
-
-    expect(issuesOf(sut)).toStrictEqual([
-      { field: ConnectionField.Name, message: 'Another connection is already named "Billing"' },
-    ])
-  })
-
-  it('should show nothing before the user touches a field', () => {
-    expect(shownIssues(opened())).toStrictEqual(new Map())
-  })
-
-  it('should show the first problem of the fields the user touched', () => {
-    const sut = touchField(opened({ hostIssues: [CONFLICT] }), ConnectionField.Name)
-
-    expect(shownIssues(sut)).toStrictEqual(new Map([[ConnectionField.Name, NAME_ISSUE.message]]))
-  })
-
-  it('should show every problem once the user tried to test or save', () => {
-    expect(shownIssues(opened({ isShowingAllIssues: true }))).toStrictEqual(
-      new Map([
-        [ConnectionField.Name, NAME_ISSUE.message],
-        [ConnectionField.User, USER_ISSUE.message],
-      ]),
-    )
-  })
-})
-
-describe('tabsWithIssues', () => {
-  it('should name the tabs whose fields show a problem', () => {
-    const shown = new Map([
-      [ConnectionField.Name, 'a'],
-      [ConnectionField.SshHost, 'b'],
-      [ConnectionField.SslKeyPath, 'c'],
-      [ConnectionField.SshUser, 'd'],
-    ])
-
-    expect(tabsWithIssues(shown)).toStrictEqual(new Set([ConfigTab.Ssh, ConfigTab.Ssl]))
-    expect(tabsWithIssues(new Map())).toStrictEqual(new Set())
-  })
-
-  it('should put every field on its tab', () => {
-    const fields = Object.values(ConnectionField)
-
-    expect(fields.map((field) => [...tabsWithIssues(new Map([[field, 'x']]))])).toStrictEqual([
-      [],
-      [],
-      ...Array.from({ length: 4 }, () => [ConfigTab.Main]),
-      ...Array.from({ length: 4 }, () => [ConfigTab.Ssl]),
-      ...Array.from({ length: 4 }, () => [ConfigTab.Ssh]),
-    ])
   })
 })
 
@@ -202,25 +133,45 @@ describe('editing', () => {
     expect(sut.touched).toStrictEqual(new Set([ConnectionField.Name]))
   })
 
-  it('should forget what the extension said and what a finished test said', () => {
+  it('should forget what the extension said and what a finished test or listing said', () => {
     const refused = opened({
       hostIssues: [CONFLICT],
       notice: 'refused',
       test: { state: TestState.Failed, message: 'down' },
+      databases: LISTED,
     })
 
     expect(editConnection(refused, null, (c) => c)).toMatchObject({
       hostIssues: [],
       notice: '',
       test: { state: TestState.Idle, message: '' },
+      databases: NO_DATABASES,
     })
-    expect(typeSecret(refused, SecretKind.Password, 'x')).toMatchObject({ hostIssues: [] })
+    expect(typeSecret(refused, SecretKind.Password, 'x')).toMatchObject({
+      hostIssues: [],
+      databases: NO_DATABASES,
+    })
   })
 
-  it('should keep waiting for a test that runs', () => {
-    const testing = opened({ test: { state: TestState.Testing, message: '' } })
+  it('should keep waiting for a test or a listing that runs', () => {
+    const running = opened({
+      test: { state: TestState.Testing, message: '' },
+      databases: { ...NO_DATABASES, state: ListingState.Listing },
+    })
 
-    expect(editConnection(testing, null, (c) => c).test).toBe(testing.test)
+    const sut = editConnection(running, ConnectionField.Host, (c) => c)
+
+    expect(sut.test).toBe(running.test)
+    expect(sut.databases).toBe(running.databases)
+  })
+
+  it('should keep the databases listed while the user types the one to open', () => {
+    const listed = opened({ databases: LISTED })
+    const failed = opened({ databases: { ...NO_DATABASES, state: ListingState.Failed } })
+
+    expect(changed(listed, ConnectionField.Database).databases).toBe(LISTED)
+    expect(changed(listed, ConnectionField.User).databases).toBe(NO_DATABASES)
+    expect(changed(failed, ConnectionField.Database).databases).toBe(NO_DATABASES)
   })
 
   it('should choose and remove a file', () => {
@@ -230,6 +181,7 @@ describe('editing', () => {
       ...DEFAULT_SSH_TUNNEL,
       privateKeyPath: '/id',
     })
+    expect(chosen.touched).toStrictEqual(new Set([ConnectionField.SshPrivateKeyPath]))
     expect(chooseFile(chosen, PathField.SshPrivateKey, '').draft.connection.ssh).toStrictEqual(
       DEFAULT_SSH_TUNNEL,
     )
@@ -250,9 +202,5 @@ describe('editing', () => {
 
     expect(touched.touched).toStrictEqual(new Set([ConnectionField.Port]))
     expect(touchField(touched, ConnectionField.Port)).toBe(touched)
-  })
-
-  it('should bring a tab to the front', () => {
-    expect(selectTab(opened(), ConfigTab.Ssl).activeTab).toBe(ConfigTab.Ssl)
   })
 })

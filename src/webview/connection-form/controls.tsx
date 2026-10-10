@@ -10,7 +10,13 @@ export interface Option<T extends string> {
 interface FrameProps {
   readonly spec: FieldSpec
   readonly children: ReactNode
+  // The other controls of the field, whose problems show under it too.
+  readonly also?: readonly FieldSpec[]
+  // What follows the help, such as a link that acts on the field.
+  readonly after?: ReactNode
 }
+
+const NO_CONTROLS: readonly FieldSpec[] = []
 
 type Described = Pick<AriaAttributes, 'aria-describedby' | 'aria-invalid' | 'aria-required'>
 
@@ -34,8 +40,14 @@ export function describedBy({ id, isRequired = false, issue, help }: FieldSpec):
   }
 }
 
-// A label on the left of its control, with the problem of the field, then its help, under it.
-export const FieldFrame = ({ spec, children }: FrameProps): ReactElement => (
+// A row of the form: the label in the column on the left, the control on the right with the
+// problems of the field, then its help, under it.
+export const FieldFrame = ({
+  spec,
+  children,
+  also = NO_CONTROLS,
+  after,
+}: FrameProps): ReactElement => (
   <div className="field">
     <label className="field-label" htmlFor={spec.id}>
       {spec.label}
@@ -47,51 +59,60 @@ export const FieldFrame = ({ spec, children }: FrameProps): ReactElement => (
     </label>
     <div className="field-control">
       {children}
-      {spec.issue === undefined ? null : (
-        <p id={issueId(spec.id)} className="field-issue">
-          {spec.issue}
-        </p>
-      )}
-      {spec.help === undefined ? null : (
-        <p id={helpId(spec.id)} className="field-help">
-          {spec.help}
-        </p>
-      )}
+      {[spec, ...also].map((control) => (
+        <Issue key={control.id} spec={control} />
+      ))}
+      <Notes spec={spec} after={after} />
     </div>
   </div>
 )
 
-// One or two fields side by side; a narrow panel stacks them.
-export const FieldRow = ({ children }: { readonly children: ReactNode }): ReactElement => (
-  <div className="field-row">{children}</div>
+const Issue = ({ spec }: { readonly spec: FieldSpec }): ReactElement | null =>
+  spec.issue === undefined ? null : (
+    <p id={issueId(spec.id)} className="field-issue">
+      {spec.issue}
+    </p>
+  )
+
+const Notes = ({ spec, after }: Pick<FrameProps, 'after' | 'spec'>): ReactElement => (
+  <div className="field-notes">
+    {spec.help === undefined ? null : (
+      <p id={helpId(spec.id)} className="field-help">
+        {spec.help}
+      </p>
+    )}
+    {after}
+  </div>
 )
 
 interface TextInputProps {
   readonly spec: FieldSpec
   readonly value: string
   readonly placeholder?: string | undefined
-  readonly className?: string
-  readonly inputMode?: 'numeric'
   readonly onChange: (value: string) => void
   readonly onBlur: () => void
 }
 
-export const TextInput = ({ spec, value, onChange, ...options }: TextInputProps): ReactElement => (
+export const TextInput = ({
+  spec,
+  value,
+  placeholder,
+  onChange,
+  onBlur,
+}: TextInputProps): ReactElement => (
   <FieldFrame spec={spec}>
     <input
       id={spec.id}
       type="text"
-      className={options.className}
-      inputMode={options.inputMode}
       value={value}
-      placeholder={options.placeholder}
+      placeholder={placeholder}
       spellCheck={false}
       autoComplete="off"
       {...describedBy(spec)}
       onChange={(event) => {
         onChange(event.target.value)
       }}
-      onBlur={options.onBlur}
+      onBlur={onBlur}
     />
   </FieldFrame>
 )
@@ -137,6 +158,7 @@ interface SwitchInputProps {
   readonly onToggle: (isOn: boolean) => void
 }
 
+// A switch with its help beside it.
 export const SwitchInput = ({ spec, isOn, onToggle }: SwitchInputProps): ReactElement => (
   <FieldFrame spec={spec}>
     <input
@@ -151,4 +173,16 @@ export const SwitchInput = ({ spec, isOn, onToggle }: SwitchInputProps): ReactEl
       }}
     />
   </FieldFrame>
+)
+
+interface LinkButtonProps {
+  readonly text: string
+  readonly onClick: () => void
+}
+
+// An action that reads like a link, beside the field it acts on.
+export const LinkButton = ({ text, onClick }: LinkButtonProps): ReactElement => (
+  <button type="button" className="link-button" onClick={onClick}>
+    {text}
+  </button>
 )

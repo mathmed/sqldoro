@@ -12,7 +12,7 @@ import {
 } from '../../src/extension/commands/connection-commands.ts'
 import { registerExplorerCommands } from '../../src/extension/commands/explorer-commands.ts'
 import { ConnectionService } from '../../src/extension/connections/connection-service.ts'
-import { pingServer } from '../../src/extension/connections/server-test.ts'
+import { listServerDatabases, pingServer } from '../../src/extension/connections/server-test.ts'
 import { ConnectionForms } from '../../src/extension/form/connection-forms.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
 import { readSettings } from '../../src/extension/settings.ts'
@@ -89,6 +89,8 @@ export function commandHarness({
     service,
     secrets,
     test: async (connection, typed) => pingServer({ open, log }, connection, typed),
+    listDatabases: async (connection, typed) =>
+      listServerDatabases({ open, log }, connection, typed),
     policy: () => readSettings().policy,
     log,
   })

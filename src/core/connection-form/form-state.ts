@@ -1,41 +1,35 @@
-import type { ConnectionConfig } from '../connection/connection.ts'
+import { type ConnectionConfig, SslMode, type SslOptions } from '../connection/connection.ts'
 import type { SecretKind } from '../connection/secrets.ts'
 import { type PathField, withPath } from '../connection/transitions.ts'
-import {
-  ConnectionField,
-  validateConnection,
-  type ValidationIssue,
-} from '../connection/validation.ts'
+import { ConnectionField, type ValidationIssue } from '../connection/validation.ts'
 import type { GuardPolicy } from '../safety/guard.ts'
 import {
   type FormDraft,
   newDraft,
-  secretChangesOf,
   withConnection,
   withSecretKept,
   withSecretRemoved,
   withTypedSecret,
 } from './draft.ts'
 import {
-  type FormHostMessage,
-  FormHostMessageType,
   type FormSetup,
-  type SubmittedDraft,
+  FormStart,
+  type FormViewMessage,
+  type FormViewMessageType,
 } from './protocol.ts'
 
-// The tabs of the settings under the engine; the name, the environment and the read-only switch
-// stay above them, always in sight.
-export const ConfigTab = {
-  Main: 'main',
-  Ssl: 'ssl',
-  Ssh: 'ssh',
+// The two screens of the form: the engines to choose from, for a new connection, then the fields.
+export const FormStep = {
+  Picker: 'picker',
+  Details: 'details',
 } as const
 
-export type ConfigTab = (typeof ConfigTab)[keyof typeof ConfigTab]
+export type FormStep = (typeof FormStep)[keyof typeof FormStep]
 
 export const FormAction = {
   Test: 'test',
   Save: 'save',
+  ListDatabases: 'listDatabases',
 } as const
 
 export type FormAction = (typeof FormAction)[keyof typeof FormAction]
@@ -55,19 +49,63 @@ export interface TestStatus {
   readonly message: string
 }
 
-// A request for the extension: each new one is sent once.
-export interface Submission {
-  readonly action: FormAction
-  readonly draft: SubmittedDraft
+export const ListingState = {
+  Idle: 'idle',
+  Listing: 'listing',
+  Listed: 'listed',
+  Failed: 'failed',
+} as const
+
+export type ListingState = (typeof ListingState)[keyof typeof ListingState]
+
+// The databases of the server, listed for the user to pick one.
+export interface DatabaseListing {
+  readonly state: ListingState
+  readonly names: readonly string[]
+  // The server's error, once the listing failed.
+  readonly message: string
+  // Whether the names show under the database field.
+  readonly isOpen: boolean
 }
 
-// The field the form takes the user to: each new request moves the focus once.
-export interface FocusRequest {
-  readonly field: ConnectionField
+// The input of a connection string.
+export interface ImportState {
+  readonly isOpen: boolean
+  // What was typed or pasted: it may hold a password, and goes to the extension only to be read.
+  readonly text: string
+  readonly isApplying: boolean
+  // Why the extension could not read it, for people.
+  readonly problem: string
+  // What the last connection string held that was ignored.
+  readonly warnings: readonly string[]
 }
+
+// The controls the form can take the user to: the fields of a connection, and the input of a
+// connection string.
+export const FormControl = { ...ConnectionField, ConnectionString: 'connectionString' } as const
+
+export type FormControl = (typeof FormControl)[keyof typeof FormControl]
+
+// The control the form takes the user to: each new request moves the focus once.
+export interface FocusRequest {
+  readonly field: FormControl
+}
+
+// A message for the extension: each new one is sent once.
+export type Submission = Extract<
+  FormViewMessage,
+  {
+    readonly type:
+      | typeof FormViewMessageType.Import
+      | typeof FormViewMessageType.ListDatabases
+      | typeof FormViewMessageType.Save
+      | typeof FormViewMessageType.Test
+  }
+>
 
 export interface FormState {
   readonly setup: FormSetup
+  readonly step: FormStep
   readonly draft: FormDraft
   // The fields the user has changed or left: their problems show as they type.
   readonly touched: ReadonlySet<ConnectionField>
@@ -75,7 +113,10 @@ export interface FormState {
   readonly isShowingAllIssues: boolean
   // The problems the extension found when it refused to save, until the next change.
   readonly hostIssues: readonly ValidationIssue[]
-  readonly activeTab: ConfigTab
+  // Whether the SSL/TLS settings show.
+  readonly isAdvancedOpen: boolean
+  readonly importer: ImportState
+  readonly databases: DatabaseListing
   readonly test: TestStatus
   readonly isSaving: boolean
   // Why the extension did not save, for people; empty otherwise.
@@ -84,50 +125,59 @@ export interface FormState {
   readonly focus: FocusRequest
 }
 
-type HostUpdate = Exclude<FormHostMessage, { readonly type: typeof FormHostMessageType.Open }>
+const IDLE_TEST: TestStatus = { state: TestState.Idle, message: '' }
+export const NO_DATABASES: DatabaseListing = {
+  state: ListingState.Idle,
+  names: [],
+  message: '',
+  isOpen: false,
+}
+export const CLOSED_IMPORT: ImportState = {
+  isOpen: false,
+  text: '',
+  isApplying: false,
+  problem: '',
+  warnings: [],
+}
 
-const FIELD_TABS: ReadonlyMap<ConnectionField, ConfigTab> = new Map([
-  [ConnectionField.Host, ConfigTab.Main],
-  [ConnectionField.Port, ConfigTab.Main],
-  [ConnectionField.User, ConfigTab.Main],
-  [ConnectionField.Database, ConfigTab.Main],
-  [ConnectionField.SslMode, ConfigTab.Ssl],
-  [ConnectionField.SslCaPath, ConfigTab.Ssl],
-  [ConnectionField.SslCertPath, ConfigTab.Ssl],
-  [ConnectionField.SslKeyPath, ConfigTab.Ssl],
-  [ConnectionField.SshHost, ConfigTab.Ssh],
-  [ConnectionField.SshPort, ConfigTab.Ssh],
-  [ConnectionField.SshUser, ConfigTab.Ssh],
-  [ConnectionField.SshPrivateKeyPath, ConfigTab.Ssh],
-])
-const IDLE: TestStatus = { state: TestState.Idle, message: '' }
-
-// A form opens on the main tab with the name in focus, and shows no problem before the user acts.
+// A form opens where the extension says, with the SSL settings open when the connection uses SSL,
+// and shows no problem before the user acts.
 export function openForm(setup: FormSetup): FormState {
   return {
     setup,
+    step: setup.start === FormStart.Picker ? FormStep.Picker : FormStep.Details,
     draft: newDraft(setup.connection, new Set(setup.heldSecrets)),
     touched: new Set(),
     isShowingAllIssues: false,
     hostIssues: [],
-    activeTab: ConfigTab.Main,
-    test: IDLE,
+    isAdvancedOpen: usesSsl(setup.connection.ssl),
+    importer: { ...CLOSED_IMPORT, isOpen: setup.start === FormStart.Import },
+    databases: NO_DATABASES,
+    test: IDLE_TEST,
     isSaving: false,
     notice: '',
     submission: null,
-    focus: { field: ConnectionField.Name },
+    focus: { field: firstControl(setup.start) },
   }
 }
 
-// The form before it opens is null: only the message that opens it changes that.
-export function receiveHostMessage(
-  state: FormState | null,
-  message: FormHostMessage,
-): FormState | null {
-  if (message.type === FormHostMessageType.Open) {
-    return openForm(message.setup)
+function firstControl(start: FormStart): FormControl {
+  switch (start) {
+    case FormStart.Picker:
+      return FormControl.Engine
+    case FormStart.Import:
+      return FormControl.ConnectionString
+    case FormStart.Details:
+      return FormControl.Name
   }
-  return updateForm(state, (open) => applyHostUpdate(open, message))
+}
+
+// Whether a connection uses SSL, or names certificate files without it.
+export function usesSsl(ssl: SslOptions): boolean {
+  return (
+    ssl.mode !== SslMode.Disable ||
+    [ssl.caPath, ssl.certPath, ssl.keyPath].some((path) => path !== '')
+  )
 }
 
 // A change the user makes: there is nothing to change before the form opens.
@@ -138,45 +188,8 @@ export function updateForm(
   return state === null ? null : change(state)
 }
 
-function applyHostUpdate(state: FormState, message: HostUpdate): FormState {
-  switch (message.type) {
-    case FormHostMessageType.File:
-      return chooseFile(state, message.field, message.path)
-    case FormHostMessageType.Tested:
-      return finishTest(state, message.isSuccess, message.message)
-    case FormHostMessageType.SaveRefused:
-      return refuseSave(state, message.message, message.issues)
-  }
-}
-
 export function policyOf(setup: FormSetup): GuardPolicy {
   return { productionEnvironments: new Set(setup.productionEnvironments) }
-}
-
-// Every problem of the connection: those the form finds, then those the extension reported.
-export function issuesOf(state: FormState): readonly ValidationIssue[] {
-  const { engines, takenNameKeys } = state.setup
-  const found = validateConnection(state.draft.connection, {
-    engines,
-    takenNameKeys: new Set(takenNameKeys),
-  })
-  return [...found, ...state.hostIssues]
-}
-
-// The first problem of each field the form shows: touched fields only, until the user tries to
-// test or save.
-export function shownIssues(state: FormState): ReadonlyMap<ConnectionField, string> {
-  const shown = issuesOf(state).filter(
-    (issue) => state.isShowingAllIssues || state.touched.has(issue.field),
-  )
-  return new Map(shown.toReversed().map((issue) => [issue.field, issue.message]))
-}
-
-// The tabs whose fields show a problem.
-export function tabsWithIssues(
-  shown: ReadonlyMap<ConnectionField, string>,
-): ReadonlySet<ConfigTab> {
-  return new Set([...shown.keys()].flatMap((field) => tabsOf([field])))
 }
 
 export function editConnection(
@@ -208,91 +221,23 @@ export function touchField(state: FormState, field: ConnectionField): FormState 
   return state.touched.has(field) ? state : { ...state, touched: new Set(state.touched).add(field) }
 }
 
-export function selectTab(state: FormState, tab: ConfigTab): FormState {
-  return { ...state, activeTab: tab }
-}
-
-// What stands in the way of an action: a test does not need a name.
-export function blockingIssues(
-  issues: readonly ValidationIssue[],
-  action: FormAction,
-): readonly ValidationIssue[] {
-  return action === FormAction.Save
-    ? issues
-    : issues.filter((issue) => issue.field !== ConnectionField.Name)
-}
-
-// Nothing is sent while a save runs, and a test waits for the one that runs.
-export function canSubmit(state: FormState, action: FormAction): boolean {
-  const isTesting = state.test.state === TestState.Testing
-  return !state.isSaving && !(action === FormAction.Test && isTesting)
-}
-
-// Sends the draft to test or save it; with problems, shows them all and takes the user to the
-// first one instead.
-export function submit(state: FormState, action: FormAction): FormState {
-  if (!canSubmit(state, action)) {
-    return state
-  }
-  const issues = blockingIssues(issuesOf(state), action)
-  const [first] = issues
-  if (first !== undefined) {
-    return showIssues(state, issues, first)
-  }
-  const submission = { action, draft: submittedDraft(state.draft) }
-  return action === FormAction.Save
-    ? { ...state, isSaving: true, notice: '', submission }
-    : { ...state, test: { state: TestState.Testing, message: '' }, submission }
-}
-
-export function finishTest(state: FormState, isSuccess: boolean, message: string): FormState {
-  return {
-    ...state,
-    test: { state: isSuccess ? TestState.Succeeded : TestState.Failed, message },
-  }
-}
-
-// The extension found problems, or could not save: the form says why and shows where.
-export function refuseSave(
-  state: FormState,
-  message: string,
-  issues: readonly ValidationIssue[],
-): FormState {
-  const refused = { ...state, isSaving: false, notice: message, hostIssues: issues }
-  const [first] = issues
-  return first === undefined ? refused : showIssues(refused, issues, first)
-}
-
 // Typing changes the draft: what the extension said about the previous one no longer holds, and a
-// finished test no longer speaks for it.
-function changed(state: FormState, field: ConnectionField | null): FormState {
+// finished test or listing no longer speaks for it, except the databases listed for the user to
+// pick one of.
+export function changed(state: FormState, field: ConnectionField | null): FormState {
   return {
     ...state,
     touched: field === null ? state.touched : new Set(state.touched).add(field),
     hostIssues: [],
     notice: '',
-    test: state.test.state === TestState.Testing ? state.test : IDLE,
+    test: state.test.state === TestState.Testing ? state.test : IDLE_TEST,
+    databases: isListingKept(state.databases, field) ? state.databases : NO_DATABASES,
   }
 }
 
-// Every problem shows; the first tab with one comes to the front, and the first field with one
-// takes the focus.
-function showIssues(
-  state: FormState,
-  issues: readonly ValidationIssue[],
-  first: ValidationIssue,
-): FormState {
-  const [tab = state.activeTab] = tabsOf(issues.map((issue) => issue.field))
-  return { ...state, isShowingAllIssues: true, activeTab: tab, focus: { field: first.field } }
-}
-
-function tabsOf(fields: readonly ConnectionField[]): ConfigTab[] {
-  return fields.flatMap((field) => {
-    const tab = FIELD_TABS.get(field)
-    return tab === undefined ? [] : [tab]
-  })
-}
-
-function submittedDraft(draft: FormDraft): SubmittedDraft {
-  return { connection: draft.connection, secretChanges: secretChangesOf(draft) }
+function isListingKept(listing: DatabaseListing, field: ConnectionField | null): boolean {
+  return (
+    listing.state === ListingState.Listing ||
+    (listing.state === ListingState.Listed && field === ConnectionField.Database)
+  )
 }

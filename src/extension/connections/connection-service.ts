@@ -50,13 +50,10 @@ export class ConnectionService {
     return newConnection(this.#dependencies.createId(), engine)
   }
 
-  importUrl(url: string): UrlImport {
-    const { engines, createId } = this.#dependencies
-    return parseConnectionUrl(url, {
-      engines,
-      id: createId(),
-      takenNameKeys: this.takenNameKeys(''),
-    })
+  // The connection a URL holds, as the connection of this id.
+  importUrl(url: string, id: string): UrlImport {
+    const { engines } = this.#dependencies
+    return parseConnectionUrl(url, { engines, id, takenNameKeys: this.takenNameKeys(id) })
   }
 
   validate(connection: ConnectionConfig): readonly ValidationIssue[] {

@@ -1,18 +1,10 @@
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
+import { receiveHostMessage } from '../../core/connection-form/form-messages.ts'
 import {
-  editConnection,
   type FocusRequest,
-  FormAction,
   type FormState,
-  keepSecret,
-  receiveHostMessage,
-  removeSecret,
-  selectTab,
   type Submission,
-  submit,
-  touchField,
-  typeSecret,
   updateForm,
 } from '../../core/connection-form/form-state.ts'
 import { FormViewMessageType } from '../../core/connection-form/protocol.ts'
@@ -26,11 +18,9 @@ export interface ConnectionForm {
   readonly actions: FormActions
 }
 
-type Update = (change: (state: FormState) => FormState) => void
-
 // Listens to the extension (then tells it the form is ready), keeps the state of the form, sends
 // each request once and moves the focus where the form asks. The typed secrets stay in this state:
-// they reach the extension only inside a test or a save.
+// they reach the extension only inside a test, a save, a listing or an import.
 export function useConnectionForm(api: FormApi): ConnectionForm {
   const [state, setState] = useState<FormState | null>(null)
   useEffect(
@@ -51,9 +41,7 @@ export function useConnectionForm(api: FormApi): ConnectionForm {
 function useSubmission(api: FormApi, submission: Submission | null): void {
   useEffect(() => {
     if (submission !== null) {
-      const type =
-        submission.action === FormAction.Save ? FormViewMessageType.Save : FormViewMessageType.Test
-      api.postMessage({ type, draft: submission.draft })
+      api.postMessage(submission)
     }
   }, [api, submission])
 }
@@ -70,50 +58,12 @@ function formActions(
   api: FormApi,
   setState: Dispatch<SetStateAction<FormState | null>>,
 ): FormActions {
-  const update: Update = (change) => {
-    setState((current) => updateForm(current, change))
-  }
-  return { ...draftActions(update), ...requestActions(api, update) }
-}
-
-// What changes the draft and the form.
-function draftActions(update: Update): Omit<FormActions, 'browse' | 'cancel' | 'save' | 'test'> {
   return {
-    edit: (field, change) => {
-      update((state) => editConnection(state, field, change))
+    update: (change) => {
+      setState((current) => updateForm(current, change))
     },
-    typeSecret: (kind, value) => {
-      update((state) => typeSecret(state, kind, value))
-    },
-    removeSecret: (kind) => {
-      update((state) => removeSecret(state, kind))
-    },
-    keepSecret: (kind) => {
-      update((state) => keepSecret(state, kind))
-    },
-    touch: (field) => {
-      update((state) => touchField(state, field))
-    },
-    selectTab: (tab) => {
-      update((state) => selectTab(state, tab))
-    },
-  }
-}
-
-// What asks the extension: a test or a save goes once the form has checked the draft.
-function requestActions(
-  api: FormApi,
-  update: Update,
-): Pick<FormActions, 'browse' | 'cancel' | 'save' | 'test'> {
-  return {
     browse: (field) => {
       api.postMessage({ type: FormViewMessageType.Browse, field })
-    },
-    test: () => {
-      update((state) => submit(state, FormAction.Test))
-    },
-    save: () => {
-      update((state) => submit(state, FormAction.Save))
     },
     cancel: () => {
       api.postMessage({ type: FormViewMessageType.Cancel })

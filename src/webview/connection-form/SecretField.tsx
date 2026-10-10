@@ -1,10 +1,11 @@
-import type { ReactElement } from 'react'
+import { type ReactElement, useState } from 'react'
 
 import { SecretState, secretState, typedSecret } from '../../core/connection-form/draft.ts'
-import { FormMode } from '../../core/connection-form/protocol.ts'
+import { keepSecret, removeSecret, typeSecret } from '../../core/connection-form/form-state.ts'
 import type { SecretKind } from '../../core/connection/secrets.ts'
-import { describedBy, FieldFrame } from './controls.tsx'
-import type { FormView } from './form-view.ts'
+import { describedBy, FieldFrame, LinkButton } from './controls.tsx'
+import type { FieldSpec, FormView } from './form-view.ts'
+import { Icon, IconName } from './icons.tsx'
 
 interface SecretFieldProps {
   readonly view: FormView
@@ -17,11 +18,13 @@ interface SecretFieldProps {
 const SAVED = 'Saved — type to replace'
 const FROM_URL = 'From the URL — type to replace'
 const REMOVED = 'Removed when you save — type to set a new one'
+const STORAGE_HELP = "Saved in VS Code's secret storage"
 
 function placeholderOf(view: FormView, kind: SecretKind, emptyText: string): string {
-  switch (secretState(view.state.draft, kind)) {
+  const { draft } = view.state
+  switch (secretState(draft, kind)) {
     case SecretState.Held:
-      return view.state.setup.mode === FormMode.Edit ? SAVED : FROM_URL
+      return draft.urlSecrets.has(kind) ? FROM_URL : SAVED
     case SecretState.Removed:
       return REMOVED
     default:
@@ -30,67 +33,93 @@ function placeholderOf(view: FormView, kind: SecretKind, emptyText: string): str
 }
 
 // A password or passphrase: the input shows only what is typed here, never what the extension
-// holds; clearing it keeps the held secret, and Remove deletes it on save.
-export const SecretField = (props: SecretFieldProps): ReactElement => {
-  const { view, kind, label, emptyText } = props
-  const spec = { id: `secret-${kind}`, label }
+// holds, so the eye only ever reveals that; clearing it keeps the held secret, and the link under
+// it removes the secret on save.
+export const SecretField = ({ view, kind, label, emptyText }: SecretFieldProps): ReactElement => {
+  const spec: FieldSpec = { id: `secret-${kind}`, label, help: STORAGE_HELP }
   return (
-    <FieldFrame spec={spec}>
-      <span className="input-row">
-        <input
-          id={spec.id}
-          type="password"
-          autoComplete="new-password"
-          value={typedSecret(view.state.draft, kind)}
-          placeholder={placeholderOf(view, kind, emptyText)}
-          {...describedBy(spec)}
-          onChange={(event) => {
-            view.actions.typeSecret(kind, event.target.value)
-          }}
-        />
-        <SecretButton view={view} kind={kind} label={label} />
-      </span>
+    <FieldFrame spec={spec} after={<SecretLink view={view} kind={kind} label={label} />}>
+      <SecretInput view={view} kind={kind} spec={spec} emptyText={emptyText} />
     </FieldFrame>
   )
 }
 
+interface SecretInputProps {
+  readonly view: FormView
+  readonly kind: SecretKind
+  readonly spec: FieldSpec
+  readonly emptyText: string
+}
+
+const SecretInput = ({ view, kind, spec, emptyText }: SecretInputProps): ReactElement => {
+  const [isShown, setIsShown] = useState(false)
+  return (
+    <span className="input-box">
+      <input
+        id={spec.id}
+        type={isShown ? 'text' : 'password'}
+        autoComplete="new-password"
+        spellCheck={false}
+        value={typedSecret(view.state.draft, kind)}
+        placeholder={placeholderOf(view, kind, emptyText)}
+        {...describedBy(spec)}
+        onChange={(event) => {
+          view.actions.update((state) => typeSecret(state, kind, event.target.value))
+        }}
+      />
+      <RevealButton
+        name={spec.label.toLowerCase()}
+        isShown={isShown}
+        onToggle={() => {
+          setIsShown(!isShown)
+        }}
+      />
+    </span>
+  )
+}
+
+interface RevealButtonProps {
+  readonly name: string
+  readonly isShown: boolean
+  readonly onToggle: () => void
+}
+
+const RevealButton = ({ name, isShown, onToggle }: RevealButtonProps): ReactElement => (
+  <button
+    type="button"
+    className="icon-button"
+    aria-label={`Show the ${name}`}
+    aria-pressed={isShown}
+    onClick={onToggle}
+  >
+    <Icon name={isShown ? IconName.EyeClosed : IconName.Eye} />
+  </button>
+)
+
 // A held secret can be removed, and a removal undone.
-const SecretButton = ({
+const SecretLink = ({
   view,
   kind,
   label,
 }: Omit<SecretFieldProps, 'emptyText'>): ReactElement | null => {
-  const name = label.toLowerCase()
-  if (secretState(view.state.draft, kind) === SecretState.Removed) {
-    return (
-      <SmallButton
-        text="Keep"
-        label={`Keep the ${name}`}
-        onClick={() => {
-          view.actions.keepSecret(kind)
-        }}
-      />
-    )
+  const { draft } = view.state
+  if (!draft.heldSecrets.has(kind)) {
+    return null
   }
-  return view.state.draft.heldSecrets.has(kind) ? (
-    <SmallButton
-      text="Remove"
-      label={`Remove the ${name}`}
+  const name = `${draft.urlSecrets.has(kind) ? "the URL's" : 'saved'} ${label.toLowerCase()}`
+  return secretState(draft, kind) === SecretState.Removed ? (
+    <LinkButton
+      text={`Keep ${name}`}
       onClick={() => {
-        view.actions.removeSecret(kind)
+        view.actions.update((state) => keepSecret(state, kind))
       }}
     />
-  ) : null
+  ) : (
+    <LinkButton
+      text={`Remove ${name}`}
+      onClick={() => {
+        view.actions.update((state) => removeSecret(state, kind))
+      }}
+    />
+  )
 }
-
-interface SmallButtonProps {
-  readonly text: string
-  readonly label: string
-  readonly onClick: () => void
-}
-
-const SmallButton = ({ text, label, onClick }: SmallButtonProps): ReactElement => (
-  <button type="button" aria-label={label} onClick={onClick}>
-    {text}
-  </button>
-)

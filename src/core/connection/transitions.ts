@@ -89,6 +89,17 @@ export function withEngine(
   return { ...connection, engine: engine.id, port }
 }
 
+// What a connection string says replaces the server, the login, the database and SSL; the name once
+// typed, the environment, the read-only switch and the tunnel stay as the user set them.
+export function withImported(
+  connection: ConnectionConfig,
+  imported: ConnectionConfig,
+): ConnectionConfig {
+  const { engine, host, port, user, database, ssl } = imported
+  const name = connection.name.trim() === '' ? imported.name : connection.name
+  return { ...connection, name, engine, host, port, user, database, ssl }
+}
+
 export function pathOf(connection: ConnectionConfig, field: PathField): string {
   return accessOf(field).read(connection)
 }

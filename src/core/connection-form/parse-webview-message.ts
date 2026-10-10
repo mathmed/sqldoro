@@ -24,6 +24,17 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
     (message) => ({ type: FormViewMessageType.Save, draft: readSubmittedDraft(message, 'draft') }),
   ],
   [
+    FormViewMessageType.Import,
+    (message) => ({ type: FormViewMessageType.Import, text: readString(message, 'text') }),
+  ],
+  [
+    FormViewMessageType.ListDatabases,
+    (message) => ({
+      type: FormViewMessageType.ListDatabases,
+      draft: readSubmittedDraft(message, 'draft'),
+    }),
+  ],
+  [
     FormViewMessageType.Problem,
     (message) => ({ type: FormViewMessageType.Problem, message: readString(message, 'message') }),
   ],

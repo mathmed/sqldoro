@@ -1,15 +1,14 @@
 import * as vscode from 'vscode'
 
-import { FormMode } from '../../core/connection-form/protocol.ts'
+import { FormMode, FormStart } from '../../core/connection-form/protocol.ts'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
-import { type ConnectionSecrets, SecretKind } from '../../core/connection/secrets.ts'
+import type { ConnectionSecrets } from '../../core/connection/secrets.ts'
 import { describeError } from '../../core/text/errors.ts'
 import { CommandId } from '../command-id.ts'
 import { pingServer } from '../connections/server-test.ts'
 import type { ConnectionFormPanel } from '../form/connection-form-panel.ts'
 import type { ConnectionForms } from '../form/connection-forms.ts'
 import type { FormRequest } from '../form/form-request.ts'
-import { askText } from '../form/prompts.ts'
 import { withTimeout } from '../platform/timeout.ts'
 import { type CommandContext, connectionFrom, registerAll } from './command-context.ts'
 
@@ -37,46 +36,26 @@ async function loaded(form: ConnectionFormPanel): Promise<boolean> {
   return withTimeout(form.whenLoaded, LOAD_TIMEOUT_MS, 'The connection form did not load')
 }
 
-function newRequest(
-  connection: ConnectionConfig,
-  pendingSecrets: ReadonlyMap<SecretKind, string>,
-  notices: readonly string[],
-): FormRequest {
+function newRequest(context: ConnectionCommandContext, start: FormStart): FormRequest {
   return {
     mode: FormMode.New,
-    connection,
-    heldSecrets: new Set(pendingSecrets.keys()),
-    pendingSecrets,
-    notices,
+    start,
+    connection: context.service.draft(),
+    storedSecrets: new Set(),
   }
 }
 
+// The form of a new connection opens on the engines to choose from.
 async function addConnection(context: ConnectionCommandContext): Promise<boolean> {
-  return loaded(context.forms.openNew(() => newRequest(context.service.draft(), new Map(), [])))
+  return loaded(context.forms.openNew(() => newRequest(context, FormStart.Picker)))
 }
 
-// The password of the URL stays in the extension until the connection is saved: the form only
-// knows there is one.
+// The connection string is pasted in the form of a new connection, which comes back if it is open:
+// its password stays in the extension until the connection is saved.
 async function importConnectionUrl(context: ConnectionCommandContext): Promise<boolean> {
-  const schemes = context.service.engines.urlSchemes.map((scheme) => `${scheme}://`).join(', ')
-  const url = await askText({
-    title: 'Import Connection from URL',
-    prompt: `A ${schemes} URL. The password it holds goes to the VS Code secret storage.`,
-    value: '',
-    placeHolder: 'postgres://user:password@host:5432/database?sslmode=require',
-    isPassword: true,
-  })
-  if (url === undefined) {
-    return false
-  }
-  const result = context.service.importUrl(url)
-  if (!result.isValid) {
-    void vscode.window.showErrorMessage(`Cannot import this URL: ${result.message}`)
-    return false
-  }
-  const { connection, password, warnings } = result.imported
-  const secrets = password === '' ? new Map() : new Map([[SecretKind.Password, password]])
-  return loaded(context.forms.open(newRequest(connection, secrets, warnings)))
+  const form = context.forms.openNew(() => newRequest(context, FormStart.Import))
+  form.showImport()
+  return loaded(form)
 }
 
 async function editConnection(
@@ -87,14 +66,13 @@ async function editConnection(
   if (connection === undefined) {
     return false
   }
-  const heldSecrets = await context.secrets.storedKinds(connection)
+  const storedSecrets = await context.secrets.storedKinds(connection)
   return loaded(
     context.forms.open({
       mode: FormMode.Edit,
+      start: FormStart.Details,
       connection,
-      heldSecrets,
-      pendingSecrets: new Map(),
-      notices: [],
+      storedSecrets,
     }),
   )
 }

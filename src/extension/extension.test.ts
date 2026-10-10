@@ -164,7 +164,7 @@ describe('activate', () => {
     await expect(vscode.commands.executeCommand(CommandId.Hello)).rejects.toThrow(CommandId.Hello)
   })
 
-  it('should test the connection of a form through the session opener of the extension', async () => {
+  it('should test and list the databases of a form through the session opener of the extension', async () => {
     const globalState = new FakeMemento()
     await globalState.update('sqldoro.connections', { version: 1, connections: [SAVED_CONNECTION] })
     activateIn(vscode.ExtensionMode.Production, globalState)
@@ -184,6 +184,15 @@ describe('activate', () => {
     const [tested] = sentToForm(panel, 'tested')
     expect(tested).toMatchObject({ type: 'tested', isSuccess: false })
     expect(String(tested?.['message'])).toContain('sqldoro-ca.pem')
+    await fromForm(panel, {
+      type: 'listDatabases',
+      draft: { connection: { ...SAVED_CONNECTION, ssl }, secretChanges: [] },
+    })
+    await vi.waitFor(() => {
+      expect(sentToForm(panel, 'databasesFailed')).toHaveLength(1)
+    })
+    const [failed] = sentToForm(panel, 'databasesFailed')
+    expect(String(failed?.['message'])).toContain('sqldoro-ca.pem')
     disposeSubscriptions()
     expect(formPanels()).toStrictEqual([])
   })

@@ -163,13 +163,20 @@ Policy: one script with a nonce, styles and images from the extension only, no r
 **Add Connection**, **Import Connection from URL** and **Edit Connection** open the connection form,
 a second webview with its own bundle and the same page and policy (`src/extension/webview-page.ts`).
 Its message protocol is declared in the core (`src/core/connection-form/protocol.ts`) and checked on
-both sides. The form keeps its state with pure functions of the core
-(`src/core/connection-form/form-state.ts`, and the changes of a connection in
+both sides. The form keeps its state with pure functions of the core (`src/core/connection-form/`:
+the state and its changes, the problems and where they show, the requests to the host, the engine
+picker and the import of a connection string, the database listing; the changes of a connection in
 `src/core/connection/transitions.ts`) and validates with the same validators as the host, which
-checks the connection again before it saves. Secrets never travel to the form: it learns which kinds
-are held, and what the user types reaches the host only inside a test or a save. The host writes the
-secrets before the connection itself, so that a keyring that fails leaves nothing half saved, and a
-new connection is tested with what was typed without asking the keyring.
+checks the connection again before it tests it, saves it or lists its databases. Secrets never
+travel to the form: it learns which kinds are held (stored, or from an imported URL), and what the
+user types reaches the host only inside a test, a save, a listing of databases or an import. The host
+reads a connection string with the same parser as ever (`src/core/connection/url.ts`) and keeps its
+password until the connection is saved; a form that reloads forgets it. Listing the databases is one
+of sqldoro's own catalog queries (`EngineSession.listDatabases`), in a session opened like a test
+(the SSH host key prompt included) and closed again, so it does not go through the statement guard.
+The host writes the secrets before the connection itself, so that a keyring that fails leaves
+nothing half saved, and a new connection is tested (or its databases listed) with what was typed,
+without asking the keyring.
 
 ## Packaging and the pipeline
 

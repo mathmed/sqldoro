@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { EnvironmentTag, SshAuthMethod, SslMode } from './connection.ts'
 import {
+  ENVIRONMENT_COLORS,
   ENVIRONMENT_LABELS,
+  ENVIRONMENT_SHORT_LABELS,
   FIELD_LABELS,
   labelOf,
   SSH_AUTH_LABELS,
@@ -16,6 +18,25 @@ describe('labelOf', () => {
     expect(
       Object.values(EnvironmentTag).map((tag) => labelOf(ENVIRONMENT_LABELS, tag)),
     ).toStrictEqual(['None', 'Local', 'Development', 'Staging', 'Production'])
+  })
+
+  it('should give each environment a short name and a color, none to an untagged one', () => {
+    const tags = Object.values(EnvironmentTag)
+
+    expect(tags.map((tag) => labelOf(ENVIRONMENT_SHORT_LABELS, tag))).toStrictEqual([
+      'None',
+      'Local',
+      'Dev',
+      'Staging',
+      'Prod',
+    ])
+    expect(tags.map((tag) => ENVIRONMENT_COLORS.get(tag))).toStrictEqual([
+      undefined,
+      'charts.green',
+      'charts.blue',
+      'charts.orange',
+      'charts.red',
+    ])
   })
 
   it('should name and describe each SSL mode', () => {
@@ -45,7 +66,7 @@ describe('labelOf', () => {
     expect(
       Object.values(ConnectionField).map((field) => labelOf(FIELD_LABELS, field)),
     ).toStrictEqual([
-      'Name',
+      'Connection name',
       'Server type',
       'Host',
       'Port',

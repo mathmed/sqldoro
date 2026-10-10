@@ -6,6 +6,23 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Changed
+
+- **Connection form**, redesigned: a new connection starts on a card per database with its default
+  port, then the connection shows in one card with a field per row and its label on the left: the
+  environment as a segmented control with the color of each, host and port in one box, a password
+  eye that only shows what you typed, the tunnel with its SSH fields just below, and the SSL/TLS
+  certificates under **Advanced settings**. **Save connection** with problems opens the section of
+  the first one and focuses it.
+
+### Added
+
+- **Import connection string** in the connection form: paste a URL to fill the fields, keeping the
+  name you typed, the environment, the read-only switch and the tunnel. **Import Connection from
+  URL** opens the form with that input instead of asking in an input box.
+- **Databases of the server** in the connection form: the refresh button of the database field lists
+  them, with the connection as typed, to pick one.
+
 ## [0.1.0] - Unreleased
 
 The first version of sqldoro: a MySQL and PostgreSQL client for VS Code that makes the dangerous

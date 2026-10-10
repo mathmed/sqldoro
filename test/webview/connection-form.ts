@@ -26,6 +26,11 @@ export function textField(name: string): HTMLInputElement {
   return screen.getByRole<HTMLInputElement>('textbox', { name })
 }
 
+// The database field, which also lists the databases of the server.
+export function databaseField(): HTMLInputElement {
+  return screen.getByRole<HTMLInputElement>('combobox', { name: 'Database' })
+}
+
 // A password field by its label.
 export function secretInput(name: string): HTMLInputElement {
   return screen.getByLabelText<HTMLInputElement>(name, { selector: 'input' })
@@ -49,8 +54,8 @@ export function click(name: string | RegExp, role = 'button'): void {
   fireEvent.click(screen.getByRole(role, { name }))
 }
 
-export function tab(name: RegExp): HTMLElement {
-  return screen.getByRole('tab', { name })
+export function press(element: HTMLElement, key: string): void {
+  fireEvent.keyDown(element, { key })
 }
 
 // The problem a field shows, if any.
