@@ -35,6 +35,15 @@ describe('analyzeBuild', () => {
     })
   })
 
+  it('should keep the mark esbuild puts after a large bundle', () => {
+    // The bundle lines of the smoke job of #2.
+    const output = `  dist/extension.cjs      1.5mb \u26A0\uFE0F\n  dist/extension.cjs.map  3.5mb\n\n\u26A1 Done in 122ms`
+
+    expect(analyzeBuild(build(output, 0)).summary).toBe(
+      'Bundled dist/extension.cjs 1.5mb \u26A0\uFE0F in 122ms',
+    )
+  })
+
   it('should not need esbuild details to be ok', () => {
     expect(analyzeBuild(build('', 0)).summary).toBe('Built')
   })
