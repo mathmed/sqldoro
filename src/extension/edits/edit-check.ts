@@ -1,5 +1,5 @@
-import { type Editability, editableTable, resultOrigin } from '../../core/edits/editability.ts'
-import { selectShape } from '../../core/edits/select-shape.ts'
+import type { Editability } from '../../core/edits/editability.ts'
+import { resultEditability } from '../../core/edits/result-editability.ts'
 import type { Logger } from '../../core/platform.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import { describeError } from '../../core/text/errors.ts'
@@ -25,14 +25,10 @@ async function editabilityOf({ target, catalog }: RunParts, tab: ResultSet): Pro
   if (target.connection.isReadOnly) {
     return { problem: `"${target.connection.name}" is read-only: allow writes on it to edit rows.` }
   }
-  const shape = selectShape(tab.sql, target.engine.dialect)
-  if ('problem' in shape) {
-    return shape
-  }
-  const origin = resultOrigin(tab.columns)
-  if ('problem' in origin) {
-    return origin
-  }
-  const description = await catalog.describeTable(target.scope.database, origin.table)
-  return editableTable({ reference: shape.table, columns: tab.columns, description })
+  return resultEditability(catalog, {
+    sql: tab.sql,
+    columns: tab.columns,
+    dialect: target.engine.dialect,
+    database: target.scope.database,
+  })
 }
