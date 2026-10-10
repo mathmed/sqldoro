@@ -33,6 +33,47 @@ const KEYWORDS: readonly string[] = [
   'WINDOW',
 ]
 
+// Functions that change something when a query calls them: sequences, advisory locks, other
+// sessions, large objects, settings, replication and remote databases.
+const SIDE_EFFECT_FUNCTIONS: readonly string[] = [
+  'dblink',
+  'dblink_exec',
+  'lo_creat',
+  'lo_create',
+  'lo_export',
+  'lo_from_bytea',
+  'lo_import',
+  'lo_put',
+  'lo_unlink',
+  'nextval',
+  'pg_advisory_lock',
+  'pg_advisory_lock_shared',
+  'pg_advisory_unlock',
+  'pg_advisory_unlock_all',
+  'pg_advisory_unlock_shared',
+  'pg_advisory_xact_lock',
+  'pg_advisory_xact_lock_shared',
+  'pg_cancel_backend',
+  'pg_create_logical_replication_slot',
+  'pg_create_physical_replication_slot',
+  'pg_create_restore_point',
+  'pg_drop_replication_slot',
+  'pg_logical_emit_message',
+  'pg_notify',
+  'pg_promote',
+  'pg_reload_conf',
+  'pg_rotate_logfile',
+  'pg_stat_reset',
+  'pg_switch_wal',
+  'pg_terminate_backend',
+  'pg_try_advisory_lock',
+  'pg_try_advisory_lock_shared',
+  'pg_try_advisory_xact_lock',
+  'pg_try_advisory_xact_lock_shared',
+  'set_config',
+  'setval',
+]
+
 export const POSTGRES_DIALECT: Dialect = {
   identifierQuote: '"',
   hasSchemas: true,
@@ -55,4 +96,6 @@ export const POSTGRES_DIALECT: Dialect = {
   textType: 'TEXT',
   explainPrefix: 'EXPLAIN',
   explainAnalyzePrefix: 'EXPLAIN (ANALYZE, BUFFERS)',
+  hasTransactionalDdl: true,
+  sideEffectFunctions: SIDE_EFFECT_FUNCTIONS,
 }

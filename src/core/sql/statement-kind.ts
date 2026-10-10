@@ -101,7 +101,8 @@ export function isReadOnlyQuery(sql: string, rules: LexicalRules): boolean {
   return WRAPPABLE_QUERIES.has(keywordOf(tokens[0])) && !tokens.some(isUnsafe)
 }
 
-function keywordOf(token: Token | undefined): string {
+// The word in upper case, or an empty string for anything that is not a word.
+export function keywordOf(token: Token | undefined): string {
   return token?.kind === TokenKind.Word ? token.text.toUpperCase() : ''
 }
 
