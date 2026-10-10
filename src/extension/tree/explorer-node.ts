@@ -1,6 +1,9 @@
 import * as vscode from 'vscode'
 
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
+import type { Logger } from '../../core/platform.ts'
+import { describeError } from '../../core/text/errors.ts'
 import type { ConnectionState } from '../sessions/session-manager.ts'
 
 export const NodeKind = {
@@ -27,6 +30,15 @@ export interface NodeContext {
   readonly state: (connectionId: string) => ConnectionState
   readonly session: (connectionId: string) => EngineSession | undefined
   readonly filter: string
+  readonly log: Logger
+  // What a node said of its children when they loaded (how many tables), until the next refresh.
+  readonly summaryOf: (node: Pick<ExplorerNode, 'connectionId' | 'id'>) => string | undefined
+}
+
+// What a node gets while its children load.
+export interface LoadContext extends NodeContext {
+  // Says something short of the children (how many there are), shown beside the node.
+  readonly summarize: (text: string) => void
 }
 
 // Where a node is in the catalog, for the commands run on it: empty parts are not set.
@@ -42,8 +54,11 @@ export interface ExplorerNode {
   readonly kind: NodeKind
   readonly connectionId: string
   readonly place?: NodePlace
+  // The node whose list this one comes from, with the statistics it shows: refreshing this node reads
+  // that list again.
+  readonly listedBy?: ExplorerNode
   readonly treeItem: (context: NodeContext) => vscode.TreeItem
-  readonly children: (context: NodeContext) => Promise<readonly ExplorerNode[]>
+  readonly children: (context: LoadContext) => Promise<readonly ExplorerNode[]>
 }
 
 export interface ItemLook {
@@ -130,4 +145,19 @@ export function sessionOf(context: NodeContext, connectionId: string): EngineSes
     throw new Error('Not connected')
   }
   return session
+}
+
+// A list of the explorer with the statistics of its objects; when the server cannot give them (a
+// privilege, an older version), the objects still show, without them.
+export async function listWithStats<T>(
+  context: Pick<NodeContext, 'log'>,
+  what: string,
+  list: (detail: CatalogDetail) => Promise<T>,
+): Promise<T> {
+  try {
+    return await list(CatalogDetail.Statistics)
+  } catch (error) {
+    context.log.debug(`Could not read the statistics of ${what}: ${describeError(error)}`)
+    return list(CatalogDetail.Names)
+  }
 }

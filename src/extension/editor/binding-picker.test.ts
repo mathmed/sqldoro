@@ -5,11 +5,16 @@ import { answerQuickPicks } from '../../../test/support/prompts.ts'
 import { CRM, MYSQL_ENGINE, POSTGRES_ENGINE, SHOP } from '../../../test/support/query.ts'
 import { resetVscode, window } from '../../../test/vscode.ts'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import { EngineRegistry } from '../../core/engine/engine-registry.ts'
+import type { EngineSession } from '../../core/engine/engine.ts'
 import { pickBinding } from './binding-picker.ts'
 
+const listDatabases = vi.fn<EngineSession['listDatabases']>(async () =>
+  Promise.resolve([{ name: 'analytics' }, { name: 'shop' }]),
+)
 const session = fakeSession({
-  listDatabases: async () => Promise.resolve([{ name: 'analytics' }, { name: 'shop' }]),
+  listDatabases,
   listSchemas: async () => Promise.resolve([{ name: 'audit' }, { name: 'public' }]),
 })
 const connect = vi.fn(async () =>
@@ -31,6 +36,7 @@ beforeEach(() => {
   window.showQuickPick.mockReset()
   window.showInformationMessage.mockReset()
   connect.mockClear()
+  listDatabases.mockClear()
 })
 
 describe('pickBinding', () => {
@@ -44,6 +50,7 @@ describe('pickBinding', () => {
     })
 
     expect(connect).toHaveBeenCalledWith(SHOP)
+    expect(listDatabases).toHaveBeenCalledExactlyOnceWith(CatalogDetail.Names)
     const [databases, schemas] = window.showQuickPick.mock.calls
       .slice(1)
       .map(([items]) => (items as { label: string }[]).map((item) => item.label))

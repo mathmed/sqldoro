@@ -12,6 +12,7 @@ import {
   SshAuthMethod,
 } from '../../src/core/connection/connection.ts'
 import { SecretKind } from '../../src/core/connection/secrets.ts'
+import { CatalogDetail } from '../../src/core/engine/catalog.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { Engine } from '../../src/core/engine/engine.ts'
 import type { HostKeyCheck } from '../../src/core/session/host-key.ts'
@@ -183,7 +184,7 @@ describe('connections through a real OpenSSH server', () => {
       onUnexpectedClose: vi.fn(),
     })
 
-    await expect(session.engineSession.listDatabases()).resolves.toContainEqual({
+    await expect(session.engineSession.listDatabases(CatalogDetail.Names)).resolves.toContainEqual({
       name: POSTGRES.database,
     })
     await session.close()

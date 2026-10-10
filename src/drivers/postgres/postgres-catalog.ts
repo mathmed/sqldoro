@@ -1,6 +1,7 @@
 import type { Client } from 'pg'
 
 import {
+  CatalogDetail,
   type ColumnInfo,
   type DatabaseInfo,
   type ForeignKeyInfo,
@@ -9,6 +10,8 @@ import {
   type IndexInfo,
   type ObjectRef,
   type ObjectScope,
+  readDatabaseStats,
+  readTableStats,
   type SchemaInfo,
   type TableInfo,
   type ViewInfo,
@@ -24,6 +27,15 @@ import {
 const DATABASES = `SELECT datname AS name FROM pg_database
 WHERE datallowconn AND NOT datistemplate ORDER BY datname`
 
+// pg_database_size refuses a database the user may not connect to, unless the user reads every
+// statistic (pg_read_all_stats): the size of the others is NULL instead of an error. Sizes travel as
+// text: exact.
+const DATABASES_WITH_SIZES = `SELECT datname AS name,
+  CASE WHEN has_database_privilege(oid, 'CONNECT') OR pg_has_role('pg_read_all_stats', 'MEMBER')
+    THEN pg_database_size(oid) END::text AS "sizeBytes"
+FROM pg_database
+WHERE datallowconn AND NOT datistemplate ORDER BY datname`
+
 // Temporary and TOAST schemas belong to the server, not to the user.
 const SCHEMAS = `SELECT nspname AS name FROM pg_namespace
 WHERE nspname <> 'pg_toast' AND nspname NOT LIKE 'pg\\_temp\\_%' AND nspname NOT LIKE 'pg\\_toast\\_temp\\_%'
@@ -31,6 +43,25 @@ ORDER BY nspname`
 
 // Ordinary, partitioned and foreign tables; partitions are listed under their parent elsewhere.
 const TABLES = `SELECT c.relname AS name FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'f') AND NOT c.relispartition
+ORDER BY c.relname`
+
+// reltuples is -1 until the table is first analyzed. A partitioned table holds nothing itself: its
+// statistics are those of its partitions. A foreign table has no size here.
+const TABLES_WITH_STATS = `SELECT c.relname AS name,
+  CASE
+    WHEN c.relkind = 'p' THEN (
+      SELECT (sum(p.reltuples) FILTER (WHERE p.reltuples >= 0))::bigint
+      FROM pg_partition_tree(c.oid) t JOIN pg_class p ON p.oid = t.relid
+      WHERE t.isleaf)
+    WHEN c.reltuples >= 0 THEN c.reltuples::bigint
+  END::text AS "estimatedRows",
+  CASE c.relkind
+    WHEN 'r' THEN pg_total_relation_size(c.oid)
+    WHEN 'p' THEN (SELECT sum(pg_total_relation_size(t.relid))::bigint FROM pg_partition_tree(c.oid) t)
+  END::text AS "sizeBytes"
+FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE n.nspname = $1 AND c.relkind IN ('r', 'p', 'f') AND NOT c.relispartition
 ORDER BY c.relname`
@@ -87,9 +118,16 @@ export async function queryRows(
   return result.rows.map(readRecord)
 }
 
-export async function listDatabases(client: Client): Promise<DatabaseInfo[]> {
-  const rows = await queryRows(client, DATABASES, [])
-  return rows.map((row) => ({ name: readString(row, 'name') }))
+export async function listDatabases(
+  client: Client,
+  detail: CatalogDetail,
+): Promise<DatabaseInfo[]> {
+  if (detail === CatalogDetail.Names) {
+    const rows = await queryRows(client, DATABASES, [])
+    return rows.map((row) => ({ name: readString(row, 'name') }))
+  }
+  const rows = await queryRows(client, DATABASES_WITH_SIZES, [])
+  return rows.map((row) => ({ name: readString(row, 'name'), stats: readDatabaseStats(row) }))
 }
 
 export async function listSchemas(client: Client): Promise<SchemaInfo[]> {
@@ -97,9 +135,17 @@ export async function listSchemas(client: Client): Promise<SchemaInfo[]> {
   return rows.map((row) => ({ name: readString(row, 'name') }))
 }
 
-export async function listTables(client: Client, scope: ObjectScope): Promise<TableInfo[]> {
-  const rows = await queryRows(client, TABLES, [scope.schema])
-  return rows.map((row) => ({ name: readString(row, 'name') }))
+export async function listTables(
+  client: Client,
+  scope: ObjectScope,
+  detail: CatalogDetail,
+): Promise<TableInfo[]> {
+  if (detail === CatalogDetail.Names) {
+    const rows = await queryRows(client, TABLES, [scope.schema])
+    return rows.map((row) => ({ name: readString(row, 'name') }))
+  }
+  const rows = await queryRows(client, TABLES_WITH_STATS, [scope.schema])
+  return rows.map((row) => ({ name: readString(row, 'name'), stats: readTableStats(row) }))
 }
 
 export async function listViews(client: Client, scope: ObjectScope): Promise<ViewInfo[]> {

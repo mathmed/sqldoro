@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
+import { readRecord } from '../json/record.ts'
 import {
   type ForeignKeyColumn,
   groupForeignKeyColumns,
   groupIndexColumns,
   type IndexColumn,
+  readDatabaseStats,
+  readTableStats,
 } from './catalog.ts'
 
 function indexColumn(
@@ -89,5 +92,50 @@ describe('groupForeignKeyColumns', () => {
         onDelete: 'CASCADE',
       },
     ])
+  })
+})
+
+describe('readTableStats', () => {
+  it('should read the estimated rows and the size exactly', () => {
+    const sut = readTableStats(
+      readRecord({ name: 'orders', estimatedRows: '27412', sizeBytes: '9223372036854775807' }),
+    )
+
+    expect(sut).toStrictEqual({
+      estimatedRows: 27_412n,
+      sizeBytes: 9_223_372_036_854_775_807n,
+    })
+  })
+
+  it('should leave out what the server does not know', () => {
+    expect(
+      readTableStats(readRecord({ name: 'remote', estimatedRows: null, sizeBytes: null })),
+    ).toStrictEqual({ estimatedRows: undefined, sizeBytes: undefined })
+  })
+
+  it('should refuse statistics that are not whole numbers of 0 or more', () => {
+    expect(() => readTableStats(readRecord({ estimatedRows: '-1', sizeBytes: '0' }))).toThrow(
+      new TypeError('"estimatedRows" must be a whole number of 0 or more, as text'),
+    )
+    expect(() => readTableStats(readRecord({ estimatedRows: '0', sizeBytes: 16_384 }))).toThrow(
+      new TypeError('"sizeBytes" must be a whole number of 0 or more, as text'),
+    )
+  })
+})
+
+describe('readDatabaseStats', () => {
+  it('should read the size of a database, or none', () => {
+    expect(readDatabaseStats(readRecord({ sizeBytes: '2147483648' }))).toStrictEqual({
+      sizeBytes: 2_147_483_648n,
+    })
+    expect(readDatabaseStats(readRecord({ sizeBytes: null }))).toStrictEqual({
+      sizeBytes: undefined,
+    })
+  })
+
+  it('should refuse a size that is missing from the row', () => {
+    expect(() => readDatabaseStats(readRecord({ name: 'shop' }))).toThrow(
+      new TypeError('"sizeBytes" must be a whole number of 0 or more, as text'),
+    )
   })
 })

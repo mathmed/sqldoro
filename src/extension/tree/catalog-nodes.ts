@@ -1,12 +1,21 @@
 import * as vscode from 'vscode'
 
-import type { ObjectRef, ObjectScope } from '../../core/engine/catalog.ts'
+import {
+  databaseStatsDetails,
+  databaseStatsSummary,
+  objectCount,
+  tableStatsDetails,
+  tableStatsSummary,
+} from '../../core/engine/catalog-text.ts'
+import type { DatabaseInfo, ObjectRef, ObjectScope, TableInfo } from '../../core/engine/catalog.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import { matchesFilter } from '../../core/text/filter.ts'
 import { CommandId } from '../command-id.ts'
 import {
   type ExplorerNode,
   type ItemLook,
+  listWithStats,
+  type LoadContext,
   messageNode,
   MessageTone,
   type NodeContext,
@@ -18,7 +27,7 @@ import {
 } from './explorer-node.ts'
 import { columnNode, foreignKeyNode, indexNode } from './leaf-nodes.ts'
 
-type Children = (context: NodeContext) => Promise<readonly ExplorerNode[]>
+type Children = (context: LoadContext) => Promise<readonly ExplorerNode[]>
 
 const OPEN_DATA = 'Open Table Data'
 
@@ -27,20 +36,50 @@ interface Branch {
   readonly connectionId: string
   readonly path: readonly string[]
   readonly place?: NodePlace
+  readonly listedBy?: ExplorerNode
   readonly look: Omit<ItemLook, 'isExpandable'>
   readonly children: (node: ExplorerNode) => Children
 }
 
-function branch({ kind, connectionId, path, place, look, children }: Branch): ExplorerNode {
+// What a branch said of its children once they loaded shows beside its label.
+function branch({
+  kind,
+  connectionId,
+  path,
+  place,
+  listedBy,
+  look,
+  children,
+}: Branch): ExplorerNode {
   const node: ExplorerNode = {
     id: nodeId(kind, connectionId, path),
     kind,
     connectionId,
     ...(place === undefined ? {} : { place }),
-    treeItem: () => treeItem(node, { ...look, isExpandable: true }),
+    ...(listedBy === undefined ? {} : { listedBy }),
+    treeItem: (context) =>
+      treeItem(node, {
+        ...look,
+        description: context.summaryOf(node) ?? look.description ?? '',
+        isExpandable: true,
+      }),
     children: async (context) => children(node)(context),
   }
   return node
+}
+
+function tooltipOf(label: string, details: readonly string[]): string {
+  return [label, ...details].join('\n')
+}
+
+// The objects that match the filter; their group says how many of how many.
+function shown<T extends { readonly name: string }>(
+  objects: readonly T[],
+  context: LoadContext,
+): readonly T[] {
+  const matching = objects.filter((object) => matchesFilter(object.name, context.filter))
+  context.summarize(objectCount(matching.length, objects.length))
+  return matching
 }
 
 // An empty list says why it is empty: nothing there, or nothing matching the filter.
@@ -60,27 +99,44 @@ function nothingFound(what: string, filter: string): string {
 }
 
 export function databaseNode(
-  connectionId: string,
-  database: string,
+  parent: ExplorerNode,
+  { name, stats }: DatabaseInfo,
   dialect: Dialect,
 ): ExplorerNode {
   return branch({
     kind: NodeKind.Database,
-    connectionId,
-    path: [database],
-    place: { database, schema: dialect.hasSchemas ? '' : database, name: '' },
-    look: { label: database, icon: new vscode.ThemeIcon('database') },
-    children: (node) => async (context) => {
-      if (!dialect.hasSchemas) {
-        return objectGroups(connectionId, { database, schema: database })
-      }
-      const schemas = await sessionOf(context, connectionId).listSchemas(database)
-      const nodes = schemas.map((schema) =>
-        schemaNode(connectionId, { database, schema: schema.name }),
-      )
-      return orMessage(node, nodes, 'No schemas')
+    connectionId: parent.connectionId,
+    path: [name],
+    place: { database: name, schema: dialect.hasSchemas ? '' : name, name: '' },
+    listedBy: parent,
+    look: {
+      label: name,
+      icon: new vscode.ThemeIcon('database'),
+      description: databaseStatsSummary(stats),
+      tooltip: tooltipOf(name, databaseStatsDetails(stats)),
     },
+    children: (node) => async (context) =>
+      databaseChildren({ node, database: name, dialect }, context),
   })
+}
+
+interface DatabaseBranch {
+  readonly node: ExplorerNode
+  readonly database: string
+  readonly dialect: Dialect
+}
+
+async function databaseChildren(
+  { node, database, dialect }: DatabaseBranch,
+  context: NodeContext,
+): Promise<readonly ExplorerNode[]> {
+  const { connectionId } = node
+  if (!dialect.hasSchemas) {
+    return objectGroups(connectionId, { database, schema: database })
+  }
+  const schemas = await sessionOf(context, connectionId).listSchemas(database)
+  const nodes = schemas.map((schema) => schemaNode(connectionId, { database, schema: schema.name }))
+  return orMessage(node, nodes, 'No schemas')
 }
 
 function schemaNode(connectionId: string, scope: ObjectScope): ExplorerNode {
@@ -105,9 +161,11 @@ function tablesNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     path: [scope.database, scope.schema],
     look: { label: 'Tables', icon: new vscode.ThemeIcon('table') },
     children: (node) => async (context) => {
-      const tables = await sessionOf(context, connectionId).listTables(scope)
-      const matching = tables.filter((table) => matchesFilter(table.name, context.filter))
-      const nodes = matching.map((table) => tableNode(connectionId, { ...scope, name: table.name }))
+      const session = sessionOf(context, connectionId)
+      const tables = await listWithStats(context, node.id, async (detail) =>
+        session.listTables(scope, detail),
+      )
+      const nodes = shown(tables, context).map((table) => tableNode(node, scope, table))
       return orMessage(node, nodes, nothingFound('tables', context.filter))
     },
   })
@@ -121,8 +179,7 @@ function viewsNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     look: { label: 'Views', icon: new vscode.ThemeIcon('eye') },
     children: (node) => async (context) => {
       const views = await sessionOf(context, connectionId).listViews(scope)
-      const matching = views.filter((view) => matchesFilter(view.name, context.filter))
-      const nodes = matching.map((view) =>
+      const nodes = shown(views, context).map((view) =>
         viewNode(connectionId, { ...scope, name: view.name }, view.isMaterialized),
       )
       return orMessage(node, nodes, nothingFound('views', context.filter))
@@ -147,14 +204,26 @@ function opensData(node: ExplorerNode): ExplorerNode {
   return opening
 }
 
-function tableNode(connectionId: string, table: ObjectRef): ExplorerNode {
+function tableNode(
+  group: ExplorerNode,
+  scope: ObjectScope,
+  { name, stats }: TableInfo,
+): ExplorerNode {
+  const { connectionId } = group
+  const table = { ...scope, name }
   return opensData(
     branch({
       kind: NodeKind.Table,
       connectionId,
       path: objectPath(table),
       place: table,
-      look: { label: table.name, icon: new vscode.ThemeIcon('table') },
+      listedBy: group,
+      look: {
+        label: name,
+        icon: new vscode.ThemeIcon('table'),
+        description: tableStatsSummary(stats),
+        tooltip: tooltipOf(name, tableStatsDetails(stats)),
+      },
       children: () => async () =>
         Promise.resolve([
           columnsNode(connectionId, table),

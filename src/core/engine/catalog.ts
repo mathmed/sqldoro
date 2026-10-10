@@ -1,5 +1,24 @@
+import { type JsonRecord, readBigCount, readNullable } from '../json/record.ts'
+
+// How much a list of the catalog reads: the names only, or the statistics of each object too (sizes
+// and estimated rows), which cost the server more. The explorer asks for them; the autocomplete and
+// the pickers only need the names.
+export const CatalogDetail = {
+  Names: 'names',
+  Statistics: 'statistics',
+} as const
+
+export type CatalogDetail = (typeof CatalogDetail)[keyof typeof CatalogDetail]
+
+export interface DatabaseStats {
+  // Data and indexes, in bytes; undefined when the server does not say (no privilege to see it).
+  readonly sizeBytes: bigint | undefined
+}
+
 export interface DatabaseInfo {
   readonly name: string
+  // Only in a list read with CatalogDetail.Statistics.
+  readonly stats?: DatabaseStats
 }
 
 export interface SchemaInfo {
@@ -24,8 +43,18 @@ export const ObjectKind = {
 
 export type ObjectKind = (typeof ObjectKind)[keyof typeof ObjectKind]
 
+// What the catalog statistics say of a table: estimates the server refreshes when it analyzes it.
+export interface TableStats {
+  // undefined when the server has no estimate yet (a table never analyzed).
+  readonly estimatedRows: bigint | undefined
+  // Data, indexes and TOAST, in bytes; undefined when the table has no storage of its own (foreign).
+  readonly sizeBytes: bigint | undefined
+}
+
 export interface TableInfo {
   readonly name: string
+  // Only in a list read with CatalogDetail.Statistics.
+  readonly stats?: TableStats
 }
 
 export interface ViewInfo {
@@ -113,4 +142,21 @@ function addForeignKeyColumn(
     onUpdate: row.onUpdate,
     onDelete: row.onDelete,
   }
+}
+
+// The statistics columns of a catalog row: the drivers' queries name them estimatedRows and
+// sizeBytes, as decimal text or NULL.
+export function readTableStats(row: JsonRecord): TableStats {
+  return {
+    estimatedRows: readOptionalBigCount(row, 'estimatedRows'),
+    sizeBytes: readOptionalBigCount(row, 'sizeBytes'),
+  }
+}
+
+export function readDatabaseStats(row: JsonRecord): DatabaseStats {
+  return { sizeBytes: readOptionalBigCount(row, 'sizeBytes') }
+}
+
+function readOptionalBigCount(row: JsonRecord, key: string): bigint | undefined {
+  return readNullable(row, key, readBigCount) ?? undefined
 }

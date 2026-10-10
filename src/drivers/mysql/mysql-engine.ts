@@ -104,9 +104,9 @@ type Catalog = Pick<
 // What the session reads from information_schema and SHOW CREATE.
 function catalogOf(connection: Connection): Catalog {
   return {
-    listDatabases: async () => listDatabases(connection),
+    listDatabases: async (detail) => listDatabases(connection, detail),
     listSchemas: async () => Promise.resolve([]),
-    listTables: async (scope) => listTables(connection, scope),
+    listTables: async (scope, detail) => listTables(connection, scope, detail),
     listViews: async (scope) => listViews(connection, scope),
     listColumns: async (object) => listColumns(connection, object),
     listIndexes: async (table) => listIndexes(connection, table),

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { answerBy, pg, pgRequest } from '../../../test/fakes/pg.ts'
 import { queryRequest } from '../../../test/fakes/query-request.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { ConnectRequest, EngineSession } from '../../core/engine/engine.ts'
 import { postgresEngine } from './postgres-engine.ts'
 
@@ -123,7 +124,7 @@ describe('postgresEngine', () => {
       answerBy([['SELECT datname', { rows: [{ name: 'postgres' }, { name: 'shop' }] }]])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).resolves.toStrictEqual([
+      await expect(sut.listDatabases(CatalogDetail.Names)).resolves.toStrictEqual([
         { name: 'postgres' },
         { name: 'shop' },
       ])
@@ -164,7 +165,9 @@ describe('postgresEngine', () => {
       ])
       const sut = await connected()
 
-      await expect(sut.listTables(SCOPE)).resolves.toStrictEqual([{ name: 'orders' }])
+      await expect(sut.listTables(SCOPE, CatalogDetail.Names)).resolves.toStrictEqual([
+        { name: 'orders' },
+      ])
       await expect(sut.listViews(SCOPE)).resolves.toStrictEqual([
         { name: 'totals', isMaterialized: true },
       ])
@@ -285,7 +288,9 @@ describe('postgresEngine', () => {
       answerBy([['SELECT datname', { rows: [{ name: null }] }]])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).rejects.toThrow(new TypeError('"name" must be a string'))
+      await expect(sut.listDatabases(CatalogDetail.Names)).rejects.toThrow(
+        new TypeError('"name" must be a string'),
+      )
     })
   })
 

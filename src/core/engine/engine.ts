@@ -1,4 +1,5 @@
 import type {
+  CatalogDetail,
   ColumnInfo,
   DatabaseInfo,
   ForeignKeyInfo,
@@ -66,9 +67,12 @@ export interface EngineSession {
   readonly serverVersion: string
   readonly ping: () => Promise<void>
   readonly close: () => Promise<void>
-  readonly listDatabases: () => Promise<readonly DatabaseInfo[]>
+  // With CatalogDetail.Statistics, in the same query: the size of each database, when the user may
+  // see it.
+  readonly listDatabases: (detail: CatalogDetail) => Promise<readonly DatabaseInfo[]>
   readonly listSchemas: (database: string) => Promise<readonly SchemaInfo[]>
-  readonly listTables: (scope: ObjectScope) => Promise<readonly TableInfo[]>
+  // With CatalogDetail.Statistics, in the same query: the estimated rows and the size of each table.
+  readonly listTables: (scope: ObjectScope, detail: CatalogDetail) => Promise<readonly TableInfo[]>
   readonly listViews: (scope: ObjectScope) => Promise<readonly ViewInfo[]>
   readonly listColumns: (object: ObjectRef) => Promise<readonly ColumnInfo[]>
   readonly listIndexes: (table: ObjectRef) => Promise<readonly IndexInfo[]>

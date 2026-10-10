@@ -2,6 +2,7 @@ import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { EditorBinding } from '../../core/editor/binding.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Session } from '../../core/session/open-session.ts'
@@ -60,7 +61,7 @@ async function pickDatabase(
   session: EngineSession,
   preferred: string,
 ): Promise<string | undefined> {
-  const names = (await session.listDatabases()).map((database) => database.name)
+  const names = (await session.listDatabases(CatalogDetail.Names)).map((database) => database.name)
   return askChoice(
     'Choose the Database',
     ordered(names, preferred).map((name) => ({ label: name, value: name })),

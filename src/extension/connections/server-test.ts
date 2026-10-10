@@ -1,5 +1,6 @@
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { ConnectionSecrets } from '../../core/connection/secrets.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { Logger } from '../../core/platform.ts'
 import type { Session } from '../../core/session/open-session.ts'
 import { describeError } from '../../core/text/errors.ts'
@@ -35,7 +36,7 @@ export async function listServerDatabases(
   secrets: ConnectionSecrets,
 ): Promise<readonly string[]> {
   return onShortSession(dependencies, { connection, secrets }, async (session) => {
-    const databases = await session.engineSession.listDatabases()
+    const databases = await session.engineSession.listDatabases(CatalogDetail.Names)
     return databases.map((database) => database.name)
   })
 }

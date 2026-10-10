@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { queryRequest } from '../../../test/fakes/query-request.ts'
 import { connectRequest, MYSQL, waitUntilReady } from '../../../test/integration/servers.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { QueryCancelledError, type Row } from '../../core/engine/query.ts'
 import { mysqlEngine } from './mysql-engine.ts'
@@ -76,12 +77,14 @@ describe('mysqlEngine against a real MySQL server', () => {
 
   describe('catalog', () => {
     it('should list the databases and no schemas', async () => {
-      await expect(session.listDatabases()).resolves.toContainEqual({ name: MYSQL.database })
+      await expect(session.listDatabases(CatalogDetail.Names)).resolves.toContainEqual({
+        name: MYSQL.database,
+      })
       await expect(session.listSchemas(MYSQL.database)).resolves.toStrictEqual([])
     })
 
     it('should list the tables and the views apart', async () => {
-      const tables = await session.listTables(SCOPE)
+      const tables = await session.listTables(SCOPE, CatalogDetail.Names)
       const views = await session.listViews(SCOPE)
 
       expect(tables).toEqual(

@@ -4,6 +4,7 @@ import { fakeEngine, fakeSession } from '../../../test/fakes/engine.ts'
 import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { VALID_CONNECTION } from '../../../test/fixtures/connection-form.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Session, SessionRequest } from '../../core/session/open-session.ts'
 import { listServerDatabases, pingServer } from './server-test.ts'
@@ -54,7 +55,9 @@ describe('pingServer', () => {
 
 describe('listServerDatabases', () => {
   it('should list the databases of the server by name with the secrets, and close the session', async () => {
-    const listDatabases = vi.fn(async () => Promise.resolve([{ name: 'app' }, { name: 'shop' }]))
+    const listDatabases = vi.fn<EngineSession['listDatabases']>(async () =>
+      Promise.resolve([{ name: 'app' }, { name: 'shop' }]),
+    )
     const { open, requests, close } = opener(fakeSession({ listDatabases }))
 
     const sut = await listServerDatabases(
@@ -64,6 +67,7 @@ describe('listServerDatabases', () => {
     )
 
     expect(sut).toStrictEqual(['app', 'shop'])
+    expect(listDatabases).toHaveBeenCalledExactlyOnceWith(CatalogDetail.Names)
     expect(requests[0]).toMatchObject({ connection: VALID_CONNECTION, secrets: SECRETS })
     expect(close).toHaveBeenCalledOnce()
   })

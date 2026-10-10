@@ -158,6 +158,25 @@ shows up to 200,000. Every message is typed in `src/core/results/protocol.ts` an
 field by the core parsers on the side that receives it. The page has a strict Content Security
 Policy: one script with a nonce, styles and images from the extension only, no remote resource.
 
+## The explorer and the catalog statistics
+
+The Connections view (`src/extension/tree/`) loads the children of a node when it opens and keeps
+them, per connection, until a refresh. `EngineSession.listDatabases` and `listTables` take a
+`CatalogDetail`: with `Names` they read the names only (the autocomplete, the pickers, the connection
+form); with `Statistics` the same query also reads the size of each database and the estimated rows
+and size of each table (`DatabaseStats`, `TableStats` in `src/core/engine/catalog.ts`), one query per
+list, never one per object. The values stay exact: the drivers select them as text and the core reads
+them as `bigint`; a value the server does not know or the user may not see is `undefined`, never an
+error. The explorer asks for the statistics and, if that query fails, lists the names alone and logs
+why at debug level, so a missing statistic never breaks a node. The core writes what is shown
+(`src/core/engine/catalog-text.ts` and `src/core/text/quantities.ts`: `~27k rows · 32 MB`, sizes
+1024-based).
+
+How many tables or views a group holds comes from the list it already loads: the node summarizes its
+children while they load, the provider keeps that summary beside the cached children and tells VS Code
+to draw the node again. A table or database node knows the node whose list it comes from
+(`listedBy`), so refreshing it reads that list again, with its statistics.
+
 ## Table data
 
 A table or view opened from the explorer is a source of results like a SQL editor, keyed by a URI of

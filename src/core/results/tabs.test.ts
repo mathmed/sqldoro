@@ -28,6 +28,10 @@ describe('groupDigits', () => {
   ])('should write %d as %s', (count, text) => {
     expect(groupDigits(count)).toBe(text)
   })
+
+  it('should group the digits of an exact count past the safe integers', () => {
+    expect(groupDigits(9_223_372_036_854_775_807n)).toBe('9,223,372,036,854,775,807')
+  })
 })
 
 describe('plural', () => {

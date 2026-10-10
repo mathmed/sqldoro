@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { answerBy, mysql, mysqlRequest } from '../../../test/fakes/mysql2.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { ConnectRequest, EngineSession } from '../../core/engine/engine.ts'
 import { TransactionStatus } from '../../core/engine/transaction-status.ts'
 import { mysqlEngine, statusOf } from './mysql-engine.ts'
@@ -157,7 +158,7 @@ describe('mysqlEngine', () => {
       ])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).resolves.toStrictEqual([
+      await expect(sut.listDatabases(CatalogDetail.Names)).resolves.toStrictEqual([
         { name: 'information_schema' },
         { name: 'shop' },
       ])
@@ -168,7 +169,9 @@ describe('mysqlEngine', () => {
       answerBy([['SELECT TABLE_NAME', { result: [{ name: 'orders' }] }]])
       const sut = await connected()
 
-      await expect(sut.listTables(SCOPE)).resolves.toStrictEqual([{ name: 'orders' }])
+      await expect(sut.listTables(SCOPE, CatalogDetail.Names)).resolves.toStrictEqual([
+        { name: 'orders' },
+      ])
       await expect(sut.listViews(SCOPE)).resolves.toStrictEqual([
         { name: 'orders', isMaterialized: false },
       ])
@@ -289,14 +292,14 @@ describe('mysqlEngine', () => {
       answerBy([['SELECT SCHEMA_NAME', { error: new Error('SELECT command denied') }]])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).rejects.toThrow('SELECT command denied')
+      await expect(sut.listDatabases(CatalogDetail.Names)).rejects.toThrow('SELECT command denied')
     })
 
     it('should refuse an answer without rows', async () => {
       answerBy([['SELECT SCHEMA_NAME', { result: { affectedRows: 0 } }]])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).rejects.toThrow(
+      await expect(sut.listDatabases(CatalogDetail.Names)).rejects.toThrow(
         new TypeError('The server answered without rows'),
       )
     })
@@ -305,7 +308,9 @@ describe('mysqlEngine', () => {
       answerBy([['SELECT SCHEMA_NAME', { result: [{ name: 7 }] }]])
       const sut = await connected()
 
-      await expect(sut.listDatabases()).rejects.toThrow(new TypeError('"name" must be a string'))
+      await expect(sut.listDatabases(CatalogDetail.Names)).rejects.toThrow(
+        new TypeError('"name" must be a string'),
+      )
     })
   })
 })
