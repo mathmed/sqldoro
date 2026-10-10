@@ -11,6 +11,8 @@ const CONTRIBUTED_VIEWS = Object.values(manifest.contributes.views)
   .flat()
   .map(({ id }) => id)
 const MILLISECONDS_PER_SECOND = 1000
+// VS Code prefixes the view type of the webviews of extensions.
+const RESULTS_VIEW_TYPE = 'sqldoro.results'
 const MANUAL_COMMIT = '$(git-commit) Manual commit'
 const AUTO_COMMIT = '$(check-all) Auto-commit'
 
@@ -22,6 +24,7 @@ export async function run(): Promise<void> {
     await expectContributedViewsShown()
     await probeHelloCommand()
     await probeResultView()
+    await probeResultViewReopens()
     await probeTransactionStatus()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
@@ -95,6 +98,26 @@ async function probeResultView(): Promise<void> {
   }
   const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
   report(`result view loaded in ${seconds.toFixed(3)}s`)
+}
+
+// Closing the result view drops it (the changes of its rows it had not applied are warned about, so
+// that nothing goes silently); showing it again loads a new one, with its grid editor and preview.
+async function probeResultViewReopens(): Promise<void> {
+  const tab = vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .find(
+      ({ input }) =>
+        input instanceof vscode.TabInputWebview && input.viewType.endsWith(RESULTS_VIEW_TYPE),
+    )
+  if (tab === undefined) {
+    throw new Error('the result view has no tab to close')
+  }
+  await vscode.window.tabGroups.close(tab)
+  const isLoaded = await vscode.commands.executeCommand(CommandId.ShowResults)
+  if (isLoaded !== true) {
+    throw new Error(`${CommandId.ShowResults} did not open the result view again`)
+  }
+  report('result view closed and loaded again')
 }
 
 // The status bar of a SQL editor shows its transaction mode; the command that switches it answers
