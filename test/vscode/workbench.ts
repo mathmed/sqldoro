@@ -7,7 +7,7 @@ import { vi } from 'vitest'
 import { registerFileDecorationProvider, resetTabs, tabGroups } from './tabs.ts'
 import { FakeTextDocument, FakeTextEditor } from './text.ts'
 import { FakeUri } from './uri.ts'
-import { createWebviewPanel } from './webviews.ts'
+import { createWebviewPanel, webviewPanels } from './webviews.ts'
 
 type Listener<T> = (event: T) => unknown
 type ProgressTask<T> = (
@@ -251,6 +251,7 @@ export const env = {
 
 export function resetWorkbench(): void {
   resetTabs()
+  webviewPanels.length = 0
   treeViews.length = 0
   outputChannels.length = 0
   statusBarItems.length = 0

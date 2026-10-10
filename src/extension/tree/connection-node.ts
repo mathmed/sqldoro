@@ -1,15 +1,10 @@
 import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
+import { ENVIRONMENT_LABELS, labelOf, SSL_MODE_LABELS } from '../../core/connection/labels.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import { CommandId } from '../command-id.ts'
-import {
-  ENVIRONMENT_LABELS,
-  environmentBadge,
-  environmentColor,
-  labelOf,
-  SSL_MODE_LABELS,
-} from '../labels.ts'
+import { environmentBadge, environmentColor } from '../labels.ts'
 import { type ConnectionState, ConnectionStatus } from '../sessions/session-manager.ts'
 import { databaseNode } from './catalog-nodes.ts'
 import {

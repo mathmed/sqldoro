@@ -4,6 +4,7 @@ import {
   readArray,
   readBoolean,
   readCount,
+  readList,
   readNested,
   readNullable,
   readNullableString,
@@ -11,6 +12,7 @@ import {
   readOneOf,
   readRecord,
   readString,
+  readStrings,
 } from './record.ts'
 
 const RECORD = readRecord({
@@ -105,5 +107,24 @@ describe('readNullable', () => {
     expect(() => readNullable(readRecord({}), 'a', readString)).toThrow(
       new TypeError('"a" must be a string'),
     )
+  })
+})
+
+describe('readList and readStrings', () => {
+  it('should read a list of records and a list of strings', () => {
+    const record = readRecord({ items: [{ a: 'x' }, { a: 'y' }], names: ['p', 'q'] })
+
+    expect(readList(record, 'items', (item) => readString(item, 'a'))).toStrictEqual(['x', 'y'])
+    expect(readStrings(record, 'names')).toStrictEqual(['p', 'q'])
+  })
+
+  it('should name what is wrong in a list', () => {
+    const record = readRecord({ items: [{ a: 'x' }, 'y'], names: ['p', 2] })
+
+    expect(() => readList(record, 'items', (item) => readString(item, 'a'))).toThrow(
+      new TypeError('expected an object'),
+    )
+    expect(() => readStrings(record, 'names')).toThrow(new TypeError('"1" must be a string'))
+    expect(() => readStrings(record, 'missing')).toThrow(new TypeError('"missing" must be a list'))
   })
 })

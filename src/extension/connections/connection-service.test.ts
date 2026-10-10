@@ -6,6 +6,7 @@ import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { type ConnectionConfig, DEFAULT_SSH_TUNNEL } from '../../core/connection/connection.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
 import { EngineRegistry } from '../../core/engine/engine-registry.ts'
+import type { Engine } from '../../core/engine/engine.ts'
 import { SessionManager } from '../sessions/session-manager.ts'
 import { ConnectionStore } from '../storage/connection-store.ts'
 import { SecretStore } from '../storage/secret-store.ts'
@@ -23,7 +24,7 @@ interface Harness {
 
 let nextId = 0
 
-function harness(): Harness {
+function harness(engines: readonly Engine[] = [ENGINE]): Harness {
   const store = new ConnectionStore(new FakeMemento(), recordingLogger())
   const secrets = new SecretStore(new FakeSecretStorage())
   const close = vi.fn(async () => Promise.resolve())
@@ -37,7 +38,7 @@ function harness(): Harness {
     store,
     secrets,
     sessions,
-    engines: new EngineRegistry([ENGINE]),
+    engines: new EngineRegistry(engines),
     createId: () => {
       nextId += 1
       return `id-${String(nextId)}`
@@ -47,7 +48,7 @@ function harness(): Harness {
 }
 
 function shop(sut: ConnectionService): ConnectionConfig {
-  return { ...sut.draft('postgres'), name: 'Shop', user: 'app' }
+  return { ...sut.draft(), name: 'Shop', user: 'app' }
 }
 
 beforeEach(() => {
@@ -58,13 +59,30 @@ describe('ConnectionService', () => {
   it('should draft a read-only connection with a new id and the default port of the engine', () => {
     const { sut } = harness()
 
-    expect(sut.draft('postgres')).toMatchObject({
+    expect(sut.draft()).toMatchObject({
       id: 'id-1',
       engine: 'postgres',
       port: 5432,
       isReadOnly: true,
     })
     expect(sut.engines.engines).toStrictEqual([ENGINE])
+  })
+
+  it('should draft new connections on the first registered engine', () => {
+    const mysql = fakeEngine({ id: 'mysql', defaultPort: 3306, urlSchemes: ['mysql'] })
+
+    expect(harness([mysql, ENGINE]).sut.draft()).toMatchObject({ engine: 'mysql', port: 3306 })
+    expect(() => harness([]).sut.draft()).toThrow('sqldoro has no database engine registered')
+  })
+
+  it('should name the connections other than one', async () => {
+    const { sut } = harness()
+    await sut.save(shop(sut), new Map())
+    const other = { ...shop(sut), name: ' Billing ' }
+    await sut.save(other, new Map())
+
+    expect(sut.takenNameKeys(other.id)).toStrictEqual(new Set(['shop']))
+    expect(sut.takenNameKeys('')).toStrictEqual(new Set(['shop', 'billing']))
   })
 
   it('should save a connection with its secrets', async () => {

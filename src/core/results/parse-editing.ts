@@ -4,12 +4,13 @@ import {
   type JsonRecord,
   readBoolean,
   readCount,
+  readList,
   readNested,
   readNullable,
   readOneOf,
   readString,
+  readStrings,
 } from '../json/record.ts'
-import { readList, readStrings } from './parse-common.ts'
 import {
   EditingState,
   type EditPreview,

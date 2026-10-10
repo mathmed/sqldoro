@@ -1,0 +1,53 @@
+import { describe, expect, it, vi } from 'vitest'
+
+import { fakeEngine, fakeSession } from '../../../test/fakes/engine.ts'
+import { recordingLogger } from '../../../test/fakes/logger.ts'
+import { VALID_CONNECTION } from '../../../test/fixtures/connection-form.ts'
+import { SecretKind } from '../../core/connection/secrets.ts'
+import type { EngineSession } from '../../core/engine/engine.ts'
+import type { Session, SessionRequest } from '../../core/session/open-session.ts'
+import { pingServer } from './server-test.ts'
+
+const SECRETS = new Map([[SecretKind.Password, 's3cret']])
+
+function opener(engineSession: EngineSession): {
+  readonly open: (request: SessionRequest) => Promise<Session>
+  readonly requests: SessionRequest[]
+  readonly close: ReturnType<typeof vi.fn>
+} {
+  const requests: SessionRequest[] = []
+  const close = vi.fn(async () => Promise.resolve())
+  const open = async (request: SessionRequest): Promise<Session> => {
+    requests.push(request)
+    return Promise.resolve({ engine: fakeEngine({ displayName: 'MySQL' }), engineSession, close })
+  }
+  return { open, requests, close }
+}
+
+describe('pingServer', () => {
+  it('should ping the server with the secrets, name it and close the session', async () => {
+    const log = recordingLogger()
+    const ping = vi.fn(async () => Promise.resolve())
+    const { open, requests, close } = opener(fakeSession({ serverVersion: '8.4.2', ping }))
+
+    const sut = await pingServer({ open, log }, VALID_CONNECTION, SECRETS)
+
+    expect(sut).toBe('MySQL 8.4.2')
+    expect(requests[0]).toMatchObject({ connection: VALID_CONNECTION, secrets: SECRETS })
+    expect(ping).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+    requests[0]?.onUnexpectedClose(new Error('late'))
+    expect(log.debug).toHaveBeenCalledWith('The test session of Shop ended: late')
+  })
+
+  it('should close the session when the server does not answer', async () => {
+    const { open, close } = opener(
+      fakeSession({ ping: async () => Promise.reject(new Error('timeout')) }),
+    )
+
+    await expect(
+      pingServer({ open, log: recordingLogger() }, VALID_CONNECTION, SECRETS),
+    ).rejects.toThrow('timeout')
+    expect(close).toHaveBeenCalledOnce()
+  })
+})

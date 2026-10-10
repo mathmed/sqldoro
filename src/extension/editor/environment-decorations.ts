@@ -1,7 +1,8 @@
 import * as vscode from 'vscode'
 
 import { type ConnectionConfig, EnvironmentTag } from '../../core/connection/connection.ts'
-import { ENVIRONMENT_LABELS, environmentBadge, environmentColor, labelOf } from '../labels.ts'
+import { ENVIRONMENT_LABELS, labelOf } from '../../core/connection/labels.ts'
+import { environmentBadge, environmentColor } from '../labels.ts'
 import type { EditorBindings } from './bindings.ts'
 
 export interface EnvironmentDecorationsDependencies {

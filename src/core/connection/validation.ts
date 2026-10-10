@@ -1,4 +1,4 @@
-import type { EngineRegistry } from '../engine/engine-registry.ts'
+import type { EngineOption } from '../engine/engine.ts'
 import {
   type ConnectionConfig,
   SshAuthMethod,
@@ -41,7 +41,7 @@ export interface ValidationIssue {
 }
 
 export interface ValidationContext {
-  readonly engines: EngineRegistry
+  readonly engines: readonly EngineOption[]
   // Name keys (see nameKey) of the other connections.
   readonly takenNameKeys: ReadonlySet<string>
 }
@@ -73,8 +73,10 @@ function nameConflict(name: string, context: ValidationContext): string | undefi
     : undefined
 }
 
-function engineProblem(engine: string, engines: EngineRegistry): string | undefined {
-  return engines.find(engine) === undefined ? `Unknown database engine "${engine}"` : undefined
+function engineProblem(engine: string, engines: readonly EngineOption[]): string | undefined {
+  return engines.some((option) => option.id === engine)
+    ? undefined
+    : `Unknown database engine "${engine}"`
 }
 
 function sslChecks(ssl: SslOptions): Check[] {

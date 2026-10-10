@@ -46,10 +46,14 @@ export interface ConnectRequest {
   readonly onUnexpectedClose: (error: Error) => void
 }
 
-export interface EngineDescriptor {
+// What the connection form and the validation of a connection know of an engine.
+export interface EngineOption {
   readonly id: string
   readonly displayName: string
   readonly defaultPort: number
+}
+
+export interface EngineDescriptor extends EngineOption {
   readonly urlSchemes: readonly string[]
   readonly dialect: Dialect
 }

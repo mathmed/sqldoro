@@ -14,7 +14,8 @@ import {
   WebviewMessageType,
 } from '../core/results/protocol.ts'
 import { ConnectionBanner } from './ConnectionBanner.tsx'
-import { listenToHost, type VsCodeApi } from './host.ts'
+import { listenToHost } from './host.ts'
+import { RESULTS_CHANNEL, type ResultsApi } from './results-api.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStores } from './row-stores.ts'
 import { TabBar } from './TabBar.tsx'
@@ -38,13 +39,13 @@ interface Results {
 
 // Listens to the extension host (then tells it the view is ready): rows and cell values go to the
 // row stores and the cell detail; the rest changes the tabs.
-function useResults(api: VsCodeApi): Results {
+function useResults(api: ResultsApi): Results {
   const [state, dispatch] = useReducer(reduce, EMPTY_RESULTS)
   const [stores] = useState(() => new RowStores())
   const [cell, setCell] = useState<CellMessage>()
   useEffect(
     () =>
-      listenToHost(api, (message) => {
+      listenToHost(api, RESULTS_CHANNEL, (message) => {
         route(message, { stores, setCell, dispatch })
       }),
     [api, stores],
@@ -84,7 +85,7 @@ function route(message: HostMessage, { stores, setCell, dispatch }: Routes): voi
 }
 
 // The result view: the tabs of the last run and the result of the one in front.
-export const App = ({ api }: { readonly api: VsCodeApi }): ReactElement => {
+export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
   const { state, stores, cell, activate } = useResults(api)
   const tab = activeTab(state)
   return (

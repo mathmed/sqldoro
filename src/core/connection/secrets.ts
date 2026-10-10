@@ -10,6 +10,12 @@ export type SecretKind = (typeof SecretKind)[keyof typeof SecretKind]
 
 export type ConnectionSecrets = ReadonlyMap<SecretKind, string>
 
+const SECRET_KINDS: ReadonlySet<string> = new Set(Object.values(SecretKind))
+
+export function isSecretKind(value: unknown): value is SecretKind {
+  return typeof value === 'string' && SECRET_KINDS.has(value)
+}
+
 // The secrets a connection can use: the others are stale and should be deleted.
 export function secretKindsOf(connection: ConnectionConfig): readonly SecretKind[] {
   if (connection.ssh === undefined) {

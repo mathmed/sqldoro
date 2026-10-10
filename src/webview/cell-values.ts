@@ -1,7 +1,7 @@
 import type { CellValue } from '../core/engine/query.ts'
 import type { CellPosition } from '../core/grid/selection.ts'
 import { type CellMessage, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 import type { RowStore } from './row-store.ts'
 
 export interface CellPlace {
@@ -17,7 +17,7 @@ function heldValue({ store, position }: CellPlace): CellValue | undefined {
     : row.cells.at(position.column)
 }
 
-export function requestCell(api: VsCodeApi, tab: ResultTab, place: CellPlace): void {
+export function requestCell(api: ResultsApi, tab: ResultTab, place: CellPlace): void {
   if (heldValue(place) === undefined) {
     const { id: tabId, viewVersion } = tab
     api.postMessage({ type: WebviewMessageType.FetchCell, tabId, viewVersion, ...place.position })

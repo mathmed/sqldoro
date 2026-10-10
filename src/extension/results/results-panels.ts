@@ -3,7 +3,7 @@ import * as vscode from 'vscode'
 import type { Logger } from '../../core/platform.ts'
 import { describeError } from '../../core/text/errors.ts'
 import { documentLabel } from '../editor/document-label.ts'
-import { createNonce, resultsHtml } from './results-html.ts'
+import { bundleOf, createNonce, webviewHtml, webviewRoot } from '../webview-page.ts'
 import { type PanelActions, type PanelEnvironment, ResultsPanel } from './results-panel.ts'
 
 export interface ResultsPanelsDependencies {
@@ -14,9 +14,8 @@ export interface ResultsPanelsDependencies {
 }
 
 const RESULTS_VIEW_TYPE = 'sqldoro.results'
-const WEBVIEW_DIRECTORY = ['dist', 'webview']
-const SCRIPT = 'results.js'
-const STYLE = 'results.css'
+const BUNDLE = 'results'
+const PAGE_TITLE = 'Results'
 
 function title(uri: vscode.Uri): string {
   return `Results: ${documentLabel(uri)}`
@@ -58,18 +57,18 @@ export class ResultsPanels implements vscode.Disposable {
 
   #create(uri: vscode.Uri): ResultsPanel {
     const { extensionUri, now, log, actionsFor } = this.#dependencies
-    const root = vscode.Uri.joinPath(extensionUri, ...WEBVIEW_DIRECTORY)
+    const root = webviewRoot(extensionUri)
     const webviewPanel = vscode.window.createWebviewPanel(
       RESULTS_VIEW_TYPE,
       title(uri),
       { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
       { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [root] },
     )
-    const assets = {
-      script: vscode.Uri.joinPath(root, SCRIPT),
-      style: vscode.Uri.joinPath(root, STYLE),
-    }
-    webviewPanel.webview.html = resultsHtml(webviewPanel.webview, assets, createNonce())
+    webviewPanel.webview.html = webviewHtml(
+      webviewPanel.webview,
+      { title: PAGE_TITLE, bundle: bundleOf(root, BUNDLE) },
+      createNonce(),
+    )
     const environment: PanelEnvironment = { now, log }
     const panel = new ResultsPanel(webviewPanel, actionsFor(uri), environment)
     const listening = webviewPanel.webview.onDidReceiveMessage((data: unknown) => {

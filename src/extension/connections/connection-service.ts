@@ -41,8 +41,13 @@ export class ConnectionService {
     return this.#dependencies.store.find(id)
   }
 
-  draft(engineId: string): ConnectionConfig {
-    return newConnection(this.#dependencies.createId(), this.#dependencies.engines.get(engineId))
+  // A new connection starts on the first registered engine.
+  draft(): ConnectionConfig {
+    const [engine] = this.#dependencies.engines.engines
+    if (engine === undefined) {
+      throw new Error('sqldoro has no database engine registered')
+    }
+    return newConnection(this.#dependencies.createId(), engine)
   }
 
   importUrl(url: string): UrlImport {
@@ -50,14 +55,14 @@ export class ConnectionService {
     return parseConnectionUrl(url, {
       engines,
       id: createId(),
-      takenNameKeys: this.#takenNameKeys(''),
+      takenNameKeys: this.takenNameKeys(''),
     })
   }
 
   validate(connection: ConnectionConfig): readonly ValidationIssue[] {
     return validateConnection(connection, {
-      engines: this.#dependencies.engines,
-      takenNameKeys: this.#takenNameKeys(connection.id),
+      engines: this.#dependencies.engines.engines,
+      takenNameKeys: this.takenNameKeys(connection.id),
     })
   }
 
@@ -83,13 +88,14 @@ export class ConnectionService {
   }
 
   async duplicate(source: ConnectionConfig): Promise<ConnectionConfig> {
-    const copy = duplicateConnection(source, this.#dependencies.createId(), this.#takenNameKeys(''))
+    const copy = duplicateConnection(source, this.#dependencies.createId(), this.takenNameKeys(''))
     await this.#dependencies.store.save(copy)
     await this.#dependencies.secrets.copy(source, copy)
     return copy
   }
 
-  #takenNameKeys(exceptId: string): ReadonlySet<string> {
+  // The name keys (see nameKey) of the connections other than this one.
+  takenNameKeys(exceptId: string): ReadonlySet<string> {
     return new Set(
       this.list()
         .filter((connection) => connection.id !== exceptId)

@@ -47,7 +47,12 @@ export function decodeConnections(value: unknown): DecodedConnections {
 }
 
 function decodeConnection(value: unknown): ConnectionConfig {
-  const record = readRecord(value)
+  return readConnection(readRecord(value))
+}
+
+// A connection as it is stored and as the connection form sends it: a tunnel that is not there is
+// left out, never null.
+export function readConnection(record: JsonRecord): ConnectionConfig {
   return {
     id: readString(record, 'id'),
     name: readString(record, 'name'),

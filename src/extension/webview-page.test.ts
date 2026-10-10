@@ -1,21 +1,33 @@
 import { describe, expect, it } from 'vitest'
 import type * as vscode from 'vscode'
 
-import { createWebviewPanel, Uri } from '../../../test/vscode.ts'
-import { createNonce, resultsHtml } from './results-html.ts'
+import { createWebviewPanel, Uri } from '../../test/vscode.ts'
+import { bundleOf, createNonce, webviewHtml, webviewRoot } from './webview-page.ts'
 
-describe('resultsHtml', () => {
+describe('webviewRoot and bundleOf', () => {
+  it('should find the script and the stylesheet of a bundle in dist/webview', () => {
+    const root = webviewRoot(Uri.file('/ext') as unknown as vscode.Uri)
+
+    expect(root.toString()).toBe('file:/ext/dist/webview')
+    expect(bundleOf(root, 'connection-form')).toStrictEqual({
+      script: Uri.file('/ext/dist/webview/connection-form.js'),
+      style: Uri.file('/ext/dist/webview/connection-form.css'),
+    })
+  })
+})
+
+describe('webviewHtml', () => {
   it('should allow only the scripts with its nonce and the styles of the extension', () => {
     const { webview } = createWebviewPanel('sqldoro.results', 'Results', {}, {})
 
-    const sut = resultsHtml(
+    const sut = webviewHtml(
       webview as unknown as vscode.Webview,
       {
-        script: Uri.file('/ext/dist/webview/results.js'),
-        style: Uri.file('/ext/dist/webview/a"&<>.css'),
-      } as unknown as {
-        script: vscode.Uri
-        style: vscode.Uri
+        title: 'New <Connection> & "more"',
+        bundle: {
+          script: Uri.file('/ext/dist/webview/results.js'),
+          style: Uri.file('/ext/dist/webview/a"&<>.css'),
+        } as unknown as { script: vscode.Uri; style: vscode.Uri },
       },
       'N0nce+/=',
     )
@@ -29,6 +41,7 @@ describe('resultsHtml', () => {
     expect(sut).toContain(
       '<link rel="stylesheet" href="webview:/ext/dist/webview/a&quot;&amp;&lt;&gt;.css">',
     )
+    expect(sut).toContain('<title>New &lt;Connection&gt; &amp; &quot;more&quot;</title>')
     expect(sut).toContain('<div id="root"></div>')
   })
 })

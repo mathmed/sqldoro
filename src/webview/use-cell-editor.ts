@@ -8,7 +8,7 @@ import type { CellPosition } from '../core/grid/selection.ts'
 import { type CellMessage, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import { requestCell, wholeValue } from './cell-values.ts'
 import { cellSpec, pendingDraft, rowEditAt } from './edit-overlay.ts'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 import type { RowStore } from './row-store.ts'
 
 // The cell being edited: where, on which view of the rows, and what was typed (undefined until
@@ -49,12 +49,12 @@ export interface EditorSource {
 }
 
 interface EditorContext extends EditorSource {
-  readonly api: VsCodeApi
+  readonly api: ResultsApi
   readonly tab: ResultTab
   readonly setOpened: (opened: Opened | undefined) => void
 }
 
-export function useCellEditor(api: VsCodeApi, tab: ResultTab, source: EditorSource): CellEditing {
+export function useCellEditor(api: ResultsApi, tab: ResultTab, source: EditorSource): CellEditing {
   const [opened, setOpened] = useState<Opened>()
   const editor =
     opened === undefined ? undefined : editorOf(opened, { api, tab, ...source, setOpened })
@@ -134,7 +134,7 @@ function textOf(value: CellValue): string {
 
 // A cut value comes whole from the host before it can be edited.
 function askWholeValue(
-  api: VsCodeApi,
+  api: ResultsApi,
   tab: ResultTab,
   place: { readonly store: RowStore; readonly position: CellPosition },
 ): void {

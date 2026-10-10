@@ -5,7 +5,9 @@ import { CommandId, ViewId } from './command-id.ts'
 import { registerConnectionCommands } from './commands/connection-commands.ts'
 import { registerExplorerCommands } from './commands/explorer-commands.ts'
 import { registerWriteAccessCommands } from './commands/write-access-commands.ts'
+import { pingServer } from './connections/server-test.ts'
 import type { EditorSessions } from './editor/editor-sessions.ts'
+import { ConnectionForms } from './form/connection-forms.ts'
 import { registerQueryFeatures } from './query-features.ts'
 import { createQueryServices, type WorkbenchContext } from './query-services.ts'
 import { createServices, type Services, type StorageContext } from './services.ts'
@@ -29,7 +31,7 @@ export function activate(context: ActivationContext): void {
   const isDevelopment = context.extensionMode !== vscode.ExtensionMode.Production
   context.subscriptions.push(
     log,
-    ...registerConnections(services, log),
+    ...registerConnections(context.extensionUri, services, log),
     vscode.commands.registerCommand(CommandId.Hello, () => showGreeting(isDevelopment)),
     ...registerQueryFeatures(services, query, log),
   )
@@ -40,28 +42,26 @@ export function activate(context: ActivationContext): void {
   reportUnreadableConnections(services, log)
 }
 
-// The Connections view and its commands (phase 1).
+// The Connections view, the connection forms and their commands (phase 1).
 function registerConnections(
+  extensionUri: vscode.Uri,
   services: Services,
   log: vscode.LogOutputChannel,
 ): vscode.Disposable[] {
-  const view = vscode.window.createTreeView(ViewId.Connections, {
-    treeDataProvider: services.explorer,
-    showCollapseAll: true,
-  })
+  const view = connectionsView(services)
+  const forms = createForms(extensionUri, services, log)
   const commandContext = {
     ...services,
     log,
+    forms,
     setViewMessage: (message: string) => {
       view.message = message
     },
   }
   return [
     view,
+    forms,
     ...disposablesOf(services),
-    services.store.onDidChange(() => {
-      services.explorer.refresh()
-    }),
     ...registerConnectionCommands(commandContext),
     ...registerExplorerCommands(commandContext),
     ...registerWriteAccessCommands({
@@ -72,6 +72,29 @@ function registerConnections(
   ]
 }
 
+function connectionsView({ explorer }: Services): vscode.TreeView<unknown> {
+  return vscode.window.createTreeView(ViewId.Connections, {
+    treeDataProvider: explorer,
+    showCollapseAll: true,
+  })
+}
+
+function createForms(
+  extensionUri: vscode.Uri,
+  services: Services,
+  log: vscode.LogOutputChannel,
+): ConnectionForms {
+  return new ConnectionForms({
+    extensionUri,
+    service: services.service,
+    secrets: services.secrets,
+    test: async (connection, secrets) =>
+      pingServer({ open: services.open, log }, connection, secrets),
+    policy: () => readSettings().policy,
+    log,
+  })
+}
+
 // VS Code waits for the sessions to close before it stops the extension host.
 export async function deactivate(): Promise<void> {
   await Promise.all([openSessions?.disconnectAll(), editorSessions?.releaseAll()])
@@ -79,8 +102,16 @@ export async function deactivate(): Promise<void> {
   editorSessions = undefined
 }
 
+// The services that go with the extension, and the explorer following the saved connections.
 function disposablesOf({ explorer, sessions, store }: Services): vscode.Disposable[] {
-  return [explorer, sessions, store]
+  return [
+    explorer,
+    sessions,
+    store,
+    store.onDidChange(() => {
+      explorer.refresh()
+    }),
+  ]
 }
 
 function reportUnreadableConnections({ store }: Services, log: vscode.LogOutputChannel): void {

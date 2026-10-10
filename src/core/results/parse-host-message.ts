@@ -2,22 +2,16 @@ import {
   type JsonRecord,
   readBoolean,
   readCount,
+  readList,
   readNested,
   readNullable,
   readNumber,
   readOneOf,
   readRecord,
   readString,
-} from '../json/record.ts'
-import {
-  readCells,
-  readCellValue,
-  readColumns,
-  readCounts,
-  readList,
   readStrings,
-  readViewSpec,
-} from './parse-common.ts'
+} from '../json/record.ts'
+import { readCells, readCellValue, readColumns, readCounts, readViewSpec } from './parse-common.ts'
 import { readEditing } from './parse-editing.ts'
 import {
   type HostMessage,

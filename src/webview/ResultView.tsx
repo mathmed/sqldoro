@@ -17,10 +17,10 @@ import { type EditActions, editActions } from './edit-messages.ts'
 import { isEditing } from './edit-overlay.ts'
 import { EditBar } from './EditBar.tsx'
 import { Grid, type GridEdit } from './Grid.tsx'
-import type { VsCodeApi } from './host.ts'
 import { PlanView } from './PlanView.tsx'
 import { PreviewDialog } from './PreviewDialog.tsx'
 import { type ResultChoices, toolbarActions, useChoices } from './result-choices.ts'
+import type { ResultsApi } from './results-api.ts'
 import type { RowStore } from './row-store.ts'
 import { StatusLine } from './StatusLine.tsx'
 import { Toolbar } from './Toolbar.tsx'
@@ -29,7 +29,7 @@ import { type CellEditing, useCellEditor } from './use-cell-editor.ts'
 interface ResultViewProps {
   readonly tab: ResultTab
   readonly store: RowStore
-  readonly api: VsCodeApi
+  readonly api: ResultsApi
   readonly cell: CellMessage | undefined
   // Where the statements of the changes would run, for their preview.
   readonly connection: PanelConnection | null
@@ -112,7 +112,7 @@ function gridEdit(
 interface Content {
   readonly tab: ResultTab
   readonly store: RowStore
-  readonly api: VsCodeApi
+  readonly api: ResultsApi
   readonly choices: ResultChoices
   readonly edit: GridEdit
 }
@@ -154,7 +154,7 @@ interface ViewChange {
 }
 
 // While the statement runs, the rows are still coming: the view waits for the end.
-function changeView(api: VsCodeApi, tab: ResultTab, change: ViewChange): void {
+function changeView(api: ResultsApi, tab: ResultTab, change: ViewChange): void {
   if (tab.status !== TabStatus.Running) {
     api.postMessage({ type: WebviewMessageType.SetView, tabId: tab.id, ...change })
   }

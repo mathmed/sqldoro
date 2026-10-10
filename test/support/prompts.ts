@@ -13,7 +13,7 @@ interface PromptOptions {
   readonly validateInput?: (value: string) => string | undefined
 }
 
-export function labelOf(item: vscode.QuickPickItem): string {
+function labelOf(item: vscode.QuickPickItem): string {
   return item.label.replace(ICON, '')
 }
 
@@ -69,11 +69,4 @@ export function answerFiles(...paths: (string | undefined)[]): void {
     const path = next(paths, options)
     return Promise.resolve(path === undefined ? undefined : [{ fsPath: path }])
   })
-}
-
-// The items of the quick pick shown last.
-export function lastQuickPickItems(): readonly vscode.QuickPickItem[] {
-  const items = window.showQuickPick.mock.calls.at(-1)?.[0] as
-    readonly vscode.QuickPickItem[] | undefined
-  return items ?? []
 }
