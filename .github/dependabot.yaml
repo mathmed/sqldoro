@@ -1,0 +1,56 @@
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 100
+    # Supply-chain safety: give the community time to detect malicious or broken releases.
+    cooldown:
+      default-days: 10
+      semver-major-days: 15
+      semver-minor-days: 10
+      semver-patch-days: 5
+    groups:
+      npm-non-breaking:
+        update-types:
+          - "minor"
+          - "patch"
+      npm-major:
+        update-types:
+          - "major"
+    ignore:
+      # Follows engines.vscode, the oldest VS Code the extension supports: bump both on purpose.
+      - dependency-name: "@types/vscode"
+      # Follows the Node.js major of the VS Code extension host (Node.js 24 since VS Code 1.140).
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # npm aliases running TypeScript 7 (tsc) side by side with the TypeScript 6 API that
+      # typescript-eslint, Stryker and dependency-cruiser still need. Dependabot reads alias keys as
+      # package names, so these two are updated by hand until the tools support TypeScript 7.
+      - dependency-name: "typescript"
+      - dependency-name: "@typescript/native"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    open-pull-requests-limit: 50
+    # Supply-chain safety: give the community time to detect malicious or broken releases.
+    cooldown:
+      default-days: 10
+    groups:
+      actions-non-breaking:
+        update-types:
+          - "minor"
+          - "patch"
+      actions-major:
+        update-types:
+          - "major"
