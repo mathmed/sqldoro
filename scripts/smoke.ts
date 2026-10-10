@@ -11,12 +11,15 @@ import { runTests, runVSCodeCommand } from '@vscode/test-electron'
 import { build } from 'esbuild'
 
 import manifest from '../package.json' with { type: 'json' }
-import { removeDirectory, writeText } from './shared/files.ts'
+import { makeTemporaryDirectory, removeDirectory, writeText } from './shared/files.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const SMOKE_DIRECTORY = join(ROOT, '.vscode-test', 'smoke')
 const SUITE_BUNDLE = join(SMOKE_DIRECTORY, 'suite.cjs')
-const USER_DATA_DIRECTORY = join(SMOKE_DIRECTORY, 'user-data')
+// VS Code listens on a socket in its profile folder, and macOS refuses socket paths longer than 103
+// characters: the throwaway profile lives in the temporary folder, so that a checkout deep in the
+// file system (a worktree of an agent) runs too.
+const USER_DATA_DIRECTORY = await makeTemporaryDirectory('sqldoro-smoke-')
 const EXTENSIONS_DIRECTORY = join(SMOKE_DIRECTORY, 'extensions')
 // VS Code runs a test suite from an extension under development: an empty one here, so that the
 // sqldoro it finds is the one installed from the package.
@@ -69,4 +72,6 @@ try {
 } catch (error) {
   console.error(`>> smoke FAILED: ${error instanceof Error ? error.message : String(error)}`)
   process.exitCode = 1
+} finally {
+  await removeDirectory(USER_DATA_DIRECTORY)
 }

@@ -1,5 +1,15 @@
-import { appendFile, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 
 const MISSING_PATH = 'ENOENT'
 
@@ -33,6 +43,11 @@ export async function listFiles(directory: string): Promise<string[]> {
 
 export async function fileSize(path: string): Promise<number> {
   return (await stat(path)).size
+}
+
+// A new empty folder in the temporary folder of the system, its name starting with the prefix.
+export async function makeTemporaryDirectory(prefix: string): Promise<string> {
+  return mkdtemp(join(tmpdir(), prefix))
 }
 
 export async function removeDirectory(path: string): Promise<void> {
