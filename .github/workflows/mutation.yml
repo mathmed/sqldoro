@@ -1,0 +1,81 @@
+name: Mutation testing
+
+# PRs mutate only the core files changed in the diff (cheap). The weekly run and workflow_dispatch
+# mutate the whole core as a safety net. The gate is the repository variable MUTATION_MIN_SCORE
+# (Settings > Secrets and variables > Actions > Variables), default 95: a ratchet the owner raises
+# over time, never lowers to get a PR green.
+on:
+  # Called by ci.yml on pull requests, so that the result is part of the Quality Report
+  workflow_call:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MUTATION_MIN_SCORE: ${{ vars.MUTATION_MIN_SCORE || '95' }}
+
+jobs:
+  mutation-changed:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The diff against the base branch needs its history
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+
+      - name: Mutate the changed core files
+        run: >-
+          node scripts/quality-report.ts run mutation --
+          npm run mutation:changed -- --base "origin/${{ github.base_ref }}"
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-mutation
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  mutation-full:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+
+      - name: Mutate the whole core
+        run: npm run mutation
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 30

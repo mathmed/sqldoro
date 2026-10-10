@@ -1,0 +1,62 @@
+.PHONY: setup build format lint typecheck test lint-arch dead-code audit quality smoke mutation mutation-changed all
+
+# VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
+XVFB := $(if $(DISPLAY),,$(shell command -v xvfb-run >/dev/null 2>&1 && echo xvfb-run -a))
+
+# Install the locked dependencies and the git hooks
+setup:
+	npm ci
+	npm run hooks
+
+# Bundle the extension into dist/ (esbuild)
+build:
+	npm run build
+
+# Format every file and apply the fixes ESLint can make on its own
+format:
+	npm run format
+	npm run lint:fix
+
+# Lint (ESLint: typescript-eslint strict, complexity and security rules) and check formatting (Prettier)
+lint:
+	npm run lint
+	npm run format:check
+
+# Type check with tsc 7: the whole project, then the platform-agnostic core on its own
+typecheck:
+	npm run typecheck
+
+# Unit tests with coverage (Vitest); the thresholds are a ratchet at 100%
+test:
+	npm run test:coverage
+
+# Architecture contracts (dependency-cruiser, see .dependency-cruiser.mjs)
+lint-arch:
+	npm run lint:arch
+
+# Unused files, exports and dependencies (knip)
+dead-code:
+	npm run dead-code
+
+# Known vulnerabilities in the dependencies
+audit:
+	npm audit
+
+# Every check of the pre-commit hook and of the lint, quality and architecture CI jobs
+quality: lint typecheck test lint-arch dead-code audit
+
+# Build the extension and run it in a real VS Code: it must activate and register its commands
+smoke: build
+	$(XVFB) npm run smoke
+
+# Mutation testing of the whole core (slow; weekly in CI). Report: reports/mutation/mutation.html
+mutation:
+	npm run mutation
+
+# Mutation testing of the core files changed against BASE: what the PR job runs
+BASE ?= origin/main
+mutation-changed:
+	npm run mutation:changed -- --base $(BASE)
+
+# Everything CI runs on a pull request
+all: quality smoke mutation-changed

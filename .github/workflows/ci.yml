@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["**"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+# Every analysis runs through `node scripts/quality-report.ts run <analysis> -- <command>`, which
+# keeps the tool's exit code (the job is still the gate) and stores its output as a fragment. Each
+# job uploads its fragments as the `quality-fragment-<job>` artifact, and the `quality-report` job
+# at the end turns them into the single PR comment (marker <!-- quality-report -->). Later steps use
+# `if: !cancelled()` so that one failure does not hide the results of the other analyses; the job
+# still fails. See "Quality Report" in the README to add an analysis.
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Lint (ESLint)
+        run: node scripts/quality-report.ts run eslint -- npm run lint
+      - name: Format (Prettier)
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run prettier -- npm run format:check
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-lint
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Types (tsc)
+        run: node scripts/quality-report.ts run tsc -- npm run typecheck
+      - name: Tests and coverage (Vitest)
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run vitest -- npm run test:coverage
+      - name: Dead code (knip)
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run knip -- npm run dead-code
+      - name: Dependency vulnerabilities (npm audit)
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run npm-audit -- npm audit
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-quality
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Architecture contracts (dependency-cruiser)
+        run: node scripts/quality-report.ts run dependency-cruiser -- npm run lint:arch
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-architecture
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Builds the extension and runs it in a real VS Code (latest stable, downloaded by
+  # @vscode/test-electron) under a virtual display: it must activate and register every command it
+  # contributes.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Build (esbuild)
+        run: node scripts/quality-report.ts run build -- npm run build
+      - name: Extension smoke (VS Code)
+        run: node scripts/quality-report.ts run smoke -- xvfb-run -a npm run smoke
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: quality-fragment-smoke
+          path: quality-fragments/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Mutation testing lives in its own workflow (also run weekly and on demand); on PRs it is called
+  # from here so that its result is part of this run and of the Quality Report.
+  mutation:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/mutation.yml
+
+  quality-report:
+    if: always() && github.event_name == 'pull_request'
+    needs: [lint, quality, architecture, smoke, mutation]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Minimum needed to upsert the PR comment. The token is read-only on PRs from forks: the
+      # comment step then warns instead of failing, and the report stays in the job summary.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      # The report script only uses Node.js built-ins: no npm ci needed.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          pattern: quality-fragment-*
+          merge-multiple: true
+          path: quality-fragments
+
+      - name: Build report
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+          QUALITY_REPORT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/quality-report.ts render --needs-json "$NEEDS_JSON" --output quality-report.md
+          cat quality-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post report on the PR
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('quality-report.md', 'utf8');
+            const marker = '<!-- quality-report -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number,
+              });
+              const existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+                return;
+              }
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            } catch (error) {
+              core.warning(`Could not post the Quality Report comment (read-only token on fork PRs?): ${error.message}. The report is in the job summary.`);
+            }

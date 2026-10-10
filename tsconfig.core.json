@@ -1,0 +1,10 @@
+// The core runs both in the extension host and in the webview, so it is checked without Node.js
+// or DOM globals: platform APIs reach it only through interfaces it declares.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src/core"],
+  "exclude": ["src/core/**/*.test.ts"]
+}

@@ -1,0 +1,35 @@
+# Git hooks, installed by `make setup`. pre-commit runs the checks of the lint, quality and
+# architecture CI jobs; the extension smoke test and mutation testing run in CI (and `make all`).
+pre-commit:
+  piped: true
+  jobs:
+    - name: format
+      glob: "*.{ts,mjs,json,jsonc,md,yml,yaml}"
+      # AGENTS.md is a symlink to CLAUDE.md, and Prettier refuses symlinks given by name.
+      file_types: not symlink
+      run: npx prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+    - name: checks
+      group:
+        parallel: true
+        jobs:
+          - name: lint
+            run: npm run lint
+          - name: typecheck
+            run: npm run typecheck
+          - name: test
+            run: npm run test:coverage
+          - name: dead-code
+            run: npm run dead-code
+          - name: architecture
+            run: npm run lint:arch
+          - name: audit
+            run: npm audit
+
+commit-msg:
+  jobs:
+    - name: conventional-commits
+      run: >-
+        head -n 1 {1} | grep -Eq
+        '^((feat|fix|refactor|chore|test|docs|ci|build)(\([a-z0-9-]+\))?!?: .+|(Merge|Revert) .+|(fixup|squash|amend)! .+)$'
+        || { echo 'Use Conventional Commits: "<type>: <description>" with feat, fix, refactor, chore, test, docs, ci or build.'; exit 1; }
