@@ -44,7 +44,7 @@ with `--password-store=basic`. `make smoke` needs a display, or `xvfb-run` on a 
 | Command                 | Description                                                                         |
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `make setup`            | Install the locked dependencies and the git hooks.                                  |
-| `make build`            | Bundle the extension (esbuild) and the result view (Vite) into `dist/`.             |
+| `make build`            | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.                |
 | `make package`          | Build, then pack and check `sqldoro-<version>.vsix` (vsce).                         |
 | `make format`           | Format every file (Prettier) and apply the fixes ESLint can make.                   |
 | `make lint`             | ESLint (strict type-checked, complexity and security rules) and the Prettier check. |
@@ -137,9 +137,9 @@ The icon, `media/icon.png`, is rendered from `media/icon.svg` at 256×256 pixels
 [`@vscode/test-electron`](https://github.com/microsoft/vscode-test), installs the packaged `.vsix` (or
 `SMOKE_VSIX`) in a fresh profile without telemetry, and runs `test/smoke/suite.ts` inside it: the
 extension must come from the package, activate, register every command and view of `package.json`
-(each view opens and refreshes), answer `sqldoro.hello`, and load the result view of a SQL editor (the
+(each view opens and refreshes), answer `sqldoro.hello`, load the result view of a SQL editor (the
 React bundle runs under its Content Security Policy and tells the extension it is ready), then close
-and load it again. Each step prints a `>> ` line that the Quality Report summarises.
+and load it again, and load the connection form of **Add Connection** the same way. Each step prints a `>> ` line that the Quality Report summarises.
 
 ### Mutation testing (`make mutation`)
 

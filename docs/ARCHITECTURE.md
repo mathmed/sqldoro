@@ -16,8 +16,8 @@ flowchart TB
     drivers["src/drivers<br/>mysql/ (mysql2) · postgres/ (pg)"]
     tunnel["src/tunnel<br/>SSH tunnel (ssh2)"]
   end
-  subgraph browser["Webview (browser sandbox, strict CSP)"]
-    webview["src/webview<br/>React result grid<br/>(TanStack Table and Virtual)"]
+  subgraph browser["Webviews (browser sandbox, strict CSP)"]
+    webview["src/webview<br/>React: the result grid (TanStack Table and Virtual)<br/>and the connection form (connection-form/)"]
   end
   core["src/core<br/>engine and tunnel interfaces, connection model,<br/>SQL lexing, safety guards, edits, result model,<br/>message protocol: pure TypeScript"]
 
@@ -45,9 +45,9 @@ flowchart TB
   only `src/extension/factories/` instantiates the drivers and the tunnel, so supporting another
   engine is writing its driver and registering it there (see
   [CONTRIBUTING.md](../CONTRIBUTING.md#adding-a-database-engine)).
-- **`src/webview`** is a separate browser bundle (Vite). It never imports the extension host and
-  holds no rows of its own beyond a bounded cache: the host keeps the rows, and sorts, filters,
-  copies and exports them.
+- **`src/webview`** holds the two webviews, each a browser bundle of its own (Vite): the result grid
+  and the connection form. They never import the extension host. The grid holds no rows of its own
+  beyond a bounded cache: the host keeps the rows, and sorts, filters, copies and exports them.
 
 ## Opening a session
 
@@ -157,6 +157,19 @@ scroll smoothly. Long values reach the grid cut to 1,000 characters; the detail 
 shows up to 200,000. Every message is typed in `src/core/results/protocol.ts` and checked field by
 field by the core parsers on the side that receives it. The page has a strict Content Security
 Policy: one script with a nonce, styles and images from the extension only, no remote resource.
+
+## The connection form
+
+**Add Connection**, **Import Connection from URL** and **Edit Connection** open the connection form,
+a second webview with its own bundle and the same page and policy (`src/extension/webview-page.ts`).
+Its message protocol is declared in the core (`src/core/connection-form/protocol.ts`) and checked on
+both sides. The form keeps its state with pure functions of the core
+(`src/core/connection-form/form-state.ts`, and the changes of a connection in
+`src/core/connection/transitions.ts`) and validates with the same validators as the host, which
+checks the connection again before it saves. Secrets never travel to the form: it learns which kinds
+are held, and what the user types reaches the host only inside a test or a save. The host writes the
+secrets before the connection itself, so that a keyring that fails leaves nothing half saved, and a
+new connection is tested with what was typed without asking the keyring.
 
 ## Packaging and the pipeline
 

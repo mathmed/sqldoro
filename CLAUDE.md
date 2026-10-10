@@ -41,7 +41,7 @@ src/core/       engine interface, shared types and safety guards: pure TypeScrip
 src/drivers/    one folder per database (mysql/, postgres/) implementing the core engine interface
 src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
-src/webview/    React result grid (TanStack Table and Virtual): a browser bundle built by Vite
+src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
