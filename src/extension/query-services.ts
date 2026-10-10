@@ -24,14 +24,16 @@ import { checkEditing } from './edits/edit-check.ts'
 import { HistoryStore } from './history/history-store.ts'
 import { HistoryView } from './history/history-view.ts'
 import { systemClock } from './platform/clock.ts'
-import { copyRows, exportRows } from './results/results-actions.ts'
-import type { PanelActions } from './results/results-panel.ts'
+import type { PanelActions } from './results/panel-actions.ts'
+import { copyColumnName, copyRows, exportRows } from './results/results-actions.ts'
 import { ResultsPanels } from './results/results-panels.ts'
+import { sourceTitle } from './results/source-title.ts'
 import { StatementGuard } from './safety/statement-guard.ts'
 import type { Services } from './services.ts'
 import { readSettings } from './settings.ts'
 import { SavedQueryStore } from './snippets/saved-query-store.ts'
 import { SavedQueryView } from './snippets/saved-query-view.ts'
+import { filterTable } from './tables/table-filter.ts'
 import { CloseReason, EditorTransactions } from './transactions/editor-transactions.ts'
 import { TransactionStatusItem } from './transactions/transaction-status.ts'
 
@@ -170,6 +172,8 @@ function createRunParts(
     now: systemClock.now,
     log: access.log,
     actionsFor: (uri) => actionsOf(uri, { runner, editors, access }),
+    titleOf: (uri) =>
+      sourceTitle(uri, { connections: access.connection, engines: access.base.engines }),
   })
   const runner: QueryRunner = createRunner(access, editors, panels)
   return { panels, runner }
@@ -189,8 +193,10 @@ function actionsOf(uri: vscode.Uri, { runner, editors, access }: ActionParts): P
       runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
     loadAll: async (tab) => loadAllRows(runner, uri, tab),
     refresh: async (tab) => refreshTab(runner, uri, tab),
+    filterTable: async (tab, condition) => filterTable(runner, uri, { tab, condition }),
     copy: copyRows,
     export: exportRows,
+    copyColumnName,
     applyEdits: async (tab, plan) =>
       applyEdits(
         {

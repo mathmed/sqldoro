@@ -2,7 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { editingView, gridRow, hasEditor, setEdit, theEditor } from '../../test/webview/editing.ts'
-import { buttonIn, cellAt, theGrid } from '../../test/webview/grid.ts'
+import { buttonIn, cellAt, pickFromMenu, theGrid } from '../../test/webview/grid.ts'
 import { ValueType } from '../core/engine/table.ts'
 import type { EditPreview } from '../core/results/protocol.ts'
 
@@ -35,6 +35,14 @@ describe('ResultView, editing the rows', () => {
       ['DEFAULT', 'DEFAULT'],
     ])
     expect(gridRow(4)?.className).toBe('grid-row row-added')
+    expect(screen.getAllByRole('rowheader').map((number) => number.textContent)).toStrictEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '+',
+      '+',
+    ])
     expect(gridRow(4)?.hasAttribute('title')).toBe(false)
     expect(gridRow(5)?.className).toBe('grid-row row-added has-problem')
     expect(gridRow(5)?.getAttribute('title')).toBe('The column id needs a value.')
@@ -154,7 +162,7 @@ describe('ResultView, editing the rows', () => {
     fireEvent.mouseDown(cellAt(2, 1))
     fireEvent.mouseDown(cellAt(3, 1), { shiftKey: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Rows as INSERT' }))
+    pickFromMenu('Copy the selection', 'Copy Rows as INSERT')
 
     expect(sent('copy')).toStrictEqual([
       {
@@ -171,9 +179,9 @@ describe('ResultView, editing the rows', () => {
     const { rerender } = editingView()
 
     rerender({ changes: { status: 'running', rowCount: 0, loadedRows: 0, summary: null } })
-    expect(screen.getAllByRole('row')).toHaveLength(6)
+    expect(screen.getAllByRole('row')).toHaveLength(5)
 
     rerender({ changes: { rowCount: 2, loadedRows: 2 } })
-    expect(screen.getAllByRole('row')).toHaveLength(4)
+    expect(screen.getAllByRole('row')).toHaveLength(3)
   })
 })

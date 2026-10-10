@@ -1,5 +1,5 @@
 // Rows and lookups shared by the tests of the result grid.
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 
 import type { WireRow } from '../../src/core/results/protocol.ts'
 
@@ -27,4 +27,12 @@ export function theGrid(): HTMLElement {
 
 export function buttonIn(group: string, name: string): HTMLButtonElement {
   return within(screen.getByRole('group', { name: group })).getByRole('button', { name })
+}
+
+// Opens the menu of a button, then picks one of its items.
+export function pickFromMenu(button: string, item: string): void {
+  fireEvent.click(screen.getByRole('button', { name: button }))
+  fireEvent.click(
+    within(screen.getByRole('menu', { name: button })).getByRole('menuitem', { name: item }),
+  )
 }

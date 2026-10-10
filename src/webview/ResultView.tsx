@@ -33,39 +33,45 @@ interface ResultViewProps {
   readonly cell: CellMessage | undefined
   // Where the statements of the changes would run, for their preview.
   readonly connection: PanelConnection | null
+  // Whether tabs above name the results of the run; without them, the result names itself.
+  readonly hasTabs: boolean
 }
 
-// The result of one statement: its actions, what happened, its rows or plan, and the editing of
-// its rows with the preview of their changes.
+// The result of one statement: its actions, its rows or plan, what happened and the editing of its
+// rows, with the preview of their changes.
 export const ResultView = (props: ResultViewProps): ReactElement => {
   const { tab, store, api, cell } = props
   const choices = useChoices(tab)
   const actions = toolbarActions(api, tab, choices)
   const edits = editActions(api, tab, choices.selection)
   const edit = gridEdit(tab, { editing: useCellEditor(api, tab, { store, cell }), edits })
-  const hasSelection = choices.selection !== undefined
   return (
-    <section
-      role="tabpanel"
-      id="result-panel"
-      aria-labelledby={`tab-${tab.id}`}
-      className="result-view"
-    >
+    <section {...panelRole(tab, props.hasTabs)} id="result-panel" className="result-view">
       <Toolbar
         tab={tab}
-        hasSelection={hasSelection}
+        hasSelection={choices.selection !== undefined}
         isServerSide={choices.isServerSide}
         actions={actions}
+        edits={edits}
       />
-      <StatusLine tab={tab} />
-      <EditBar tab={tab} hasSelection={hasSelection} actions={edits} />
       <div className="result-body">
         <ResultContent content={{ tab, store, api, choices, edit }} onCopy={actions.copy} />
         <DetailPanel tab={tab} store={store} cell={cell} choices={choices} />
       </div>
+      <footer className="result-footer">
+        <StatusLine tab={tab} />
+        <EditBar tab={tab} />
+      </footer>
       <ChangesPreview tab={tab} edits={edits} connection={props.connection} />
     </section>
   )
+}
+
+// The panel of a tab, or the only result of the run, named by its statement.
+function panelRole(tab: ResultTab, hasTabs: boolean): Record<string, string> {
+  return hasTabs
+    ? { role: 'tabpanel', 'aria-labelledby': `tab-${tab.id}` }
+    : { role: 'region', 'aria-label': `Result of ${tab.title}` }
 }
 
 const ChangesPreview = ({

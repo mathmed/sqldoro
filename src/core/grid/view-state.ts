@@ -47,3 +47,13 @@ export function withFilter(view: ViewSpec, column: number, text: string): ViewSp
 export function filterText(view: ViewSpec, column: number): string {
   return view.filters.find((filter) => filter.column === column)?.text ?? ''
 }
+
+// The view sorted by this column alone, as the menu of its header sorts it.
+export function sortedBy(view: ViewSpec, column: number, isDescending: boolean): ViewSpec {
+  return { sort: [{ column, isDescending }], filters: view.filters }
+}
+
+// The view without the sort of this column; the other columns keep sorting, in their order.
+export function withoutSort(view: ViewSpec, column: number): ViewSpec {
+  return { sort: view.sort.filter((key) => key.column !== column), filters: view.filters }
+}

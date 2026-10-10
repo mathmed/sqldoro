@@ -1,9 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { resultTab } from '../../test/fixtures/results.ts'
+import { editableTab, resultTab } from '../../test/fixtures/results.ts'
+import { pickFromMenu } from '../../test/webview/grid.ts'
 import type { ExportFormat } from '../core/results/export-format.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
+import type { EditActions } from './edit-messages.ts'
 import { Toolbar } from './Toolbar.tsx'
 
 let actions: {
@@ -14,30 +16,38 @@ let actions: {
   copyRows: Mock<() => void>
   export: Mock<(format: ExportFormat) => void>
   setServerSide: Mock<(isServerSide: boolean) => void>
+  search: Mock<(text: string) => void>
+  filterTable: Mock<(condition: string) => void>
 }
 
-function toolbar(
-  changes: Partial<ResultTab> = {},
-  hasSelection = true,
-  isServerSide = false,
-): void {
+const EDITS: EditActions = {
+  onSelection: vi.fn(),
+  onResult: vi.fn(),
+  preview: vi.fn(),
+  closePreview: vi.fn(),
+  apply: vi.fn(),
+}
+
+function toolbar(tab: ResultTab, { hasSelection = true, isServerSide = false } = {}): void {
   render(
     <Toolbar
-      tab={resultTab(changes)}
+      tab={tab}
       hasSelection={hasSelection}
       isServerSide={isServerSide}
       actions={actions}
+      edits={EDITS}
     />,
   )
 }
 
-function button(group: string, name: string): HTMLButtonElement {
-  const buttons = screen.getByRole('group', { name: group }).querySelectorAll('button')
-  const found = [...buttons].find((candidate) => candidate.textContent === name)
-  if (found === undefined) {
-    throw new Error(`no ${name} in ${group}`)
-  }
-  return found
+function button(name: string): HTMLButtonElement {
+  return screen.getByRole<HTMLButtonElement>('button', { name })
+}
+
+function groups(): (string | null)[] {
+  return within(screen.getByRole('toolbar', { name: 'Result actions' }))
+    .getAllByRole('group')
+    .map((group) => group.getAttribute('aria-label'))
 }
 
 beforeEach(() => {
@@ -49,99 +59,117 @@ beforeEach(() => {
     copyRows: vi.fn(),
     export: vi.fn(),
     setServerSide: vi.fn(),
+    search: vi.fn(),
+    filterTable: vi.fn(),
   }
 })
 
 describe('Toolbar', () => {
-  it('should copy the selection and export the result in each format', () => {
-    toolbar()
+  it('should group compact icon buttons, each named and with a tooltip', () => {
+    toolbar(editableTab({}, { canRefresh: true }))
 
-    fireEvent.click(button('Copy selection as', 'INSERT'))
-    fireEvent.click(button('Export as', 'CSV'))
-    fireEvent.click(button('Export as', 'JSON'))
+    expect(groups()).toStrictEqual([
+      'Run',
+      'Changes',
+      'Rows',
+      'Cells',
+      'Copy and export',
+      'Reading',
+    ])
+    expect(button('Refresh')).toMatchObject({
+      className: 'tool-button',
+      title: 'Read the rows again, in the same view',
+      textContent: '',
+    })
+    expect(button('Preview Changes…').title).toBe(
+      'Preview the statements of the changes, then apply them (Ctrl+S)',
+    )
+  })
 
-    expect(actions.copy).toHaveBeenCalledWith('sql')
-    expect(actions.export.mock.calls).toStrictEqual([['csv'], ['json']])
-    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  it('should copy the selection in each format, and its rows whole as INSERT statements', () => {
+    toolbar(resultTab())
+
+    pickFromMenu('Copy the selection', 'Copy as CSV')
+    pickFromMenu('Copy the selection', 'Copy as JSON')
+    pickFromMenu('Copy the selection', 'Copy as INSERT')
+    pickFromMenu('Copy the selection', 'Copy Rows as INSERT')
+
+    expect(actions.copy.mock.calls).toStrictEqual([['csv'], ['json'], ['sql']])
+    expect(actions.copyRows).toHaveBeenCalledOnce()
+  })
+
+  it('should export the result in each format', () => {
+    toolbar(resultTab())
+
+    pickFromMenu('Export the result', 'Export as CSV…')
+    pickFromMenu('Export the result', 'Export as JSON…')
+    pickFromMenu('Export the result', 'Export as SQL…')
+
+    expect(actions.export.mock.calls).toStrictEqual([['csv'], ['json'], ['sql']])
   })
 
   it('should not copy without a selection nor export a result without columns', () => {
-    toolbar({ columns: [] }, false)
+    toolbar(resultTab({ columns: [] }), { hasSelection: false })
 
-    expect(button('Copy selection as', 'CSV').disabled).toBe(true)
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Copy Rows as INSERT' }).disabled,
-    ).toBe(true)
-    expect(button('Export as', 'SQL').disabled).toBe(true)
+    expect(button('Copy the selection').disabled).toBe(true)
+    expect(button('Export the result').disabled).toBe(true)
   })
 
-  it('should copy the selected rows whole as INSERT statements', () => {
-    toolbar()
+  it('should cancel a statement that runs, and not export it nor switch to the server yet', () => {
+    toolbar(resultTab({ status: 'running', summary: null }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Copy Rows as INSERT' }))
-
-    expect(actions.copyRows).toHaveBeenCalledOnce()
-    expect(actions.copy).not.toHaveBeenCalled()
-  })
-
-  it('should cancel a statement that runs, and not export it yet', () => {
-    toolbar({ status: 'running' })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(button('Cancel'))
 
     expect(actions.cancel).toHaveBeenCalledOnce()
-    expect(button('Export as', 'CSV').disabled).toBe(true)
-    expect(screen.getByRole('checkbox').hasAttribute('disabled')).toBe(true)
+    expect(groups().at(0)).toBe('Run')
+    expect(button('Export the result').disabled).toBe(true)
+    expect(button('Sort and filter on the server').disabled).toBe(true)
   })
 
-  it('should switch the sort and filters to the server where the statement allows it', () => {
-    toolbar({}, true, true)
+  it('should switch the sort and filters to the server, pressed while they are there', () => {
+    toolbar(resultTab(), { isServerSide: true })
 
-    const checkbox = screen.getByRole<HTMLInputElement>('checkbox', {
-      name: 'Sort and filter on the server',
-    })
-    expect(checkbox.checked).toBe(true)
-    fireEvent.click(checkbox)
+    const toggle = button('Sort and filter on the server')
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(toggle)
 
     expect(actions.setServerSide).toHaveBeenCalledWith(false)
   })
 
   it('should offer to load every row only when the automatic limit cut the result', () => {
     const limited = { durationMs: 1, affectedRows: null, isTruncated: true, autoLimit: 500 }
-    toolbar({ summary: limited })
-    fireEvent.click(screen.getByRole('button', { name: 'Load All Rows' }))
+    toolbar(resultTab({ summary: limited, canServerView: false }))
+
+    fireEvent.click(button('Load All Rows'))
+
     expect(actions.loadAll).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Sort and filter on the server' })).toBeNull()
   })
 
-  it('should not offer to load every row of a complete result', () => {
-    toolbar()
+  it('should leave out what a complete result that cannot run again has no use for', () => {
+    toolbar(resultTab({ canServerView: false }))
 
-    expect(screen.queryByRole('button', { name: 'Load All Rows' })).toBeNull()
+    expect(groups()).toStrictEqual(['Copy and export'])
+    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'WHERE condition' })).toBeNull()
   })
 
-  it('should read the rows of a table again once they are read', () => {
-    toolbar({ canRefresh: true })
+  it('should read the rows of a table again, and offer its WHERE', () => {
+    toolbar(resultTab({ canRefresh: true }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    fireEvent.click(button('Refresh'))
 
     expect(actions.refresh).toHaveBeenCalledOnce()
+    expect(screen.getByRole('textbox', { name: 'WHERE condition' })).toBeDefined()
   })
 
-  it('should not offer to read the rows of a table again while they are read', () => {
-    toolbar({ canRefresh: true, status: 'running' })
+  it('should search the rows of every result', () => {
+    toolbar(resultTab())
 
-    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
-  })
+    const search = screen.getByRole('searchbox', { name: 'Quick Search' })
+    fireEvent.change(search, { target: { value: 'ann' } })
+    fireEvent.keyDown(search, { key: 'Enter' })
 
-  it('should not offer to read the rows of a query again', () => {
-    toolbar()
-
-    expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
-  })
-
-  it('should not offer the server where the statement cannot run again', () => {
-    toolbar({ canServerView: false })
-
-    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(actions.search).toHaveBeenCalledExactlyOnceWith('ann')
   })
 })

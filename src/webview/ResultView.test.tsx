@@ -3,7 +3,7 @@ import type { JSX } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resultTab } from '../../test/fixtures/results.ts'
-import { buttonIn, cellAt, GRID_ROWS, LONG_TEXT, theGrid } from '../../test/webview/grid.ts'
+import { cellAt, GRID_ROWS, LONG_TEXT, pickFromMenu, theGrid } from '../../test/webview/grid.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { CellMessage, ResultTab } from '../core/results/protocol.ts'
 import { ResultView } from './ResultView.tsx'
@@ -20,6 +20,7 @@ function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.El
       api={api}
       cell={answer}
       connection={null}
+      hasTabs={false}
     />
   )
 }
@@ -50,10 +51,11 @@ describe('ResultView', () => {
     view()
 
     expect(theGrid().getAttribute('aria-rowcount')).toBe('5')
-    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toStrictEqual([
-      'id',
-      'name',
-    ])
+    expect(
+      screen
+        .getAllByRole('columnheader')
+        .map((header) => header.querySelector('.column-name')?.textContent),
+    ).toStrictEqual(['id', 'name'])
     expect([0, 1, 2, 3].map((row) => cellAt(row, 1).textContent)).toStrictEqual([
       'ann',
       'NULL',
@@ -65,7 +67,7 @@ describe('ResultView', () => {
   it('should show rows that are not here yet as loading', () => {
     render(element({ rowCount: 300 }))
 
-    expect(screen.getAllByRole('row')[2]?.className).toBe('grid-row loading')
+    expect(screen.getAllByRole('row')[1]?.className).toBe('grid-row loading')
     expect(cellAt(0, 1).className).toBe('grid-cell look-loading')
   })
 
@@ -75,7 +77,7 @@ describe('ResultView', () => {
     fireEvent.mouseDown(cellAt(0, 0))
     fireEvent.mouseDown(cellAt(1, 1), { shiftKey: true })
     fireEvent.keyDown(theGrid(), { key: 'c', ctrlKey: true })
-    fireEvent.click(buttonIn('Copy selection as', 'JSON'))
+    pickFromMenu('Copy the selection', 'Copy as JSON')
 
     const range = { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 1 }
     expect(sent('copy')).toStrictEqual([
@@ -90,7 +92,9 @@ describe('ResultView', () => {
     fireEvent.keyDown(theGrid(), { key: 'c', ctrlKey: true })
 
     expect(sent('copy')).toStrictEqual([])
-    expect(buttonIn('Copy selection as', 'CSV').disabled).toBe(true)
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'Copy the selection' }).disabled,
+    ).toBe(true)
   })
 
   it('should keep the selection inside rows that shrink, and drop it without rows', () => {
@@ -163,7 +167,7 @@ describe('ResultView', () => {
     view()
 
     fireEvent.click(screen.getByRole('button', { name: 'id' }))
-    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Sort and filter on the server' }))
     fireEvent.click(screen.getByRole('button', { name: 'name' }))
 
     expect(sent('setView')).toStrictEqual([
@@ -185,19 +189,21 @@ describe('ResultView', () => {
   it('should start with the server view of a tab sorted by the server', () => {
     view({ isServerView: true })
 
-    expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(true)
+    expect(
+      screen
+        .getByRole('button', { name: 'Sort and filter on the server' })
+        .getAttribute('aria-pressed'),
+    ).toBe('true')
   })
 
   it('should cancel a statement that runs, and change no view meanwhile', () => {
-    vi.useFakeTimers()
-    view({ status: 'running', summary: null })
+    const { rerender } = view()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter name' }))
+    rerender(element({ status: 'running', summary: null }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Filter name' }), {
-      target: { value: 'x' },
-    })
-    act(() => {
-      vi.advanceTimersByTime(400)
+    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Rows whose name contains' }), {
+      key: 'Enter',
     })
 
     expect(sent('cancel')).toStrictEqual([{ type: 'cancel' }])
@@ -215,7 +221,7 @@ describe('ResultView', () => {
   it('should export the result', () => {
     view()
 
-    fireEvent.click(buttonIn('Export as', 'SQL'))
+    pickFromMenu('Export the result', 'Export as SQL…')
 
     expect(sent('export')).toStrictEqual([{ type: 'export', tabId: 'tab-1', format: 'sql' }])
   })

@@ -6,7 +6,7 @@ import { type QueryHarness, queryHarness } from '../../../test/support/query.ts'
 import { resetVscode, Uri, window } from '../../../test/vscode.ts'
 import { ColumnKind } from '../../core/engine/query.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import { refreshOf, refreshTab } from './refresh-rows.ts'
+import { readingOf, refreshOf, refreshTab } from './refresh-rows.ts'
 
 const NAME = { name: 'name', dataType: 'TEXT', kind: ColumnKind.Text }
 
@@ -52,6 +52,7 @@ describe('refreshOf', () => {
       sql: 'SELECT name FROM t',
       values: [],
       isServerView: false,
+      shouldAutoLimit: false,
     })
 
     sut.restart({ sort: [{ column: 0, isDescending: false }], filters: [] })
@@ -60,6 +61,28 @@ describe('refreshOf', () => {
       sql: 'SELECT * FROM (\nSELECT name FROM t\n) AS sqldoro_view\nORDER BY "name" ASC',
       values: [],
       isServerView: true,
+      shouldAutoLimit: true,
+    })
+  })
+})
+
+describe('readingOf', () => {
+  it('should read the rows of a tab with another query, in its view, limited as asked', () => {
+    const sut = tab()
+    const reading = { sql: 'SELECT name FROM t WHERE (x\n)', shouldAutoLimit: true }
+    expect(readingOf(sut, reading, POSTGRES_DIALECT)).toStrictEqual({
+      ...reading,
+      values: [],
+      isServerView: false,
+    })
+
+    sut.restart({ sort: [], filters: [{ column: 0, text: 'a' }] })
+
+    expect(readingOf(sut, { ...reading, shouldAutoLimit: false }, POSTGRES_DIALECT)).toStrictEqual({
+      sql: `SELECT * FROM (\nSELECT name FROM t WHERE (x\n)\n) AS sqldoro_view\nWHERE LOWER(CAST("name" AS TEXT)) LIKE $1`,
+      values: ['%a%'],
+      isServerView: true,
+      shouldAutoLimit: false,
     })
   })
 })

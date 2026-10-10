@@ -2,6 +2,7 @@
    buttons and inputs come from base.css. */
 :root {
   --row-height: 24px;
+  --header-height: 28px;
   --grid-font: var(--vscode-editor-font-family, monospace);
   --grid-font-size: var(--vscode-editor-font-size, 13px);
 }
@@ -90,37 +91,222 @@
   min-height: 0;
 }
 
+/* The toolbar: compact icon buttons in groups parted by thin lines, then the WHERE of a table and
+   the quick search on the right. */
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  padding: 4px 8px;
+  gap: 4px 0;
+  min-height: 30px;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
-.button-group {
+.tool-group {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding: 0 4px;
 }
 
-.group-label {
+.tool-group:first-child {
+  padding-left: 0;
+}
+
+.tool-group + .tool-group::before {
+  width: 1px;
+  height: 16px;
+  margin-right: 6px;
+  content: '';
+  background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border));
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.tool-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 3px;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+}
+
+.tool-button:hover:not(:disabled),
+.tool-button[aria-expanded='true'] {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.tool-button[aria-pressed='true'] {
+  color: var(--vscode-inputOption-activeForeground, var(--vscode-icon-foreground));
+  background: var(--vscode-inputOption-activeBackground);
+  box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder, transparent);
+}
+
+.tool-button.has-chevron .icon-chevronDown {
+  width: 10px;
+  height: 10px;
+  margin-left: 1px;
+}
+
+.menu-anchor {
+  display: inline-flex;
+  flex: none;
+}
+
+.toolbar-fill {
+  flex: 1 1 0;
+}
+
+.where-filter {
+  display: inline-flex;
+  flex: 1 1 280px;
+  align-items: center;
+  gap: 6px;
+  min-width: 200px;
+  max-width: 560px;
+  margin-right: 10px;
+}
+
+.where-label {
+  font-family: var(--grid-font);
+  font-size: 0.85em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--vscode-descriptionForeground);
 }
 
-.server-side {
+.where-filter input {
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  font-family: var(--grid-font);
+  font-size: var(--grid-font-size);
+}
+
+.quick-search {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+
+.quick-search > .icon {
+  position: absolute;
+  left: 6px;
+  width: 14px;
+  height: 14px;
+  color: var(--vscode-input-placeholderForeground, var(--vscode-descriptionForeground));
+  pointer-events: none;
+}
+
+.quick-search input {
+  box-sizing: border-box;
+  width: 190px;
+  height: 22px;
+  padding: 0 6px 0 24px;
+}
+
+.match-count {
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+/* The menus of the toolbar and of the headers, and the filter of a column: floating widgets. */
+.menu,
+.popover {
+  position: fixed;
+  z-index: 20;
+  box-sizing: border-box;
+  color: var(--vscode-menu-foreground, var(--vscode-foreground));
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+  border: 1px solid
+    var(--vscode-menu-border, var(--vscode-widget-border, var(--vscode-panel-border)));
+  border-radius: 5px;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgb(0 0 0 / 36%));
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  font-weight: normal;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+}
+
+.menu [role='menuitem'] {
+  padding: 3px 10px;
+  text-align: left;
+  white-space: nowrap;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+}
+
+.menu [role='menuitem']:hover:not(:disabled),
+.menu [role='menuitem']:focus-visible {
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground));
+  outline: none;
+}
+
+.popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 240px;
+  padding: 8px;
+}
+
+.popover input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+}
+
+.popover-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* The status of the statement and of the editing of its rows, under the grid. */
+.result-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 16px;
+  min-height: 22px;
+  padding: 1px 8px;
+  color: var(--vscode-descriptionForeground);
+  border-top: 1px solid var(--vscode-panel-border);
 }
 
 .status-line {
-  padding: 2px 8px 4px;
-  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-line-failed {
   color: var(--vscode-errorForeground);
+  white-space: normal;
 }
 
 .result-body {
@@ -140,9 +326,13 @@
 .grid-header {
   position: sticky;
   top: 0;
-  z-index: 1;
-  height: calc(2 * var(--row-height));
+  z-index: 2;
+  height: var(--header-height);
   background: var(--vscode-editor-background);
+}
+
+.header-row {
+  height: var(--header-height);
 }
 
 .grid-body {
@@ -180,21 +370,79 @@
 }
 
 .header-cell {
-  padding: 0;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  padding: 0 2px 0 0;
+  line-height: normal;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
   background: var(--vscode-editorGroupHeader-tabsBackground);
 }
 
 .header-cell .sort {
-  width: 100%;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   height: 100%;
+  padding: 0 4px 0 8px;
   overflow: hidden;
   text-align: left;
-  text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--vscode-foreground);
   background: transparent;
   border: none;
+  border-radius: 0;
+  font-weight: 600;
+}
+
+.column-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kind-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.sort-mark {
+  flex: none;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.header-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+}
+
+.header-action .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.header-action:hover:not(:disabled),
+.header-action[aria-expanded='true'] {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.header-action.is-active {
+  color: var(--vscode-inputOption-activeForeground, var(--vscode-focusBorder));
+  background: var(--vscode-inputOption-activeBackground);
 }
 
 .resizer {
@@ -211,14 +459,36 @@
   background: var(--vscode-focusBorder);
 }
 
-.filter-cell {
-  padding: 1px 2px;
+/* The row numbers: muted like the line numbers of the editor, and always in view on the left. */
+.row-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  flex: none;
+  box-sizing: border-box;
+  padding: 0 8px 0 2px;
+  overflow: hidden;
+  text-align: right;
+  line-height: var(--row-height);
+  color: var(--vscode-editorLineNumber-foreground, var(--vscode-descriptionForeground));
+  background: var(--vscode-editor-background);
+  border-right: 1px solid var(--vscode-panel-border);
+  cursor: pointer;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 
-.filter-cell input {
-  box-sizing: border-box;
-  width: 100%;
-  height: calc(var(--row-height) - 3px);
+.row-number.selected {
+  color: var(--vscode-editorLineNumber-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.row-number.corner {
+  z-index: 3;
+  height: 100%;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  cursor: default;
 }
 
 .look-number {
@@ -318,15 +588,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 2px 8px 4px;
-  color: var(--vscode-descriptionForeground);
-}
-
-.edit-buttons {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  gap: 2px 12px;
 }
 
 .edit-notice.error {
@@ -343,7 +605,7 @@
   background: var(--vscode-diffEditor-insertedLineBackground, transparent);
 }
 
-.grid-row.row-added .grid-cell:first-child {
+.grid-row.row-added .row-number {
   box-shadow: inset 3px 0 0 var(--vscode-editorGutter-addedBackground, currentColor);
 }
 
@@ -352,7 +614,7 @@
   background: var(--vscode-diffEditor-removedLineBackground, transparent);
 }
 
-.grid-row.row-deleted .grid-cell:first-child {
+.grid-row.row-deleted .row-number {
   box-shadow: inset 3px 0 0 var(--vscode-editorGutter-deletedBackground, currentColor);
 }
 

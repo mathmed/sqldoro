@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { filtersOf, filterText, sortingOf, viewOf, withFilter } from './view-state.ts'
+import {
+  filtersOf,
+  filterText,
+  sortedBy,
+  sortingOf,
+  viewOf,
+  withFilter,
+  withoutSort,
+} from './view-state.ts'
 
 const VIEW = {
   sort: [
@@ -72,5 +80,26 @@ describe('withFilter and filterText', () => {
   it('should read the filter of a column, empty without one', () => {
     expect(filterText(VIEW, 1)).toBe('ab')
     expect(filterText(VIEW, 0)).toBe('')
+  })
+})
+
+describe('sortedBy and withoutSort', () => {
+  it('should sort by one column alone, either way, keeping the filters', () => {
+    expect(sortedBy(VIEW, 1, false)).toStrictEqual({
+      sort: [{ column: 1, isDescending: false }],
+      filters: VIEW.filters,
+    })
+    expect(sortedBy(VIEW, 2, true)).toStrictEqual({
+      sort: [{ column: 2, isDescending: true }],
+      filters: VIEW.filters,
+    })
+  })
+
+  it('should stop sorting by one column, keeping the others and the filters', () => {
+    expect(withoutSort(VIEW, 2)).toStrictEqual({
+      sort: [{ column: 0, isDescending: false }],
+      filters: VIEW.filters,
+    })
+    expect(withoutSort(VIEW, 1)).toStrictEqual(VIEW)
   })
 })

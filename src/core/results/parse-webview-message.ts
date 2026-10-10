@@ -28,6 +28,30 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
     WebviewMessageType.Refresh,
     (message) => ({ type: WebviewMessageType.Refresh, tabId: readString(message, 'tabId') }),
   ],
+  [
+    WebviewMessageType.FilterTable,
+    (message) => ({
+      type: WebviewMessageType.FilterTable,
+      tabId: readString(message, 'tabId'),
+      condition: readString(message, 'condition'),
+    }),
+  ],
+  [
+    WebviewMessageType.Search,
+    (message) => ({
+      type: WebviewMessageType.Search,
+      tabId: readString(message, 'tabId'),
+      text: readString(message, 'text'),
+    }),
+  ],
+  [
+    WebviewMessageType.CopyColumnName,
+    (message) => ({
+      type: WebviewMessageType.CopyColumnName,
+      tabId: readString(message, 'tabId'),
+      column: readCount(message, 'column'),
+    }),
+  ],
   [WebviewMessageType.Problem, readProblem],
   [WebviewMessageType.Edit, readEdit],
   [

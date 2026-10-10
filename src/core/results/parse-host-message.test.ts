@@ -33,6 +33,8 @@ describe('parseHostMessage', () => {
       notice: '1 statement not run',
       view: { sort: [{ column: 0, isDescending: false }], filters: [{ column: 1, text: 'a' }] },
       canRefresh: true,
+      tableFilter: "status = 'open'",
+      search: 'ann',
     })
 
     expect(parseHostMessage({ type: 'tab', tab })).toStrictEqual({ type: 'tab', tab })
@@ -43,6 +45,14 @@ describe('parseHostMessage', () => {
 
     expect(() => parseHostMessage({ type: 'tab', tab })).toThrow(
       new TypeError('"canRefresh" must be a boolean'),
+    )
+  })
+
+  it.each(['tableFilter', 'search'])('should refuse a tab whose %s is not text', (field) => {
+    const tab = { ...resultTab(), [field]: null }
+
+    expect(() => parseHostMessage({ type: 'tab', tab })).toThrow(
+      new TypeError(`"${field}" must be a string`),
     )
   })
 

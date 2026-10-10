@@ -8,6 +8,15 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ### Changed
 
+- **Result view**, friendlier: the toolbar is a row of compact icon buttons with tooltips, in groups
+  (refresh, changes, rows, cells, copy and export, reading), with the WHERE of a table and the quick
+  search on the right; copy and export open a menu of their formats. Each column header shows the
+  kind of its values, a filter button that opens the filter in a popover (instead of a row of
+  filters under the headers) and lights up while the column is filtered, and a menu to sort
+  ascending or descending, clear the sort, filter and copy the column name. The status of the
+  statement and of the editing of its rows moves under the grid, and a run of one statement shows no
+  tab bar (its statement is in the tooltip of the status). Table panels are titled
+  `connection/database/table` (`schema.table` in PostgreSQL), with the environment after it.
 - **Connection form**, redesigned: a new connection starts on a card per database with its default
   port, then the connection shows in one card with a field per row and its label on the left: the
   environment as a segmented control with the color of each, host and port in one box, a password
@@ -33,6 +42,15 @@ All notable changes to sqldoro are documented in this file. The format is based 
   (`~27k rows · 32 MB`, the exact numbers in its tooltip). They come from the catalog statistics, in
   the query that already lists the objects; when the server cannot give them, the objects are listed
   without them. **Refresh** reads them again.
+- **WHERE of a table panel**: a condition of your own (`status = 'active'`), applied with `Enter`,
+  reads the rows of the table that meet it, through the guards and with the automatic `LIMIT`; the
+  rows stay editable, and Refresh, Load All Rows and the server view keep the condition. A condition
+  that would end the statement, or leave its strings, comments or parentheses open, is refused
+  before anything runs.
+- **Quick Search** in the result view: keeps the rows with a text in any column, without case, with
+  the filters of the columns, and counts them. It searches the rows fetched, in the extension host.
+- **Row numbers** in the result grid, always in view on the left: a click selects the row, `Shift`
+  the rows up to it.
 
 ## [0.1.0] - Unreleased
 

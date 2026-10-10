@@ -58,6 +58,24 @@ export function extendSelection(selection: GridSelection, focus: CellPosition): 
   return { anchor: selection.anchor, focus }
 }
 
+// Every cell of a row, as a click on its number selects them.
+export function selectRow(row: number, columnCount: number): GridSelection {
+  return { anchor: { row, column: 0 }, focus: { row, column: columnCount - 1 } }
+}
+
+// Every cell of the rows from the one the selection started on to this one, as a click on a row
+// number with Shift selects them.
+export function extendToRow(
+  selection: GridSelection,
+  row: number,
+  columnCount: number,
+): GridSelection {
+  return {
+    anchor: { row: selection.anchor.row, column: 0 },
+    focus: { row, column: columnCount - 1 },
+  }
+}
+
 export function selectAll(bounds: GridBounds): GridSelection {
   const anchor = Moves.gridStart()
   return { anchor, focus: clampPosition(Moves.gridEnd(anchor, bounds), bounds) }

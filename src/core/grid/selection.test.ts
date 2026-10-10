@@ -4,6 +4,7 @@ import {
   clampPosition,
   clampSelection,
   extendSelection,
+  extendToRow,
   isSelected,
   type Move,
   Moves,
@@ -11,6 +12,7 @@ import {
   selectAll,
   selectCell,
   selectionRange,
+  selectRow,
 } from './selection.ts'
 
 const BOUNDS = { rowCount: 100, columnCount: 5, pageSize: 10 }
@@ -64,6 +66,28 @@ describe('clampPosition and clampSelection', () => {
     expect(
       clampSelection({ anchor: { row: 120, column: 1 }, focus: { row: 3, column: 9 } }, BOUNDS),
     ).toStrictEqual({ anchor: { row: 99, column: 1 }, focus: { row: 3, column: 4 } })
+  })
+})
+
+describe('selectRow and extendToRow', () => {
+  it('should select every cell of a row', () => {
+    expect(selectRow(7, 5)).toStrictEqual({
+      anchor: { row: 7, column: 0 },
+      focus: { row: 7, column: 4 },
+    })
+  })
+
+  it('should select whole rows from where the selection started, up or down', () => {
+    const started = { anchor: { row: 3, column: 2 }, focus: { row: 4, column: 1 } }
+
+    expect(extendToRow(started, 9, 5)).toStrictEqual({
+      anchor: { row: 3, column: 0 },
+      focus: { row: 9, column: 4 },
+    })
+    expect(extendToRow(started, 0, 2)).toStrictEqual({
+      anchor: { row: 3, column: 0 },
+      focus: { row: 0, column: 1 },
+    })
   })
 })
 

@@ -20,9 +20,15 @@ import { runServerView } from '../../src/extension/editor/server-view.ts'
 import { applyEdits } from '../../src/extension/edits/apply-edits.ts'
 import { checkEditing } from '../../src/extension/edits/edit-check.ts'
 import type { Clock } from '../../src/extension/platform/clock.ts'
-import { copyRows, exportRows } from '../../src/extension/results/results-actions.ts'
+import {
+  copyColumnName,
+  copyRows,
+  exportRows,
+} from '../../src/extension/results/results-actions.ts'
 import { ResultsPanels } from '../../src/extension/results/results-panels.ts'
+import { sourceTitle } from '../../src/extension/results/source-title.ts'
 import { StatementGuard } from '../../src/extension/safety/statement-guard.ts'
+import { filterTable } from '../../src/extension/tables/table-filter.ts'
 import {
   CloseReason,
   EditorTransactions,
@@ -170,6 +176,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     }),
   )
   const clock = steppingClock()
+  const engines = new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE])
   const panels = new ResultsPanels({
     extensionUri: Uri.file('/extension') as unknown as vscode.Uri,
     now: clock.now,
@@ -180,8 +187,10 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
         runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
       loadAll: async (tab) => loadAllRows(runner, uri, tab),
       refresh: async (tab) => refreshTab(runner, uri, tab),
+      filterTable: async (tab, condition) => filterTable(runner, uri, { tab, condition }),
       copy: copyRows,
       export: exportRows,
+      copyColumnName,
       applyEdits: async (tab, plan) =>
         applyEdits(
           {
@@ -197,6 +206,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
         ),
       isInOpenTransaction: () => batchMode(transactions.of(uri.toString())) === BatchMode.Joined,
     }),
+    titleOf: (uri) => sourceTitle(uri, { connections: (id) => connections.get(id), engines }),
   })
   const diagnostics = languages.createDiagnosticCollection(
     'sqldoro',
@@ -208,7 +218,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     guard: new StatementGuard({ policy: () => policy, log }),
     connect,
     connections: (id) => connections.get(id),
-    engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]),
+    engines,
     panels,
     diagnostics,
     record: async (entry) => {

@@ -44,10 +44,20 @@ describe('App', () => {
     fromHost({ type: 'tabs', tabs: [FIRST], activeTabId: 'tab-1' })
 
     fromHost({ type: 'tab', tab: { ...FIRST, title: 'SELECT id FROM orders' } })
-    expect(screen.getByRole('tab', { selected: true }).textContent).toBe('1. SELECT id FROM orders')
+    expect(screen.getByRole('region', { name: 'Result of SELECT id FROM orders' })).toBeDefined()
     fromHost({ type: 'tab', tab: SECOND })
 
     expect(screen.getByRole('tab', { selected: true }).textContent).toBe('2. SELECT 2')
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe('tab-tab-2')
+  })
+
+  it('should show no tabs for a run of one statement, its statement in the tooltip of its status', () => {
+    render(<App api={api} />)
+
+    fromHost({ type: 'tabs', tabs: [FIRST], activeTabId: 'tab-1' })
+
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('status').title).toBe('SELECT * FROM orders')
   })
 
   it('should show the whole value the host sends for a cut cell', () => {

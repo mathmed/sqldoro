@@ -26,9 +26,12 @@ function panels(): ResultsPanels {
       refresh: vi.fn(),
       copy: vi.fn(),
       export: vi.fn(),
+      filterTable: vi.fn(),
+      copyColumnName: vi.fn(),
       applyEdits: vi.fn(),
       isInOpenTransaction: () => false,
     }),
+    titleOf: (uri) => `Title of ${uri.path}`,
   })
 }
 
@@ -51,7 +54,7 @@ describe('ResultsPanels', () => {
     expect(webviewPanels).toHaveLength(1)
     expect(webviewPanels[0]).toMatchObject({
       viewType: 'sqldoro.results',
-      title: 'Results: Untitled-1',
+      title: 'Title of Untitled-1',
       showOptions: { viewColumn: -2, preserveFocus: true },
     })
     expect(webviewPanels[0]?.webview.options).toMatchObject({
@@ -90,11 +93,11 @@ describe('ResultsPanels', () => {
     expect(webviewPanels.every((panel) => panel.isDisposed)).toBe(true)
   })
 
-  it('should open the panel of a table in place, named by the table', () => {
+  it('should open the panel of a table in place, named by its source', () => {
     panels().show(ORDERS)
 
     expect(webviewPanels[0]).toMatchObject({
-      title: 'orders — sales',
+      title: 'Title of /orders',
       showOptions: { viewColumn: -1, preserveFocus: true },
     })
   })

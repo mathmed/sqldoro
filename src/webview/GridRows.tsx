@@ -7,7 +7,7 @@ import type { CellRange, WireRow } from '../core/results/protocol.ts'
 import { CellEditor, type CellEditorActions } from './CellEditor.tsx'
 import type { RowEdit } from './edit-overlay.ts'
 import { cellDisplay, cellNote, type CellState, rowClassName } from './grid-cells.ts'
-import { ariaRowIndex, cellId, HEADER_HEIGHT, ROW_HEIGHT } from './grid-model.ts'
+import { ariaColumnIndex, ariaRowIndex, cellId, HEADER_HEIGHT, ROW_HEIGHT } from './grid-model.ts'
 import type { CellEditorView } from './use-cell-editor.ts'
 import type { ColumnWindow } from './use-column-window.ts'
 
@@ -15,6 +15,10 @@ export interface RowLayout {
   readonly tabId: string
   readonly columns: readonly ResultColumn[]
   readonly widths: readonly number[]
+  // The width of the row numbers, on the left.
+  readonly gutter: number
+  // Rows of the view; the rows past them were added in the grid.
+  readonly rowCount: number
   // The columns in the page; the others are empty space.
   readonly shown: ColumnWindow
   readonly totalWidth: number
@@ -36,6 +40,8 @@ export interface ShownEditor {
 export interface CellEvents {
   readonly onCellDown: (position: CellPosition, isExtending: boolean) => void
   readonly onCellOpen: (position: CellPosition) => void
+  // A click on the number of a row: Shift extends the selection to it.
+  readonly onRowDown: (row: number, isExtending: boolean) => void
 }
 
 interface GridRowsProps {
@@ -94,19 +100,57 @@ const GridRow = ({ index, offset, row, layout, events }: GridRowProps): ReactEle
         width: layout.totalWidth,
       }}
     >
+      <RowNumber index={index} layout={layout} onDown={events.onRowDown} />
       <ColumnSpacer width={layout.shown.before} />
-      {layout.columns.slice(layout.shown.first, layout.shown.last + 1).map((column, shift) => {
-        const columnIndex = layout.shown.first + shift
-        return (
-          <GridCell
-            key={column.name + String(columnIndex)}
-            cell={{ position: { row: index, column: columnIndex }, kind: column.kind, row, edit }}
-            name={column.name}
-            layout={layout}
-            events={events}
-          />
-        )
-      })}
+      <RowCells index={index} row={row} edit={edit} layout={layout} events={events} />
+    </div>
+  )
+}
+
+interface RowCellsProps extends Omit<GridRowProps, 'offset'> {
+  readonly edit: RowEdit | undefined
+}
+
+// The cells of the columns in the page.
+const RowCells = ({ index, row, edit, layout, events }: RowCellsProps): ReactElement => (
+  <>
+    {layout.columns.slice(layout.shown.first, layout.shown.last + 1).map((column, shift) => {
+      const columnIndex = layout.shown.first + shift
+      return (
+        <GridCell
+          key={column.name + String(columnIndex)}
+          cell={{ position: { row: index, column: columnIndex }, kind: column.kind, row, edit }}
+          name={column.name}
+          layout={layout}
+          events={events}
+        />
+      )
+    })}
+  </>
+)
+
+interface RowNumberProps {
+  readonly index: number
+  readonly layout: RowLayout
+  readonly onDown: (row: number, isExtending: boolean) => void
+}
+
+// The number of a row, muted and always in view on the left; a click selects the row. A row added
+// in the grid has no number yet.
+const RowNumber = ({ index, layout, onDown }: RowNumberProps): ReactElement => {
+  const isInSelection =
+    layout.range !== undefined && index >= layout.range.firstRow && index <= layout.range.lastRow
+  return (
+    <div
+      className={isInSelection ? 'row-number selected' : 'row-number'}
+      role="rowheader"
+      aria-colindex={1}
+      style={{ width: layout.gutter }}
+      onMouseDown={(event: MouseEvent) => {
+        onDown(index, event.shiftKey)
+      }}
+    >
+      {index < layout.rowCount ? String(index + 1) : '+'}
     </div>
   )
 }
@@ -133,7 +177,7 @@ const GridCell = ({ cell, name, layout, events }: GridCellProps): ReactElement =
       id={cellId(layout.tabId, position.row, position.column)}
       className={display.className}
       role="gridcell"
-      aria-colindex={position.column + 1}
+      aria-colindex={ariaColumnIndex(position.column)}
       aria-selected={isInSelection}
       aria-readonly={layout.isEditing ? !layout.canEdit(position) : undefined}
       aria-description={cellNote(cell)}

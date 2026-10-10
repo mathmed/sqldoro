@@ -138,8 +138,13 @@ export interface ResultTab {
   readonly viewVersion: number
   readonly isServerView: boolean
   readonly canServerView: boolean
-  // Whether the view offers to read the rows again: the rows of a table opened from the explorer.
+  // Whether the view offers to read the rows again, and with a condition (a WHERE): the rows of a
+  // table opened from the explorer.
   readonly canRefresh: boolean
+  // The condition the rows of a table are read with, as typed; empty without one.
+  readonly tableFilter: string
+  // The text of the quick search: the view shows the rows that hold it; empty without one.
+  readonly search: string
   readonly summary: TabSummary | null
   readonly error: TabError | null
   readonly notice: string
@@ -206,6 +211,9 @@ export const WebviewMessageType = {
   Cancel: 'cancel',
   LoadAll: 'loadAll',
   Refresh: 'refresh',
+  FilterTable: 'filterTable',
+  Search: 'search',
+  CopyColumnName: 'copyColumnName',
   Problem: 'problem',
   Edit: 'edit',
   PreviewEdits: 'previewEdits',
@@ -260,6 +268,23 @@ export type WebviewMessage =
   | { readonly type: typeof WebviewMessageType.LoadAll; readonly tabId: string }
   // Reads the rows of the tab again, in its view.
   | { readonly type: typeof WebviewMessageType.Refresh; readonly tabId: string }
+  // Reads the rows of a table again with this condition as their WHERE; an empty one reads them all.
+  | {
+      readonly type: typeof WebviewMessageType.FilterTable
+      readonly tabId: string
+      readonly condition: string
+    }
+  // Shows the rows of the view with this text in any column; an empty text shows them all.
+  | {
+      readonly type: typeof WebviewMessageType.Search
+      readonly tabId: string
+      readonly text: string
+    }
+  | {
+      readonly type: typeof WebviewMessageType.CopyColumnName
+      readonly tabId: string
+      readonly column: number
+    }
   // Something the webview could not handle, for the extension's log.
   | { readonly type: typeof WebviewMessageType.Problem; readonly message: string }
   // Edits name the view they were made on: one made on another view is dropped.

@@ -12,16 +12,19 @@ import {
 import {
   type CellPosition,
   extendSelection,
+  extendToRow,
   type GridSelection,
   selectCell,
   selectionRange,
+  selectRow,
 } from '../core/grid/selection.ts'
 import { ExportFormat } from '../core/results/export-format.ts'
-import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
+import { type ResultTab, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { canEditCell, gridRowCount, isEditing, rowEditAt } from './edit-overlay.ts'
 import { handleGridKey } from './grid-keys.ts'
-import { cellId, HEADER_HEIGHT, ROW_HEIGHT, scrollToShow } from './grid-model.ts'
+import { cellId, HEADER_HEIGHT, ROW_HEIGHT, rowNumberWidth } from './grid-model.ts'
+import { pageSize, revealedScroll } from './grid-scroll.ts'
 import { GridHeader } from './GridHeader.tsx'
 import { type CellEvents, GridRows, type RowLayout, type ShownEditor } from './GridRows.tsx'
 import type { ResultsApi } from './results-api.ts'
@@ -59,6 +62,8 @@ interface GridModel {
   readonly virtualizer: GridVirtualizer
   readonly widths: readonly number[]
   readonly shown: ColumnWindow
+  // The width of the row numbers.
+  readonly gutter: number
   readonly select: (selection: GridSelection) => void
 }
 
@@ -71,50 +76,56 @@ const INITIAL_RECT = { width: 800, height: 600 }
 // grid follow the rows of the view.
 export const Grid = (props: GridProps): ReactElement => {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { table, virtualizer, widths, shown, select } = useGrid(props, scrollRef)
+  const { table, virtualizer, widths, shown, gutter, select } = useGrid(props, scrollRef)
   useFocusAfterEditing(props.edit.editor !== undefined, scrollRef)
   const { tab, store } = props
+  const totalWidth = gutter + table.getTotalSize()
   return (
-    <div
-      ref={scrollRef}
-      {...gridAttributes(props)}
-      onKeyDown={(event) => {
-        onGridKey(event, props, { select, pageSize: pageSize(event.currentTarget) })
-      }}
-    >
+    <div ref={scrollRef} {...gridAttributes(props)} onKeyDown={keyHandler(props, select)}>
       <GridHeader
         table={table}
         tab={tab}
         shown={shown}
+        gutter={gutter}
         isDisabled={tab.status === TabStatus.Running}
         onView={props.onView}
+        onCopyName={copyName(props)}
       />
       <GridRows
         items={virtualizer.getVirtualItems()}
         totalSize={virtualizer.getTotalSize() + HEADER_HEIGHT}
         rowAt={(index) => (index < tab.rowCount ? store.row(index) : undefined)}
-        layout={layoutOf(props, { widths, shown, totalWidth: table.getTotalSize(), select })}
+        layout={layoutOf(props, { widths, shown, gutter, totalWidth, select })}
         events={eventsOf(props, select)}
       />
     </div>
   )
 }
 
+// The host copies the name of a column to the clipboard.
+function copyName({ api, tab }: GridProps): (column: number) => void {
+  return (column) => {
+    api.postMessage({ type: WebviewMessageType.CopyColumnName, tabId: tab.id, column })
+  }
+}
+
 function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
   const table = useGridTable(props.tab, props.onView)
-  const virtualizer = useGridVirtualizer(useShownRowCount(props.tab), scrollRef)
+  const rowCount = useShownRowCount(props.tab)
+  const virtualizer = useGridVirtualizer(rowCount, scrollRef)
   useRowWindow(props.api, props.tab, { store: props.store, items: virtualizer.getVirtualItems() })
   useSyncExternalStore(props.store.subscribe, props.store.revision)
   const widths = table.getFlatHeaders().map((header) => header.getSize())
-  const shown = useColumnWindow(widths, scrollRef)
+  const gutter = rowNumberWidth(rowCount)
+  const shown = useColumnWindow(widths, scrollRef, gutter)
   const select = (selection: GridSelection): void => {
     props.onSelect(selection)
     virtualizer.scrollToIndex(selection.focus.row)
     scrollRef.current?.scrollTo({
-      left: revealedScroll(scrollRef.current, widths, selection.focus.column),
+      left: revealedScroll(scrollRef.current, { widths, gutter }, selection.focus.column),
     })
   }
-  return { table, virtualizer, widths, shown, select }
+  return { table, virtualizer, widths, shown, gutter, select }
 }
 
 // While the rows are read again (after an apply, or to load them all) the grid keeps its height,
@@ -158,7 +169,8 @@ function gridAttributes({ tab, selection }: GridProps): Record<string, unknown> 
     role: 'grid',
     'aria-label': 'Rows of the result',
     'aria-rowcount': gridRowCount(tab) + 1,
-    'aria-colcount': tab.columns.length,
+    // The row numbers come first.
+    'aria-colcount': tab.columns.length + 1,
     'aria-multiselectable': true,
     'aria-readonly': !isEditing(tab),
     'aria-activedescendant':
@@ -166,6 +178,15 @@ function gridAttributes({ tab, selection }: GridProps): Record<string, unknown> 
         ? undefined
         : cellId(tab.id, selection.focus.row, selection.focus.column),
     tabIndex: 0,
+  }
+}
+
+function keyHandler(
+  props: GridProps,
+  select: (selection: GridSelection) => void,
+): (event: KeyboardEvent<HTMLDivElement>) => void {
+  return (event) => {
+    onGridKey(event, props, { select, pageSize: pageSize(event.currentTarget) })
   }
 }
 
@@ -201,24 +222,27 @@ function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext):
 interface Widths {
   readonly widths: readonly number[]
   readonly shown: ColumnWindow
+  readonly gutter: number
   readonly totalWidth: number
   readonly select: (selection: GridSelection) => void
 }
 
-function layoutOf(props: GridProps, { widths, shown, totalWidth, select }: Widths): RowLayout {
+function layoutOf(props: GridProps, sizes: Widths): RowLayout {
   const { tab, selection } = props
   return {
     tabId: tab.id,
     columns: tab.columns,
-    widths,
-    shown,
-    totalWidth,
+    widths: sizes.widths,
+    gutter: sizes.gutter,
+    rowCount: tab.rowCount,
+    shown: sizes.shown,
+    totalWidth: sizes.totalWidth,
     range: selection === undefined ? undefined : selectionRange(selection),
     focus: selection?.focus,
     isEditing: isEditing(tab),
     rowEdit: (index) => rowEditAt(tab, index),
     canEdit: (position) => canEditCell(tab, position),
-    editor: shownEditor(props, select),
+    editor: shownEditor(props, sizes.select),
   }
 }
 
@@ -248,10 +272,19 @@ function shownEditor(
 }
 
 function eventsOf(
-  { selection, onOpenDetail, edit, tab }: GridProps,
+  { selection, onOpenDetail, edit, tab, onSelect }: GridProps,
   select: (selection: GridSelection) => void,
 ): CellEvents {
+  const columnCount = tab.columns.length
   return {
+    // The row is in view already: the grid does not scroll to its last column.
+    onRowDown: (row, isExtending) => {
+      onSelect(
+        isExtending && selection !== undefined
+          ? extendToRow(selection, row, columnCount)
+          : selectRow(row, columnCount),
+      )
+    },
     onCellDown: (position, isExtending) => {
       select(
         isExtending && selection !== undefined
@@ -267,27 +300,4 @@ function eventsOf(
       onOpenDetail(position)
     },
   }
-}
-
-// Rows a page up or down moves by: as many as fit in the grid.
-function pageSize(element: HTMLDivElement): number {
-  return Math.max(Math.floor((element.clientHeight - HEADER_HEIGHT) / ROW_HEIGHT), 1)
-}
-
-// The horizontal scroll that shows the column of the cell with the focus.
-function revealedScroll(
-  element: HTMLDivElement,
-  widths: readonly number[],
-  column: number,
-): number {
-  const start = totalOf(widths.slice(0, column))
-  const end = totalOf(widths.slice(0, column + 1))
-  return scrollToShow(
-    { start: element.scrollLeft, size: element.clientWidth },
-    { start, size: end - start },
-  )
-}
-
-function totalOf(widths: readonly number[]): number {
-  return widths.reduce((sum, width) => sum + width, 0)
 }

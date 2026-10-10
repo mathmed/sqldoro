@@ -3,6 +3,13 @@ import type { ReactElement } from 'react'
 import { ExportFormat } from '../core/results/export-format.ts'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { canLoadAll } from '../core/results/tabs.ts'
+import type { EditActions } from './edit-messages.ts'
+import { EditTools } from './EditTools.tsx'
+import { IconName } from './icons.tsx'
+import { MenuButton, type MenuItem } from './Menu.tsx'
+import { QuickSearch } from './QuickSearch.tsx'
+import { ToolButton, ToolGroup, ToolToggle } from './tool-buttons.tsx'
+import { WhereFilter } from './WhereFilter.tsx'
 
 export interface ToolbarActions {
   readonly cancel: () => void
@@ -14,6 +21,10 @@ export interface ToolbarActions {
   readonly copyRows: () => void
   readonly export: (format: ExportFormat) => void
   readonly setServerSide: (isServerSide: boolean) => void
+  // The quick search of the rows, in the host.
+  readonly search: (text: string) => void
+  // Reads the rows of a table again with a condition as their WHERE.
+  readonly filterTable: (condition: string) => void
 }
 
 interface ToolbarProps {
@@ -21,148 +32,148 @@ interface ToolbarProps {
   readonly hasSelection: boolean
   readonly isServerSide: boolean
   readonly actions: ToolbarActions
+  readonly edits: EditActions
+}
+
+interface ToolsProps {
+  readonly tab: ResultTab
+  readonly actions: ToolbarActions
 }
 
 const COPY_FORMATS: readonly (readonly [ExportFormat, string])[] = [
-  [ExportFormat.Csv, 'CSV'],
-  [ExportFormat.Json, 'JSON'],
-  [ExportFormat.Sql, 'INSERT'],
+  [ExportFormat.Csv, 'Copy as CSV'],
+  [ExportFormat.Json, 'Copy as JSON'],
+  [ExportFormat.Sql, 'Copy as INSERT'],
 ]
 const EXPORT_FORMATS: readonly (readonly [ExportFormat, string])[] = [
-  [ExportFormat.Csv, 'CSV'],
-  [ExportFormat.Json, 'JSON'],
-  [ExportFormat.Sql, 'SQL'],
+  [ExportFormat.Csv, 'Export as CSV…'],
+  [ExportFormat.Json, 'Export as JSON…'],
+  [ExportFormat.Sql, 'Export as SQL…'],
 ]
 
-export const Toolbar = (props: ToolbarProps): ReactElement => {
-  const { tab, actions } = props
-  const isRunning = tab.status === TabStatus.Running
+// The actions of a result, grouped as in VS Code's toolbars: reading the rows again, their changes,
+// copying and exporting, how they are read; then the WHERE of a table and the quick search.
+export const Toolbar = ({
+  tab,
+  hasSelection,
+  isServerSide,
+  actions,
+  edits,
+}: ToolbarProps): ReactElement => (
+  <div className="toolbar" role="toolbar" aria-label="Result actions">
+    <RunTools tab={tab} actions={actions} />
+    <EditTools tab={tab} hasSelection={hasSelection} actions={edits} />
+    <CopyTools tab={tab} hasSelection={hasSelection} actions={actions} />
+    <ReadTools tab={tab} isServerSide={isServerSide} actions={actions} />
+    <span className="toolbar-fill" />
+    {tab.canRefresh ? <WhereFilter tab={tab} onFilter={actions.filterTable} /> : null}
+    <QuickSearch tab={tab} onSearch={actions.search} />
+  </div>
+)
+
+// While the statement runs it can be cancelled; once it ran, the rows of a table can be read again.
+const RunTools = ({ tab, actions }: ToolsProps): ReactElement | null => {
+  if (tab.status !== TabStatus.Running && !tab.canRefresh) {
+    return null
+  }
   return (
-    <div className="toolbar" role="toolbar" aria-label="Result actions">
-      <RunButton tab={tab} actions={actions} />
-      {canLoadAll(tab) ? <LoadAllButton onClick={actions.loadAll} /> : null}
-      <FormatButtons kind="copy" isDisabled={!props.hasSelection} onClick={actions.copy} />
-      <button type="button" disabled={!props.hasSelection} onClick={actions.copyRows}>
-        Copy Rows as INSERT
-      </button>
-      <FormatButtons
-        kind="export"
-        isDisabled={isRunning || tab.columns.length === 0}
-        onClick={actions.export}
-      />
+    <ToolGroup label="Run">
+      {tab.status === TabStatus.Running ? (
+        <ToolButton
+          icon={IconName.Stop}
+          label="Cancel"
+          tooltip="Cancel the query on the server"
+          isDisabled={false}
+          onClick={actions.cancel}
+        />
+      ) : (
+        <ToolButton
+          icon={IconName.Refresh}
+          label="Refresh"
+          tooltip="Read the rows again, in the same view"
+          isDisabled={false}
+          onClick={actions.refresh}
+        />
+      )}
+    </ToolGroup>
+  )
+}
+
+// The selection is copied to the clipboard, the whole result exported to a file.
+const CopyTools = ({
+  tab,
+  hasSelection,
+  actions,
+}: ToolsProps & { readonly hasSelection: boolean }): ReactElement => (
+  <ToolGroup label="Copy and export">
+    <MenuButton
+      label="Copy the selection"
+      icon={IconName.Copy}
+      items={[
+        ...formatItems(COPY_FORMATS, actions.copy),
+        { label: 'Copy Rows as INSERT', isDisabled: false, onSelect: actions.copyRows },
+      ]}
+      isDisabled={!hasSelection}
+      hasChevron
+    />
+    <MenuButton
+      label="Export the result"
+      icon={IconName.Export}
+      items={formatItems(EXPORT_FORMATS, actions.export)}
+      isDisabled={tab.status === TabStatus.Running || tab.columns.length === 0}
+      hasChevron
+    />
+  </ToolGroup>
+)
+
+function formatItems(
+  formats: readonly (readonly [ExportFormat, string])[],
+  onFormat: (format: ExportFormat) => void,
+): MenuItem[] {
+  return formats.map(([format, label]) => ({
+    label,
+    isDisabled: false,
+    onSelect: () => {
+      onFormat(format)
+    },
+  }))
+}
+
+// How the rows are read: all of them when the automatic limit cut the result, and sorted and
+// filtered here (off) or by the server (on), where the statement can run again.
+const ReadTools = ({
+  tab,
+  isServerSide,
+  actions,
+}: ToolsProps & { readonly isServerSide: boolean }): ReactElement | null => {
+  const isLimited = canLoadAll(tab)
+  if (!isLimited && !tab.canServerView) {
+    return null
+  }
+  return (
+    <ToolGroup label="Reading">
+      {isLimited ? <LoadAllButton onClick={actions.loadAll} /> : null}
       {tab.canServerView ? (
-        <ServerSideToggle
-          isChecked={props.isServerSide}
-          isDisabled={isRunning}
+        <ToolToggle
+          icon={IconName.Server}
+          label="Sort and filter on the server"
+          tooltip="Sort and filter on the server: the query runs again with the view, over every row"
+          isOn={isServerSide}
+          isDisabled={tab.status === TabStatus.Running}
           onChange={actions.setServerSide}
         />
       ) : null}
-    </div>
+    </ToolGroup>
   )
 }
-
-interface FormatButtonsProps {
-  readonly kind: 'copy' | 'export'
-  readonly isDisabled: boolean
-  readonly onClick: (format: ExportFormat) => void
-}
-
-const FormatButtons = ({ kind, isDisabled, onClick }: FormatButtonsProps): ReactElement =>
-  kind === 'copy' ? (
-    <ButtonGroup
-      label="Copy selection as"
-      formats={COPY_FORMATS}
-      isDisabled={isDisabled}
-      onClick={onClick}
-    />
-  ) : (
-    <ButtonGroup
-      label="Export as"
-      formats={EXPORT_FORMATS}
-      isDisabled={isDisabled}
-      onClick={onClick}
-    />
-  )
-
-// While the statement runs it can be cancelled; once it ran, the rows of a table can be read again.
-const RunButton = ({
-  tab,
-  actions,
-}: {
-  readonly tab: ResultTab
-  readonly actions: ToolbarActions
-}): ReactElement | null => {
-  if (tab.status === TabStatus.Running) {
-    return <CancelButton onClick={actions.cancel} />
-  }
-  return tab.canRefresh ? <RefreshButton onClick={actions.refresh} /> : null
-}
-
-const RefreshButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
-  <button type="button" className="refresh" onClick={onClick}>
-    Refresh
-  </button>
-)
 
 // The query was cut at the automatic limit: one click runs it again without it.
 const LoadAllButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
-  <button type="button" className="load-all" onClick={onClick}>
-    Load All Rows
-  </button>
-)
-
-const CancelButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
-  <button type="button" className="cancel" onClick={onClick}>
-    Cancel
-  </button>
-)
-
-interface ServerSideToggleProps {
-  readonly isChecked: boolean
-  readonly isDisabled: boolean
-  readonly onChange: (isServerSide: boolean) => void
-}
-
-// Off, the rows already here are sorted and filtered; on, the query runs again on the server.
-const ServerSideToggle = ({
-  isChecked,
-  isDisabled,
-  onChange,
-}: ServerSideToggleProps): ReactElement => (
-  <label className="server-side">
-    <input
-      type="checkbox"
-      checked={isChecked}
-      disabled={isDisabled}
-      onChange={(event) => {
-        onChange(event.target.checked)
-      }}
-    />
-    Sort and filter on the server
-  </label>
-)
-
-interface ButtonGroupProps {
-  readonly label: string
-  readonly formats: readonly (readonly [ExportFormat, string])[]
-  readonly isDisabled: boolean
-  readonly onClick: (format: ExportFormat) => void
-}
-
-const ButtonGroup = ({ label, formats, isDisabled, onClick }: ButtonGroupProps): ReactElement => (
-  <span className="button-group" role="group" aria-label={label}>
-    <span className="group-label">{label}</span>
-    {formats.map(([format, name]) => (
-      <button
-        key={format}
-        type="button"
-        disabled={isDisabled}
-        onClick={() => {
-          onClick(format)
-        }}
-      >
-        {name}
-      </button>
-    ))}
-  </span>
+  <ToolButton
+    icon={IconName.LoadAll}
+    label="Load All Rows"
+    tooltip="Run the query again without the automatic limit"
+    isDisabled={false}
+    onClick={onClick}
+  />
 )

@@ -15,10 +15,11 @@ export interface ColumnWindow {
 }
 
 // Only the columns in view (and a few around) exist in the page, like the rows: a result with a
-// thousand columns scrolls as smoothly as one with ten.
+// thousand columns scrolls as smoothly as one with ten. They start after the row numbers (gutter).
 export function useColumnWindow(
   widths: readonly number[],
   scrollRef: RefObject<HTMLDivElement | null>,
+  gutter: number,
 ): ColumnWindow {
   // eslint-disable-next-line react-hooks/incompatible-library -- sqldoro does not use the React Compiler: nothing memoizes the virtualizer's functions
   const virtualizer = useVirtualizer({
@@ -27,6 +28,7 @@ export function useColumnWindow(
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => columnWidth(widths, index),
     overscan: COLUMN_OVERSCAN,
+    scrollMargin: gutter,
     initialRect: INITIAL_RECT,
   })
   // A column resized or a new result: the virtualizer reads the widths again.

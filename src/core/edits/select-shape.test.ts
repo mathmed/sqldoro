@@ -27,6 +27,12 @@ describe.each(DIALECTS)('selectShape (%s)', (...[, dialect]) => {
     ['SELECT * FROM orders -- JOIN lines\nWHERE id = 1', ['orders']],
     ['SELECT * FROM orders /* , lines */ ORDER BY (SELECT 1)', ['orders']],
     ['SELECT * FROM orders o WHERE (SELECT count(*) FROM lines l JOIN x ON true) > 0', ['orders']],
+    // The read of a table panel with the condition typed in its WHERE input.
+    ["SELECT * FROM sales.orders WHERE (status = 'open' -- the open ones\n)", ['sales', 'orders']],
+    [
+      'SELECT * FROM orders WHERE (id IN (SELECT order_id FROM lines UNION SELECT 1)\n)',
+      ['orders'],
+    ],
   ])('should read the rows of one table from %j', (sql, parts) => {
     expect(selectShape(sql, dialect)).toStrictEqual({ table: { parts } })
   })
@@ -101,6 +107,15 @@ describe.each(DIALECTS)('selectShape (%s)', (...[, dialect]) => {
 })
 
 describe('selectShape, dialect by dialect', () => {
+  it('should not edit the rows of a table read whose condition calls a function with effects', () => {
+    expect(
+      selectShape("SELECT * FROM orders WHERE (nextval('s') > 0\n)", POSTGRES_DIALECT),
+    ).toStrictEqual({ problem: ShapeProblem.NotARead })
+    expect(
+      selectShape("SELECT * FROM orders WHERE (GET_LOCK('x', 1) = 1\n)", MYSQL_DIALECT),
+    ).toStrictEqual({ problem: ShapeProblem.NotARead })
+  })
+
   it('should read quoted names without their quotes', () => {
     expect(selectShape('SELECT "Id" FROM "Sales"."Order ""A"""', POSTGRES_DIALECT)).toStrictEqual({
       table: { parts: ['Sales', 'Order "A"'] },

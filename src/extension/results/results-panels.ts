@@ -7,29 +7,41 @@ import { describeError } from '../../core/text/errors.ts'
 import { documentLabel } from '../editor/document-label.ts'
 import { isTableKey } from '../tables/table-uri.ts'
 import { bundleOf, createNonce, webviewHtml, webviewRoot } from '../webview-page.ts'
-import { type PanelActions, type PanelEnvironment, ResultsPanel } from './results-panel.ts'
+import type { PanelActions } from './panel-actions.ts'
+import { type PanelEnvironment, ResultsPanel } from './results-panel.ts'
 
 export interface ResultsPanelsDependencies {
   readonly extensionUri: vscode.Uri
   readonly now: () => number
   readonly log: Logger
   readonly actionsFor: (document: vscode.Uri) => PanelActions
+  // The title of the panel of a source, as it is named now.
+  readonly titleOf: (source: vscode.Uri) => string
 }
 
 const RESULTS_VIEW_TYPE = 'sqldoro.results'
 const BUNDLE = 'results'
 const PAGE_TITLE = 'Results'
 
-// The title of a panel, and where it opens: beside its editor, or in place for a table.
-interface PanelLook {
-  readonly title: string
-  readonly viewColumn: vscode.ViewColumn
+// Where a panel opens: beside its editor, or in place for a table.
+function viewColumnOf(uri: vscode.Uri): vscode.ViewColumn {
+  return isTableKey(uri.toString()) ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside
 }
 
-function lookOf(uri: vscode.Uri): PanelLook {
-  return isTableKey(uri.toString())
-    ? { title: documentLabel(uri), viewColumn: vscode.ViewColumn.Active }
-    : { title: `Results: ${documentLabel(uri)}`, viewColumn: vscode.ViewColumn.Beside }
+// The webview of a panel, on the page of the result view: it may only load the bundles.
+function createWebview(uri: vscode.Uri, title: string, root: vscode.Uri): vscode.WebviewPanel {
+  const webviewPanel = vscode.window.createWebviewPanel(
+    RESULTS_VIEW_TYPE,
+    title,
+    { viewColumn: viewColumnOf(uri), preserveFocus: true },
+    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [root] },
+  )
+  webviewPanel.webview.html = webviewHtml(
+    webviewPanel.webview,
+    { title: PAGE_TITLE, bundle: bundleOf(root, BUNDLE) },
+    createNonce(),
+  )
+  return webviewPanel
 }
 
 interface Entry {
@@ -91,21 +103,10 @@ export class ResultsPanels implements vscode.Disposable {
   }
 
   #create(uri: vscode.Uri): ResultsPanel {
-    const { extensionUri, now, log, actionsFor } = this.#dependencies
-    const root = webviewRoot(extensionUri)
-    const { title, viewColumn } = lookOf(uri)
-    const webviewPanel = vscode.window.createWebviewPanel(
-      RESULTS_VIEW_TYPE,
-      title,
-      { viewColumn, preserveFocus: true },
-      { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [root] },
-    )
-    webviewPanel.webview.html = webviewHtml(
-      webviewPanel.webview,
-      { title: PAGE_TITLE, bundle: bundleOf(root, BUNDLE) },
-      createNonce(),
-    )
-    const environment: PanelEnvironment = { now, log }
+    const { extensionUri, now, log, actionsFor, titleOf } = this.#dependencies
+    const title = (): string => titleOf(uri)
+    const webviewPanel = createWebview(uri, title(), webviewRoot(extensionUri))
+    const environment: PanelEnvironment = { now, log, title }
     const panel = new ResultsPanel(webviewPanel, actionsFor(uri), environment)
     const listening = webviewPanel.webview.onDidReceiveMessage((data: unknown) => {
       panel.receive(data).catch((error: unknown) => {

@@ -10,11 +10,19 @@ import type { QueryRunner } from './query-runner.ts'
 import type { RunParts } from './run-types.ts'
 import { isSourceOpen } from './server-view.ts'
 
-// What reads the rows of a tab again: its query, or its view on the server.
+// What reads the rows of a tab again: its query, or its view on the server, and whether it gets the
+// automatic limit.
 export interface Refresh {
   readonly sql: string
   readonly values: readonly QueryValue[]
   readonly isServerView: boolean
+  readonly shouldAutoLimit: boolean
+}
+
+// A query to read the rows of a tab with, and whether it gets the automatic limit.
+export interface Reading {
+  readonly sql: string
+  readonly shouldAutoLimit: boolean
 }
 
 interface Refreshing {
@@ -41,14 +49,21 @@ export async function refreshTab(
   })
 }
 
-// A view sorted or filtered on the server runs again as such; any other runs as the query.
+// The query of the tab again, limited as it was.
 export function refreshOf(tab: ResultSet, dialect: Dialect): Refresh {
+  return readingOf(tab, { sql: tab.sql, shouldAutoLimit: wasLimited(tab) }, dialect)
+}
+
+// The rows of a tab read with a query, in the view of the tab: a view sorted or filtered on the
+// server runs again as such, around the query; any other runs as the query.
+export function readingOf(tab: ResultSet, reading: Reading, dialect: Dialect): Refresh {
+  const { sql, shouldAutoLimit } = reading
   const server = tab.isServerView
-    ? serverViewQuery(tab.sql, tab.view, { columns: tab.columns, dialect })
+    ? serverViewQuery(sql, tab.view, { columns: tab.columns, dialect })
     : undefined
   return server === undefined
-    ? { sql: tab.sql, values: [], isServerView: false }
-    : { ...server, isServerView: true }
+    ? { sql, values: [], isServerView: false, shouldAutoLimit }
+    : { ...server, isServerView: true, shouldAutoLimit }
 }
 
 // The rows come again into the same tab, which keeps its view: the server sorts and filters a view
@@ -59,7 +74,6 @@ export async function refreshRows(
   { tab, refresh }: Refreshing,
 ): Promise<void> {
   const { view } = tab
-  const shouldAutoLimit = wasLimited(tab)
   tab.restart(refresh.isServerView ? view : IDENTITY_VIEW)
   parts.panel.updateTab(tab, true)
   await runner.runJob(parts, {
@@ -69,7 +83,7 @@ export async function refreshRows(
     isRecorded: false,
     kind: TabKind.Rows,
     tab,
-    shouldAutoLimit,
+    shouldAutoLimit: refresh.shouldAutoLimit,
   })
   if (!refresh.isServerView && !isIdentityView(view)) {
     tab.applyView(view)
