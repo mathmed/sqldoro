@@ -14,11 +14,18 @@ import {
   readStrings,
 } from '../json/record.ts'
 import { readSecretKinds } from './parse-common.ts'
-import { type FormHostMessage, FormHostMessageType, FormMode, type FormSetup } from './protocol.ts'
+import {
+  type FormHostMessage,
+  FormHostMessageType,
+  FormMode,
+  type FormSetup,
+  FormStart,
+} from './protocol.ts'
 
 type Reader = (message: JsonRecord) => FormHostMessage
 
 const FORM_MODES: ReadonlySet<string> = new Set(Object.values(FormMode))
+const FORM_STARTS: ReadonlySet<string> = new Set(Object.values(FormStart))
 const CONNECTION_FIELDS: ReadonlySet<string> = new Set(Object.values(ConnectionField))
 
 const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
@@ -29,6 +36,7 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
       setup: readSetup(readNested(message, 'setup')),
     }),
   ],
+  [FormHostMessageType.ShowImport, () => ({ type: FormHostMessageType.ShowImport })],
   [
     FormHostMessageType.File,
     (message) => ({
@@ -53,10 +61,41 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
       issues: readList(message, 'issues', readIssue),
     }),
   ],
+  [
+    FormHostMessageType.Imported,
+    (message) => ({
+      type: FormHostMessageType.Imported,
+      connection: readConnection(readNested(message, 'connection')),
+      urlSecrets: readSecretKinds(message, 'urlSecrets'),
+      warnings: readStrings(message, 'warnings'),
+    }),
+  ],
+  [
+    FormHostMessageType.ImportRefused,
+    (message) => ({
+      type: FormHostMessageType.ImportRefused,
+      message: readString(message, 'message'),
+    }),
+  ],
+  [
+    FormHostMessageType.Databases,
+    (message) => ({ type: FormHostMessageType.Databases, names: readStrings(message, 'names') }),
+  ],
+  [
+    FormHostMessageType.DatabasesFailed,
+    (message) => ({
+      type: FormHostMessageType.DatabasesFailed,
+      message: readString(message, 'message'),
+    }),
+  ],
 ])
 
 function isFormMode(value: unknown): value is FormMode {
   return typeof value === 'string' && FORM_MODES.has(value)
+}
+
+function isFormStart(value: unknown): value is FormStart {
+  return typeof value === 'string' && FORM_STARTS.has(value)
 }
 
 function isConnectionField(value: unknown): value is ConnectionField {
@@ -77,12 +116,12 @@ export function parseFormHostMessage(data: unknown): FormHostMessage {
 function readSetup(setup: JsonRecord): FormSetup {
   return {
     mode: readOneOf(setup, 'mode', isFormMode),
+    start: readOneOf(setup, 'start', isFormStart),
     connection: readConnection(readNested(setup, 'connection')),
     heldSecrets: readSecretKinds(setup, 'heldSecrets'),
     engines: readList(setup, 'engines', readEngine),
     takenNameKeys: readStrings(setup, 'takenNameKeys'),
     productionEnvironments: readStrings(setup, 'productionEnvironments'),
-    notices: readStrings(setup, 'notices'),
   }
 }
 

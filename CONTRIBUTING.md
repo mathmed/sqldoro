@@ -139,7 +139,9 @@ The icon, `media/icon.png`, is rendered from `media/icon.svg` at 256×256 pixels
 extension must come from the package, activate, register every command and view of `package.json`
 (each view opens and refreshes), answer `sqldoro.hello`, load the result view of a SQL editor (the
 React bundle runs under its Content Security Policy and tells the extension it is ready), then close
-and load it again, and load the connection form of **Add Connection** the same way. Each step prints a `>> ` line that the Quality Report summarises.
+and load it again, and load the connection form of **Add Connection** and of **Import Connection
+from URL** the same way. The profile lives in the temporary folder of the system: VS Code opens a
+socket in it, and macOS refuses socket paths over 103 characters, which a deep checkout would exceed. Each step prints a `>> ` line that the Quality Report summarises.
 
 ### Mutation testing (`make mutation`)
 

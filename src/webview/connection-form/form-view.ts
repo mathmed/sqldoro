@@ -1,24 +1,20 @@
-import type { ConfigTab, FormState } from '../../core/connection-form/form-state.ts'
+import {
+  editConnection,
+  type FormControl,
+  type FormState,
+  touchField,
+} from '../../core/connection-form/form-state.ts'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { FIELD_LABELS, labelOf } from '../../core/connection/labels.ts'
-import type { SecretKind } from '../../core/connection/secrets.ts'
 import type { PathField } from '../../core/connection/transitions.ts'
 import type { ConnectionField } from '../../core/connection/validation.ts'
 
-// What the user can do in the form.
+// What the user can do in the form: change its state, whose requests to the extension are sent
+// once each, and ask the extension for what only it can do.
 export interface FormActions {
-  readonly edit: (
-    field: ConnectionField | null,
-    change: (connection: ConnectionConfig) => ConnectionConfig,
-  ) => void
-  readonly typeSecret: (kind: SecretKind, value: string) => void
-  readonly removeSecret: (kind: SecretKind) => void
-  readonly keepSecret: (kind: SecretKind) => void
-  readonly touch: (field: ConnectionField) => void
-  readonly selectTab: (tab: ConfigTab) => void
+  readonly update: (change: (state: FormState) => FormState) => void
+  // The file dialog of a path field: a webview cannot open one.
   readonly browse: (field: PathField) => void
-  readonly test: () => void
-  readonly save: () => void
   readonly cancel: () => void
 }
 
@@ -40,8 +36,8 @@ export interface FieldSpec {
 }
 
 // The id of the control of a field, which the form focuses when it takes the user there.
-export function fieldId(field: ConnectionField): string {
-  return `field-${field}`
+export function fieldId(control: FormControl): string {
+  return `field-${control}`
 }
 
 export function specOf(view: FormView, field: ConnectionField, isRequired = false): FieldSpec {
@@ -51,4 +47,18 @@ export function specOf(view: FormView, field: ConnectionField, isRequired = fals
     isRequired,
     issue: view.issues.get(field),
   }
+}
+
+// Changes the connection: a field, when given, shows its problems from now on.
+export function edit(
+  view: FormView,
+  field: ConnectionField | null,
+  change: (connection: ConnectionConfig) => ConnectionConfig,
+): void {
+  view.actions.update((state) => editConnection(state, field, change))
+}
+
+// The user left a field: its problems show from now on.
+export function touch(view: FormView, field: ConnectionField): void {
+  view.actions.update((state) => touchField(state, field))
 }

@@ -9,6 +9,8 @@ export interface FormDraft {
   // The secrets the extension holds for the connection (stored, or from an imported URL): only
   // their kinds, never their values.
   readonly heldSecrets: ReadonlySet<SecretKind>
+  // Those of the held secrets that come from an imported URL rather than the secret storage.
+  readonly urlSecrets: ReadonlySet<SecretKind>
 }
 
 // A secret change as the form sends it to the extension.
@@ -30,7 +32,7 @@ export function newDraft(
   connection: ConnectionConfig,
   heldSecrets: ReadonlySet<SecretKind>,
 ): FormDraft {
-  return { connection, secretChanges: new Map(), heldSecrets }
+  return { connection, secretChanges: new Map(), heldSecrets, urlSecrets: new Set() }
 }
 
 export function secretState(draft: FormDraft, kind: SecretKind): SecretState {
@@ -73,6 +75,24 @@ export function secretChangesOf(draft: FormDraft): readonly SecretChange[] {
     const value = draft.secretChanges.get(kind)
     return value === undefined ? [] : [{ kind, value }]
   })
+}
+
+// The secrets of an imported URL replace what was typed for them; the stored ones stay held.
+export function withUrlSecrets(
+  draft: FormDraft,
+  storedSecrets: ReadonlySet<SecretKind>,
+  urlSecrets: readonly SecretKind[],
+): FormDraft {
+  const secretChanges = new Map(draft.secretChanges)
+  for (const kind of urlSecrets) {
+    secretChanges.delete(kind)
+  }
+  return {
+    ...draft,
+    secretChanges,
+    heldSecrets: new Set([...storedSecrets, ...urlSecrets]),
+    urlSecrets: new Set(urlSecrets),
+  }
 }
 
 function withChange(draft: FormDraft, kind: SecretKind, value: string): FormDraft {

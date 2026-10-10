@@ -16,7 +16,7 @@ import {
   settled,
   setupOf,
 } from '../../../test/support/forms.ts'
-import { answerInputs, answerQuickPicks } from '../../../test/support/prompts.ts'
+import { answerQuickPicks } from '../../../test/support/prompts.ts'
 import { resetVscode, window } from '../../../test/vscode.ts'
 import { type ConnectionConfig, newConnection } from '../../core/connection/connection.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
@@ -45,7 +45,7 @@ afterEach(() => {
 })
 
 describe('Add Connection', () => {
-  it('should open the form of a new connection on the first engine, without asking anything', async () => {
+  it('should open the form of a new connection on the engines, without asking anything', async () => {
     const { panel, answer } = await openForm(
       vscode.commands.executeCommand(CommandId.AddConnection),
     )
@@ -55,13 +55,13 @@ describe('Add Connection', () => {
     expect(panel.title).toBe('New Connection')
     expect(setupOf(panel)).toMatchObject({
       mode: 'new',
+      start: 'picker',
       connection: { id: 'id-1', engine: 'mysql', port: 3306, isReadOnly: true },
       heldSecrets: [],
       engines: [
         { id: 'mysql', displayName: 'MySQL', defaultPort: 3306 },
         { id: 'postgres', displayName: 'PostgreSQL', defaultPort: 5432 },
       ],
-      notices: [],
     })
   })
 
@@ -105,76 +105,43 @@ describe('Add Connection', () => {
 })
 
 describe('Import Connection from URL', () => {
-  it('should open the form with what the URL holds, its warnings and its password kept back', async () => {
-    answerInputs('postgresql://app:pa55@db.example.com/shop?connect_timeout=5')
-
+  it('should open the form of a new connection on the input of a connection string', async () => {
     const { panel, answer } = await openForm(
       vscode.commands.executeCommand(CommandId.ImportConnectionUrl),
     )
 
     expect(answer).toBe(true)
-    expect(window.showInputBox).toHaveBeenCalledWith(
-      expect.objectContaining({
-        password: true,
-        prompt:
-          'A mysql://, postgres://, postgresql:// URL. The password it holds goes to the VS Code secret storage.',
-      }),
-    )
-    expect(window.showWarningMessage).not.toHaveBeenCalled()
-    expect(setupOf(panel)).toMatchObject({
-      mode: 'new',
-      connection: { id: 'id-1', name: 'db.example.com/shop', host: 'db.example.com', user: 'app' },
-      heldSecrets: ['password'],
-      notices: ['Ignored the URL parameter "connect_timeout"'],
-    })
-    expect(JSON.stringify(panel.webview.posted)).not.toContain('pa55')
+    expect(window.showInputBox).not.toHaveBeenCalled()
+    expect(panel.title).toBe('New Connection')
+    expect(setupOf(panel)).toMatchObject({ mode: 'new', start: 'import', heldSecrets: [] })
+    expect(sentToForm(panel, 'showImport')).toStrictEqual([])
   })
 
-  it('should save the password of the URL unless the form replaces it', async () => {
-    answerInputs('postgresql://app:pa55@db.example.com/shop', 'mysql://root:pw@localhost/app')
-    const first = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
-    const second = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
-    const [one, two] = [first, second].map(({ panel }) => setupOf(panel)['connection'])
+  it('should bring back the form of a new connection with the input open', async () => {
+    const { panel } = await openForm(vscode.commands.executeCommand(CommandId.AddConnection))
 
-    await fromForm(first.panel, { type: 'save', draft: { connection: one, secretChanges: [] } })
-    await fromForm(second.panel, {
-      type: 'save',
-      draft: { connection: two, secretChanges: [{ kind: 'password', value: 'typed' }] },
-    })
+    await expect(vscode.commands.executeCommand(CommandId.ImportConnectionUrl)).resolves.toBe(true)
 
-    expect(harness.storage.values).toStrictEqual(
-      new Map([
-        ['sqldoro.connection.id-1.password', 'pa55'],
-        ['sqldoro.connection.id-2.password', 'typed'],
-      ]),
-    )
+    expect(formPanels()).toStrictEqual([panel])
+    expect(panel.reveal).toHaveBeenCalledOnce()
+    expect(sentToForm(panel, 'showImport')).toStrictEqual([{ type: 'showImport' }])
   })
 
-  it('should import a URL without a password or warnings', async () => {
-    answerInputs('mysql://root@localhost/app')
-
+  it('should save the password of the URL pasted in the form, never sending it there', async () => {
     const { panel } = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
 
-    expect(setupOf(panel)).toMatchObject({ heldSecrets: [], notices: [] })
-  })
+    await fromForm(panel, { type: 'import', text: 'postgresql://app:pa55@db.example.com/shop' })
+    const [imported] = sentToForm(panel, 'imported')
+    await fromForm(panel, {
+      type: 'save',
+      draft: { connection: imported?.['connection'], secretChanges: [] },
+    })
 
-  it('should explain why a URL cannot be imported', async () => {
-    answerInputs('mongodb://db')
-
-    await expect(vscode.commands.executeCommand(CommandId.ImportConnectionUrl)).resolves.toBe(false)
-
-    expect(window.showErrorMessage).toHaveBeenCalledWith(
-      'Cannot import this URL: Unsupported URL scheme "mongodb": use mysql://, postgres:// or postgresql://',
+    expect(harness.store.list()).toMatchObject([{ id: 'id-1', name: 'db.example.com/shop' }])
+    expect(harness.storage.values).toStrictEqual(
+      new Map([['sqldoro.connection.id-1.password', 'pa55']]),
     )
-    expect(formPanels()).toStrictEqual([])
-  })
-
-  it('should do nothing when the URL prompt is dismissed', async () => {
-    answerInputs(undefined)
-
-    await expect(vscode.commands.executeCommand(CommandId.ImportConnectionUrl)).resolves.toBe(false)
-
-    expect(formPanels()).toStrictEqual([])
+    expect(JSON.stringify(panel.webview.posted)).not.toContain('pa55')
   })
 })
 
@@ -339,6 +306,19 @@ describe('Test Connection', () => {
       { type: 'tested', isSuccess: true, message: 'Connected: PostgreSQL 18.6' },
     ])
     expect(window.showInformationMessage).not.toHaveBeenCalled()
+  })
+
+  it('should list the databases of the server of a form in a session it closes again', async () => {
+    await saved(harness, SHOP)
+    const { panel } = await openForm(
+      vscode.commands.executeCommand(CommandId.EditConnection, 'shop'),
+    )
+
+    await fromForm(panel, { type: 'listDatabases', draft: { connection: SHOP, secretChanges: [] } })
+
+    expect(sentToForm(panel, 'databases')).toStrictEqual([{ type: 'databases', names: [] }])
+    expect(harness.requests).toHaveLength(1)
+    expect(harness.close).toHaveBeenCalledOnce()
   })
 
   it('should do nothing without a connection', async () => {

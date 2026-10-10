@@ -13,6 +13,7 @@ import {
   withSecretKept,
   withSecretRemoved,
   withTypedSecret,
+  withUrlSecrets,
 } from './draft.ts'
 
 const CONNECTION = newConnection('id', fakeEngine())
@@ -24,6 +25,7 @@ describe('newDraft', () => {
       connection: CONNECTION,
       secretChanges: new Map(),
       heldSecrets: new Set([SecretKind.Password]),
+      urlSecrets: new Set(),
     })
   })
 })
@@ -100,5 +102,31 @@ describe('secretChangesOf', () => {
       { kind: SecretKind.Password, value: '' },
       { kind: SecretKind.SshPassphrase, value: 'phrase' },
     ])
+  })
+})
+
+describe('withUrlSecrets', () => {
+  it('should hold the secrets of a URL over those typed for them, beside the stored ones', () => {
+    let draft = withTypedSecret(HELD, SecretKind.Password, 'typed')
+    draft = withTypedSecret(draft, SecretKind.SshPassword, 'ssh')
+
+    const sut = withUrlSecrets(draft, new Set([SecretKind.SshPassphrase]), [SecretKind.Password])
+
+    expect(sut).toStrictEqual({
+      connection: CONNECTION,
+      secretChanges: new Map([[SecretKind.SshPassword, 'ssh']]),
+      heldSecrets: new Set([SecretKind.SshPassphrase, SecretKind.Password]),
+      urlSecrets: new Set([SecretKind.Password]),
+    })
+    expect(draft.secretChanges.size).toBe(2)
+  })
+
+  it('should forget the secrets of an earlier URL without one', () => {
+    const fromUrl = withUrlSecrets(HELD, new Set(), [SecretKind.Password])
+
+    expect(withUrlSecrets(fromUrl, new Set(), [])).toMatchObject({
+      heldSecrets: new Set(),
+      urlSecrets: new Set(),
+    })
   })
 })

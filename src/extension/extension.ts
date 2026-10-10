@@ -5,7 +5,7 @@ import { CommandId, ViewId } from './command-id.ts'
 import { registerConnectionCommands } from './commands/connection-commands.ts'
 import { registerExplorerCommands } from './commands/explorer-commands.ts'
 import { registerWriteAccessCommands } from './commands/write-access-commands.ts'
-import { pingServer } from './connections/server-test.ts'
+import { listServerDatabases, pingServer } from './connections/server-test.ts'
 import type { EditorSessions } from './editor/editor-sessions.ts'
 import { ConnectionForms } from './form/connection-forms.ts'
 import { registerHelpCommands } from './help/help-commands.ts'
@@ -99,6 +99,8 @@ function createForms(
     secrets: services.secrets,
     test: async (connection, secrets) =>
       pingServer({ open: services.open, log }, connection, secrets),
+    listDatabases: async (connection, secrets) =>
+      listServerDatabases({ open: services.open, log }, connection, secrets),
     policy: () => readSettings().policy,
     log,
   })

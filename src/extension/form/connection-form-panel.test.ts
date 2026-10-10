@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeMemento } from '../../../test/fakes/extension-context.ts'
 import { saved } from '../../../test/support/commands.ts'
 import {
+  submittedDraft as draft,
   type FormHarness,
   formHarness,
   fromForm,
@@ -12,14 +13,9 @@ import {
 } from '../../../test/support/forms.ts'
 import { resetVscode, window } from '../../../test/vscode.ts'
 import { FormMode } from '../../core/connection-form/protocol.ts'
-import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
 
 let harness: FormHarness
-
-function draft(connection: ConnectionConfig = SHOP, secretChanges: object[] = []): object {
-  return { connection, secretChanges }
-}
 
 beforeEach(() => {
   resetVscode()
@@ -53,9 +49,9 @@ describe('testing from the form', () => {
   })
 
   it('should test with the password of an imported URL unless one was typed', async () => {
-    const pendingSecrets = new Map([[SecretKind.Password, 'from-url']])
-    const panel = await harness.loaded({ mode: FormMode.New, pendingSecrets })
+    const panel = await harness.loaded({ mode: FormMode.New })
 
+    await fromForm(panel, { type: 'import', text: 'mysql://app:from-url@localhost/shop' })
     await fromForm(panel, { type: 'test', draft: draft() })
     await fromForm(panel, { type: 'test', draft: draft(SHOP, [{ kind: 'password', value: 'x' }]) })
 
@@ -213,5 +209,95 @@ describe('saving from the form', () => {
     expect(harness.commands.log.error).toHaveBeenCalledWith(
       `Saving the connection "Shop" failed: ${reason}`,
     )
+  })
+})
+
+describe('listing the databases of the server', () => {
+  it('should list them with the secrets the form would save', async () => {
+    await saved(harness.commands, SHOP, new Map([[SecretKind.Password, 'stored']]))
+    const panel = await harness.loaded()
+
+    await fromForm(panel, {
+      type: 'listDatabases',
+      draft: draft({ ...SHOP, id: 'other', name: '' }, [{ kind: 'password', value: 'typed' }]),
+    })
+
+    expect(harness.listDatabases.mock.calls).toStrictEqual([
+      [{ ...SHOP, name: '' }, new Map([[SecretKind.Password, 'typed']])],
+    ])
+    expect(sentToForm(panel, 'databases')).toStrictEqual([
+      { type: 'databases', names: ['app', 'shop'] },
+    ])
+  })
+
+  it('should list those of a new connection with what was typed, without asking the keyring', async () => {
+    const read = vi.spyOn(harness.commands.storage, 'get')
+    const panel = await harness.loaded({ mode: FormMode.New })
+
+    await fromForm(panel, {
+      type: 'listDatabases',
+      draft: draft(SHOP, [{ kind: 'password', value: 'typed' }]),
+    })
+
+    expect(harness.listDatabases.mock.calls.map(([, secrets]) => secrets)).toStrictEqual([
+      new Map([[SecretKind.Password, 'typed']]),
+    ])
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it("should show the server's error", async () => {
+    harness.listDatabases.mockRejectedValueOnce(new Error('Access denied for user app'))
+    const panel = await harness.loaded()
+
+    await fromForm(panel, { type: 'listDatabases', draft: draft() })
+
+    expect(sentToForm(panel, 'databasesFailed')).toStrictEqual([
+      { type: 'databasesFailed', message: 'Access denied for user app' },
+    ])
+  })
+
+  it('should not connect with a draft it finds wrong', async () => {
+    const panel = await harness.loaded()
+
+    await fromForm(panel, { type: 'listDatabases', draft: draft({ ...SHOP, port: 0 }) })
+
+    expect(harness.listDatabases).not.toHaveBeenCalled()
+    expect(sentToForm(panel, 'databasesFailed')).toStrictEqual([
+      {
+        type: 'databasesFailed',
+        message: 'Fix the connection first: The port must be a whole number from 1 to 65535',
+      },
+    ])
+  })
+
+  it('should list them once at a time', async () => {
+    const answer = Promise.withResolvers<readonly string[]>()
+    harness.listDatabases.mockReturnValueOnce(answer.promise)
+    const panel = await harness.loaded()
+
+    panel.webview.send({ type: 'listDatabases', draft: draft() })
+    await fromForm(panel, { type: 'listDatabases', draft: draft() })
+    answer.resolve(['shop'])
+    await settled()
+    await fromForm(panel, { type: 'listDatabases', draft: draft() })
+
+    expect(harness.listDatabases).toHaveBeenCalledTimes(2)
+    expect(sentToForm(panel, 'databases')).toStrictEqual([
+      { type: 'databases', names: ['shop'] },
+      { type: 'databases', names: ['app', 'shop'] },
+    ])
+  })
+
+  it('should keep quiet when the form closed meanwhile', async () => {
+    const answer = Promise.withResolvers<readonly string[]>()
+    harness.listDatabases.mockReturnValueOnce(answer.promise)
+    const panel = await harness.loaded()
+
+    await fromForm(panel, { type: 'listDatabases', draft: draft() })
+    panel.dispose()
+    answer.resolve(['shop'])
+    await settled()
+
+    expect(sentToForm(panel, 'databases')).toStrictEqual([])
   })
 })

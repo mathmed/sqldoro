@@ -11,6 +11,24 @@ export const ENVIRONMENT_LABELS: ReadonlyMap<string, string> = new Map([
   [EnvironmentTag.Production, 'Production'],
 ])
 
+// The short names the connection form offers the environments under.
+export const ENVIRONMENT_SHORT_LABELS: ReadonlyMap<string, string> = new Map([
+  [EnvironmentTag.None, 'None'],
+  [EnvironmentTag.Local, 'Local'],
+  [EnvironmentTag.Development, 'Dev'],
+  [EnvironmentTag.Staging, 'Staging'],
+  [EnvironmentTag.Production, 'Prod'],
+])
+
+// The theme color of each environment, by its VS Code id: production stands out in red; untagged
+// connections keep the theme's color.
+export const ENVIRONMENT_COLORS: ReadonlyMap<string, string> = new Map([
+  [EnvironmentTag.Local, 'charts.green'],
+  [EnvironmentTag.Development, 'charts.blue'],
+  [EnvironmentTag.Staging, 'charts.orange'],
+  [EnvironmentTag.Production, 'charts.red'],
+])
+
 export const SSL_MODE_LABELS: ReadonlyMap<string, string> = new Map([
   [SslMode.Disable, 'Disabled'],
   [SslMode.Require, 'Required'],
@@ -32,7 +50,7 @@ export const SSH_AUTH_LABELS: ReadonlyMap<string, string> = new Map([
 
 // The name of each field of a connection, as the form labels it.
 export const FIELD_LABELS: ReadonlyMap<string, string> = new Map([
-  [ConnectionField.Name, 'Name'],
+  [ConnectionField.Name, 'Connection name'],
   [ConnectionField.Engine, 'Server type'],
   [ConnectionField.Host, 'Host'],
   [ConnectionField.Port, 'Port'],

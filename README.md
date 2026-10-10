@@ -17,12 +17,17 @@ built to make the dangerous queries hard and the everyday ones quick.
 
 - **Connections** to MySQL and PostgreSQL, saved in VS Code, with SSL/TLS (`disable`, `require`,
   `verify-ca`, `verify-full`) and SSH tunnels (a password or a private key). The connection form opens
-  in its own editor tab: the name, the environment and a **Read-only** switch always in sight, the
-  server type, then **Main**, **SSL/TLS** and **SSH Tunnel** tabs, with problems shown as you type and
-  **Test Connection** answering right in the form. Passwords and passphrases live only in VS Code's
-  secret storage and never reach the form. Import a connection from a `mysql://`, `postgres://` or
-  `postgresql://` URL. Tag each connection with its environment (`local`, `dev`, `staging`, `prod`):
-  it shows everywhere, production in red.
+  in its own editor tab: a new connection starts on a card per database (with its default port), then
+  the connection shows in one card, a field per row: the name, the environment and a **Read-only**
+  switch, host and port in one box, the user, the password (its eye only ever shows what you typed),
+  the database (typed, or picked from those the server lists), the tunnel with its SSH fields just
+  below, and the SSL/TLS certificates under **Advanced settings**, which open by themselves when SSL is
+  on or has a problem. Problems show as you type, **Save connection** takes you to the first one, and
+  **Test** answers right in the form. Passwords and passphrases live only in VS Code's secret storage
+  and never reach the form. **Import connection string** in the form (or **Import Connection from
+  URL**) reads a `mysql://`, `postgres://` or `postgresql://` URL into the fields, keeping the name you
+  typed, the environment, the read-only switch and the tunnel. Tag each connection with its
+  environment (`local`, `dev`, `staging`, `prod`): it shows everywhere, production in red.
 - **Read-only by default**: a new connection refuses anything that may write, in sqldoro and in the
   database session, until you allow writes on it.
 - **Schema explorer**: databases, schemas, tables and views, columns, indexes and foreign keys,
@@ -74,8 +79,8 @@ editor where it applies.
 | -------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | **Get Started**                        |                                                | Opens the walkthrough: first connection, first query, the safety model, editing rows.              |
 | **About sqldoro and Its Safety Model** |                                                | Shows the version and a summary of the safety model and its limits.                                |
-| **Add Connection**                     |                                                | Opens the connection form for a new MySQL or PostgreSQL connection.                                |
-| **Import Connection from URL**         |                                                | Asks for a `mysql://`, `postgres://` or `postgresql://` URL and opens the form with what it holds. |
+| **Add Connection**                     |                                                | Opens the form of a new connection on the databases to choose from: MySQL or PostgreSQL.           |
+| **Import Connection from URL**         |                                                | Opens a new connection form on its input for a `mysql://`, `postgres://` or `postgresql://` URL.   |
 | **Edit Connection**                    |                                                | Opens the form of a saved connection; its open session closes when a change affects it.            |
 | **Duplicate Connection**               |                                                | Copies a connection and its secrets under a new name.                                              |
 | **Delete Connection**                  |                                                | Deletes a connection with its secrets, after a confirmation.                                       |

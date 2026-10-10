@@ -56,16 +56,14 @@ describe('ConnectionForms', () => {
 
   it('should send the form what it needs as of when it loads, again when it reloads', async () => {
     await saved(harness.commands, { ...SHOP, id: 'other', name: 'Billing' })
-    const panel = await harness.loaded({
-      heldSecrets: new Set([SecretKind.Password]),
-      notices: ['a'],
-    })
+    const panel = await harness.loaded({ storedSecrets: new Set([SecretKind.Password]) })
 
     await fromForm(panel, { type: 'ready' })
 
     expect(sentToForm(panel, 'open')).toHaveLength(2)
     expect(setupOf(panel)).toStrictEqual({
       mode: 'edit',
+      start: 'details',
       connection: SHOP,
       heldSecrets: ['password'],
       engines: [
@@ -74,7 +72,6 @@ describe('ConnectionForms', () => {
       ],
       takenNameKeys: ['billing'],
       productionEnvironments: ['prod'],
-      notices: ['a'],
     })
   })
 

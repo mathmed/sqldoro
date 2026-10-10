@@ -5,7 +5,7 @@ import { DEFAULT_SSH_TUNNEL } from '../connection/connection.ts'
 import { SecretKind } from '../connection/secrets.ts'
 import { ConnectionField } from '../connection/validation.ts'
 import { parseFormHostMessage } from './parse-host-message.ts'
-import { FormMode } from './protocol.ts'
+import { FormMode, FormStart } from './protocol.ts'
 
 // What the message would be after its trip through JSON: a missing tunnel is left out.
 function overTheWire(value: unknown): unknown {
@@ -16,9 +16,9 @@ describe('parseFormHostMessage', () => {
   it('should read the setup the form opens with', () => {
     const setup = formSetup({
       mode: FormMode.Edit,
+      start: FormStart.Picker,
       connection: { ...VALID_CONNECTION, ssh: DEFAULT_SSH_TUNNEL },
       heldSecrets: [SecretKind.Password, SecretKind.SshPassword],
-      notices: ['Ignored the URL parameter "x"'],
     })
 
     expect(parseFormHostMessage(overTheWire({ type: 'open', setup }))).toStrictEqual({
@@ -40,6 +40,9 @@ describe('parseFormHostMessage', () => {
     expect(() => parseFormHostMessage(open({ mode: 'view' }))).toThrow(
       new TypeError('"mode" must be a known value'),
     )
+    expect(() => parseFormHostMessage(open({ start: 'tabs' }))).toThrow(
+      new TypeError('"start" must be a known value'),
+    )
     expect(() => parseFormHostMessage(open({ heldSecrets: ['token'] }))).toThrow(
       new TypeError('"0" must be a known value'),
     )
@@ -51,9 +54,6 @@ describe('parseFormHostMessage', () => {
     )
     expect(() => parseFormHostMessage(open({ productionEnvironments: null }))).toThrow(
       new TypeError('"productionEnvironments" must be a list'),
-    )
-    expect(() => parseFormHostMessage(open({ notices: 'x' }))).toThrow(
-      new TypeError('"notices" must be a list'),
     )
     expect(() =>
       parseFormHostMessage(open({ connection: { ...VALID_CONNECTION, port: null } })),
@@ -106,6 +106,59 @@ describe('parseFormHostMessage', () => {
       parseFormHostMessage({ type: 'saveRefused', message: 'No', issues: [{ field: 'name' }] }),
     ).toThrow(new TypeError('"message" must be a string'))
     expect(() => parseFormHostMessage({ type: 'saveRefused', issues })).toThrow(
+      new TypeError('"message" must be a string'),
+    )
+  })
+
+  it('should read the request to show the input of a connection string', () => {
+    expect(parseFormHostMessage({ type: 'showImport', extra: 1 })).toStrictEqual({
+      type: 'showImport',
+    })
+  })
+
+  it('should read what a connection string holds', () => {
+    const imported = {
+      type: 'imported',
+      connection: VALID_CONNECTION,
+      urlSecrets: [SecretKind.Password],
+      warnings: ['Ignored the URL parameter "x"'],
+    }
+
+    expect(parseFormHostMessage(overTheWire(imported))).toStrictEqual(imported)
+    expect(() => parseFormHostMessage({ ...imported, connection: 'x' })).toThrow(
+      new TypeError('"connection" must be an object'),
+    )
+    expect(() => parseFormHostMessage({ ...imported, urlSecrets: ['token'] })).toThrow(
+      new TypeError('"0" must be a known value'),
+    )
+    expect(() => parseFormHostMessage({ ...imported, warnings: [1] })).toThrow(
+      new TypeError('"0" must be a string'),
+    )
+  })
+
+  it('should read why a connection string was refused', () => {
+    expect(parseFormHostMessage({ type: 'importRefused', message: 'Bad' })).toStrictEqual({
+      type: 'importRefused',
+      message: 'Bad',
+    })
+    expect(() => parseFormHostMessage({ type: 'importRefused' })).toThrow(
+      new TypeError('"message" must be a string'),
+    )
+  })
+
+  it('should read the databases of the server, or why they could not be listed', () => {
+    expect(parseFormHostMessage({ type: 'databases', names: ['app', 'shop'] })).toStrictEqual({
+      type: 'databases',
+      names: ['app', 'shop'],
+    })
+    expect(() => parseFormHostMessage({ type: 'databases', names: [null] })).toThrow(
+      new TypeError('"0" must be a string'),
+    )
+    expect(parseFormHostMessage({ type: 'databasesFailed', message: 'denied' })).toStrictEqual({
+      type: 'databasesFailed',
+      message: 'denied',
+    })
+    expect(() => parseFormHostMessage({ type: 'databasesFailed', message: 1 })).toThrow(
       new TypeError('"message" must be a string'),
     )
   })

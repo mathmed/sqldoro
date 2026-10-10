@@ -7,7 +7,6 @@ import {
   issueOf,
   openForm,
   secretInput,
-  tab,
   textField,
   typeIn,
 } from '../../../test/webview/connection-form.ts'
@@ -19,13 +18,13 @@ function status(): string | null {
   return screen.getByRole('status').textContent
 }
 
-describe('Test Connection', () => {
+describe('Test', () => {
   it('should test the draft with the secrets typed, once at a time, and show how it went', () => {
     const { sent } = openForm(SAVED)
     typeIn(secretInput('Password'), 's3cret')
 
-    click('Test Connection')
-    click('Test Connection')
+    click('Test')
+    click('Test')
 
     expect(sent('test')).toStrictEqual([
       {
@@ -37,7 +36,7 @@ describe('Test Connection', () => {
       },
     ])
     expect(status()).toBe('Testing the connection…')
-    expect(screen.getByRole('button', { name: 'Test Connection' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Test' })).toHaveProperty('disabled', true)
     fromHost({ type: 'tested', isSuccess: true, message: 'Connected: MySQL 8.4' })
     expect(status()).toBe('Connected: MySQL 8.4')
     expect(screen.getByRole('status').className).toBe('test-status succeeded')
@@ -46,7 +45,7 @@ describe('Test Connection', () => {
   it("should show the server's error, and forget the result once the draft changes", () => {
     openForm(SAVED)
 
-    click('Test Connection')
+    click('Test')
     fromHost({ type: 'tested', isSuccess: false, message: 'Access denied' })
     expect(status()).toBe('Could not connect: Access denied')
     expect(screen.getByRole('status').className).toBe('test-status failed')
@@ -58,22 +57,22 @@ describe('Test Connection', () => {
   it('should test a connection without a name, not one with other problems', () => {
     const { sent } = openForm()
 
-    click('Test Connection')
+    click('Test')
 
     expect(sent('test')).toStrictEqual([])
     expect(issueOf(textField('Username'))).toBe('Enter the user to log in as')
     expect(document.activeElement).toBe(textField('Username'))
     typeIn(textField('Username'), 'app')
-    click('Test Connection')
+    click('Test')
     expect(sent('test')).toHaveLength(1)
   })
 })
 
-describe('Save', () => {
+describe('Save connection', () => {
   it('should send the draft with the secrets typed once, and wait for the extension', () => {
     const { sent } = openForm(SAVED)
     typeIn(secretInput('Password'), 'n3w')
-    const save = screen.getByRole('button', { name: 'Save' })
+    const save = screen.getByRole('button', { name: 'Save connection' })
 
     fireEvent.click(save)
     fireEvent.click(save)
@@ -88,7 +87,7 @@ describe('Save', () => {
       },
     ])
     expect(screen.getByRole('button', { name: 'Saving…' })).toHaveProperty('disabled', true)
-    expect(screen.getByRole('button', { name: 'Test Connection' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Test' })).toHaveProperty('disabled', true)
   })
 
   it('should save on Enter in a field', () => {
@@ -99,24 +98,50 @@ describe('Save', () => {
     expect(sent('save')).toHaveLength(1)
   })
 
-  it('should show every problem, bring the first tab with one and focus the first field', () => {
+  it('should show every problem and focus the first field going down the form', () => {
     const { sent } = openForm()
-    click(/SSH Tunnel/, 'tab')
 
-    click('Save')
+    click('Save connection')
 
     expect(sent('save')).toStrictEqual([])
-    expect(tab(/Main/).getAttribute('aria-selected')).toBe('true')
-    expect(document.activeElement).toBe(textField('Name'))
-    expect(issueOf(textField('Name'))).toBe('Enter a name for the connection')
+    expect(document.activeElement).toBe(textField('Connection name'))
+    expect(issueOf(textField('Connection name'))).toBe('Enter a name for the connection')
     expect(issueOf(textField('Username'))).toBe('Enter the user to log in as')
+  })
+
+  it('should take the user to the tunnel fields before the SSL settings', () => {
+    openForm({
+      connection: {
+        ...VALID_CONNECTION,
+        ssh: { host: '', port: 22, user: 'ops', authMethod: 'password', privateKeyPath: '' },
+        ssl: { ...VALID_CONNECTION.ssl, mode: 'require', keyPath: '/key' },
+      },
+    })
+
+    click('Save connection')
+
+    expect(document.activeElement).toBe(textField('SSH host'))
+    expect(issueOf(textField('Client certificate'))).toBe('A client key needs its certificate')
+  })
+
+  it('should open the advanced settings to take the user to a problem there', () => {
+    openForm({
+      connection: { ...VALID_CONNECTION, ssl: { ...VALID_CONNECTION.ssl, certPath: '/cert' } },
+    })
+    click('Advanced settings · SSL/TLS certificates')
+    expect(screen.queryByRole('combobox', { name: 'SSL mode' })).toBeNull()
+
+    click('Save connection')
+
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'SSL mode' }))
+    expect(screen.getByRole('img', { name: 'has problems' })).toBeDefined()
   })
 
   it('should show why the extension refused, and send again once fixed', () => {
     const { sent } = openForm()
-    typeIn(textField('Name'), 'Shop')
+    typeIn(textField('Connection name'), 'Shop')
     typeIn(textField('Username'), 'app')
-    click('Save')
+    click('Save connection')
 
     fromHost({
       type: 'saveRefused',
@@ -131,7 +156,7 @@ describe('Save', () => {
     expect(document.activeElement).toBe(textField('Host'))
     typeIn(textField('Host'), 'db')
     expect(screen.getByRole('alert').textContent).toBe('')
-    click('Save')
+    click('Save connection')
     expect(sent('save')).toHaveLength(2)
   })
 })

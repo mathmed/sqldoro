@@ -1,5 +1,5 @@
 import { type FormState, openForm } from '../../src/core/connection-form/form-state.ts'
-import { FormMode, type FormSetup } from '../../src/core/connection-form/protocol.ts'
+import { FormMode, type FormSetup, FormStart } from '../../src/core/connection-form/protocol.ts'
 // What the connection form opens with, for the tests of the core, the webview and the extension host:
 // two engines (MySQL first, so it is the default) and a new connection.
 import {
@@ -37,12 +37,12 @@ export const VALID_CONNECTION: ConnectionConfig = { ...NEW_CONNECTION, name: 'Sh
 export function formSetup(changes: Partial<FormSetup> = {}): FormSetup {
   return {
     mode: FormMode.New,
+    start: FormStart.Details,
     connection: NEW_CONNECTION,
     heldSecrets: [],
     engines: [MYSQL_OPTION, POSTGRES_OPTION],
     takenNameKeys: ['billing'],
     productionEnvironments: ['prod', 'staging'],
-    notices: [],
     ...changes,
   }
 }

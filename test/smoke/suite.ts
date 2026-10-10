@@ -123,16 +123,28 @@ async function probeResultViewReopens(): Promise<void> {
 }
 
 // The connection form is a second React bundle in its own webview: Add Connection answers true once
-// it runs under its Content Security Policy and tells the extension it is ready. It closes again.
+// it runs under its Content Security Policy and tells the extension it is ready, on the engines to
+// choose from. Import Connection from URL opens it the same way, on the input of a connection
+// string. Each closes again.
 async function probeConnectionForm(): Promise<void> {
+  const seconds = await formLoadTime(CommandId.AddConnection)
+  report(`connection form loaded in ${seconds.toFixed(3)}s`)
+  const importSeconds = await formLoadTime(CommandId.ImportConnectionUrl)
+  report(
+    `${CommandId.ImportConnectionUrl} loaded the connection form in ${importSeconds.toFixed(3)}s`,
+  )
+}
+
+// Seconds until the form a command opens has loaded; it closes again.
+async function formLoadTime(command: string): Promise<number> {
   const started = performance.now()
-  const isLoaded = await vscode.commands.executeCommand(CommandId.AddConnection)
+  const isLoaded = await vscode.commands.executeCommand(command)
   if (isLoaded !== true) {
-    throw new Error(`${CommandId.AddConnection} did not open the connection form`)
+    throw new Error(`${command} did not open the connection form`)
   }
   const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
   await vscode.window.tabGroups.close(webviewTab(CONNECTION_FORM_VIEW_TYPE))
-  report(`connection form loaded in ${seconds.toFixed(3)}s`)
+  return seconds
 }
 
 // The status bar of a SQL editor shows its transaction mode; the command that switches it answers

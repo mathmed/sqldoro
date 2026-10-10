@@ -5,6 +5,7 @@ import {
   type ConnectionConfig,
   DEFAULT_SSH_TUNNEL,
   DEFAULT_SSL,
+  EnvironmentTag,
   newConnection,
   SshAuthMethod,
   SslMode,
@@ -17,6 +18,7 @@ import {
   TunnelChoice,
   tunnelChoiceOf,
   withEngine,
+  withImported,
   withPath,
   withSsh,
   withSsl,
@@ -145,6 +147,42 @@ describe('withEngine', () => {
       engine: 'mysql',
       port: 5432,
     })
+  })
+})
+
+describe('withImported', () => {
+  const imported: ConnectionConfig = {
+    ...newConnection('url', fakeEngine(MYSQL)),
+    name: 'db/app',
+    host: 'db',
+    port: 3307,
+    user: 'root',
+    database: 'app',
+    ssl: { ...DEFAULT_SSL, mode: SslMode.VerifyFull },
+  }
+
+  it('should take the server, the login, the database and SSL of the connection string', () => {
+    const current = {
+      ...CONNECTION,
+      environment: EnvironmentTag.Production,
+      isReadOnly: false,
+      ssh: TUNNEL,
+    }
+
+    expect(withImported(current, imported)).toStrictEqual({
+      ...current,
+      engine: 'mysql',
+      host: 'db',
+      port: 3307,
+      user: 'root',
+      database: 'app',
+      ssl: imported.ssl,
+    })
+  })
+
+  it('should name the connection after the connection string until a name is typed', () => {
+    expect(withImported({ ...CONNECTION, name: ' ' }, imported).name).toBe('db/app')
+    expect(withImported({ ...CONNECTION, name: 'Mine' }, imported).name).toBe('Mine')
   })
 })
 

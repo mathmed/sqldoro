@@ -3,7 +3,7 @@
 import { type Mock, vi } from 'vitest'
 import type * as vscode from 'vscode'
 
-import { FormMode } from '../../src/core/connection-form/protocol.ts'
+import { FormMode, FormStart } from '../../src/core/connection-form/protocol.ts'
 import type { ConnectionConfig } from '../../src/core/connection/connection.ts'
 import { ConnectionForms } from '../../src/extension/form/connection-forms.ts'
 import type { FormRequest, FormServices } from '../../src/extension/form/form-request.ts'
@@ -49,6 +49,14 @@ export async function fromForm(panel: FakeWebviewPanel, message: object): Promis
   await settled()
 }
 
+// What the form sends to test, save or list the databases of a connection.
+export function submittedDraft(
+  connection: ConnectionConfig = SHOP,
+  secretChanges: object[] = [],
+): object {
+  return { connection, secretChanges }
+}
+
 // The messages of a type the extension sent the form, in order.
 export function sentToForm(panel: FakeWebviewPanel, type: string): Record<string, unknown>[] {
   return (panel.webview.posted as Record<string, unknown>[]).filter(
@@ -69,35 +77,37 @@ export function setupOf(panel: FakeWebviewPanel): Record<string, unknown> {
 export interface FormHarness {
   readonly commands: CommandHarness
   readonly forms: ConnectionForms
-  readonly test: Mock<ServerTest>
+  readonly test: Mock<FormServices['test']>
+  readonly listDatabases: Mock<FormServices['listDatabases']>
   // Opens the form of a request (by default, the edit of SHOP) and loads it.
   readonly loaded: (changes?: Partial<FormRequest>) => Promise<FakeWebviewPanel>
   readonly dispose: () => void
 }
-
-type ServerTest = FormServices['test']
 
 export const SHOP: ConnectionConfig = { ...VALID_CONNECTION, id: 'shop' }
 
 export function formRequest(changes: Partial<FormRequest> = {}): FormRequest {
   return {
     mode: FormMode.Edit,
+    start: FormStart.Details,
     connection: SHOP,
-    heldSecrets: new Set(),
-    pendingSecrets: new Map(),
-    notices: [],
+    storedSecrets: new Set(),
     ...changes,
   }
 }
 
 export function formHarness(options: HarnessOptions = {}): FormHarness {
   const commands = commandHarness(options)
-  const test = vi.fn<ServerTest>(async () => Promise.resolve('MySQL 8.4'))
+  const test = vi.fn<FormServices['test']>(async () => Promise.resolve('MySQL 8.4'))
+  const listDatabases = vi.fn<FormServices['listDatabases']>(async () =>
+    Promise.resolve(['app', 'shop']),
+  )
   const forms = new ConnectionForms({
     extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
     service: commands.context.service,
     secrets: commands.context.secrets,
     test,
+    listDatabases,
     policy: () => ({ productionEnvironments: new Set(['prod']) }),
     log: commands.log,
   })
@@ -111,5 +121,5 @@ export function formHarness(options: HarnessOptions = {}): FormHarness {
     forms.dispose()
     commands.dispose()
   }
-  return { commands, forms, test, loaded, dispose }
+  return { commands, forms, test, listDatabases, loaded, dispose }
 }

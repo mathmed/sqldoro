@@ -58,6 +58,26 @@ describe('parseFormViewMessage', () => {
     )
   })
 
+  it('should read the draft whose server to list the databases of', () => {
+    expect(parseFormViewMessage({ type: 'listDatabases', draft: DRAFT })).toStrictEqual({
+      type: 'listDatabases',
+      draft: DRAFT,
+    })
+    expect(() => parseFormViewMessage({ type: 'listDatabases', draft: [] })).toThrow(
+      new TypeError('"draft" must be an object'),
+    )
+  })
+
+  it('should read a connection string without telling it', () => {
+    expect(parseFormViewMessage({ type: 'import', text: 'mysql://root:pw@db' })).toStrictEqual({
+      type: 'import',
+      text: 'mysql://root:pw@db',
+    })
+    expect(() => parseFormViewMessage({ type: 'import', text: ['mysql://root:pw@db'] })).toThrow(
+      new TypeError('"text" must be a string'),
+    )
+  })
+
   it('should refuse to change a secret twice in one draft', () => {
     const twice = [
       { kind: SecretKind.Password, value: 'first' },

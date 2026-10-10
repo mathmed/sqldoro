@@ -6,7 +6,7 @@ import { VALID_CONNECTION } from '../../../test/fixtures/connection-form.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Session, SessionRequest } from '../../core/session/open-session.ts'
-import { pingServer } from './server-test.ts'
+import { listServerDatabases, pingServer } from './server-test.ts'
 
 const SECRETS = new Map([[SecretKind.Password, 's3cret']])
 
@@ -37,7 +37,7 @@ describe('pingServer', () => {
     expect(ping).toHaveBeenCalledOnce()
     expect(close).toHaveBeenCalledOnce()
     requests[0]?.onUnexpectedClose(new Error('late'))
-    expect(log.debug).toHaveBeenCalledWith('The test session of Shop ended: late')
+    expect(log.debug).toHaveBeenCalledWith('The short session of Shop ended: late')
   })
 
   it('should close the session when the server does not answer', async () => {
@@ -48,6 +48,34 @@ describe('pingServer', () => {
     await expect(
       pingServer({ open, log: recordingLogger() }, VALID_CONNECTION, SECRETS),
     ).rejects.toThrow('timeout')
+    expect(close).toHaveBeenCalledOnce()
+  })
+})
+
+describe('listServerDatabases', () => {
+  it('should list the databases of the server by name with the secrets, and close the session', async () => {
+    const listDatabases = vi.fn(async () => Promise.resolve([{ name: 'app' }, { name: 'shop' }]))
+    const { open, requests, close } = opener(fakeSession({ listDatabases }))
+
+    const sut = await listServerDatabases(
+      { open, log: recordingLogger() },
+      VALID_CONNECTION,
+      SECRETS,
+    )
+
+    expect(sut).toStrictEqual(['app', 'shop'])
+    expect(requests[0]).toMatchObject({ connection: VALID_CONNECTION, secrets: SECRETS })
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('should close the session when the catalog cannot be read', async () => {
+    const { open, close } = opener(
+      fakeSession({ listDatabases: async () => Promise.reject(new Error('permission denied')) }),
+    )
+
+    await expect(
+      listServerDatabases({ open, log: recordingLogger() }, VALID_CONNECTION, SECRETS),
+    ).rejects.toThrow('permission denied')
     expect(close).toHaveBeenCalledOnce()
   })
 })

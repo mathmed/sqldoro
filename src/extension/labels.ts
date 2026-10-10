@@ -1,14 +1,7 @@
 import * as vscode from 'vscode'
 
 import { EnvironmentTag } from '../core/connection/connection.ts'
-
-// Production stands out in red; untagged connections keep the theme's color.
-const ENVIRONMENT_COLORS: ReadonlyMap<string, string> = new Map([
-  [EnvironmentTag.Local, 'charts.green'],
-  [EnvironmentTag.Development, 'charts.blue'],
-  [EnvironmentTag.Staging, 'charts.orange'],
-  [EnvironmentTag.Production, 'charts.red'],
-])
+import { ENVIRONMENT_COLORS } from '../core/connection/labels.ts'
 
 export function environmentColor(tag: string): vscode.ThemeColor | undefined {
   const color = ENVIRONMENT_COLORS.get(tag)

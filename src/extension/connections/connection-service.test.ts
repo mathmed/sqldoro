@@ -218,15 +218,18 @@ describe('ConnectionService', () => {
     expect(sut.list()).toStrictEqual([connection])
   })
 
-  it('should import a URL as a new connection with a name nobody uses', async () => {
+  it('should import a URL as the connection of an id, with a name the others do not use', async () => {
     const { sut } = harness()
     await sut.save({ ...shop(sut), name: 'db/shop' }, new Map())
 
-    const result = sut.importUrl('postgres://app:pa55@db/shop')
+    const result = sut.importUrl('postgres://app:pa55@db/shop', 'new')
 
     expect(result).toMatchObject({
       isValid: true,
-      imported: { connection: { id: 'id-2', name: 'db/shop (2)', host: 'db' }, password: 'pa55' },
+      imported: { connection: { id: 'new', name: 'db/shop (2)', host: 'db' }, password: 'pa55' },
+    })
+    expect(sut.importUrl('postgres://db/shop', 'id-1')).toMatchObject({
+      imported: { connection: { id: 'id-1', name: 'db/shop' }, password: '' },
     })
   })
 })

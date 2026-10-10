@@ -4,7 +4,15 @@ import { join } from 'node:path'
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { appendText, fileSize, listFiles, readText, removeDirectory, writeText } from './files.ts'
+import {
+  appendText,
+  fileSize,
+  listFiles,
+  makeTemporaryDirectory,
+  readText,
+  removeDirectory,
+  writeText,
+} from './files.ts'
 import { compareText } from './text.ts'
 
 describe('files', () => {
@@ -46,6 +54,16 @@ describe('files', () => {
     await writeText(file, 'not a folder')
 
     await expect(listFiles(file)).rejects.toThrow('ENOTDIR')
+  })
+
+  it('should make a new empty folder in the temporary folder of the system', async () => {
+    const made = await makeTemporaryDirectory('sqldoro-files-made-')
+    const another = await makeTemporaryDirectory('sqldoro-files-made-')
+
+    expect(made.startsWith(join(tmpdir(), 'sqldoro-files-made-'))).toBe(true)
+    expect(await listFiles(made)).toEqual([])
+    expect(another).not.toBe(made)
+    await Promise.all([removeDirectory(made), removeDirectory(another)])
   })
 
   it('should remove a folder and tolerate one that is already gone', async () => {
