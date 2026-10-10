@@ -1,21 +1,27 @@
 import * as vscode from 'vscode'
 
+import { FormMode } from '../../core/connection-form/protocol.ts'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
-import {
-  applySecretChanges,
-  type ConnectionSecrets,
-  SecretKind,
-} from '../../core/connection/secrets.ts'
+import { type ConnectionSecrets, SecretKind } from '../../core/connection/secrets.ts'
 import { describeError } from '../../core/text/errors.ts'
 import { CommandId } from '../command-id.ts'
-import { runConnectionForm } from '../form/connection-form.ts'
-import type { FormDraft } from '../form/form-draft.ts'
-import { askChoice, askText } from '../form/prompts.ts'
+import { pingServer } from '../connections/server-test.ts'
+import type { ConnectionFormPanel } from '../form/connection-form-panel.ts'
+import type { ConnectionForms } from '../form/connection-forms.ts'
+import type { FormRequest } from '../form/form-request.ts'
+import { askText } from '../form/prompts.ts'
+import { withTimeout } from '../platform/timeout.ts'
 import { type CommandContext, connectionFrom, registerAll } from './command-context.ts'
 
-const DELETE = 'Delete'
+export interface ConnectionCommandContext extends CommandContext {
+  readonly forms: ConnectionForms
+}
 
-export function registerConnectionCommands(context: CommandContext): vscode.Disposable[] {
+const DELETE = 'Delete'
+// A form must load in this time to count as open (the smoke test waits for it).
+const LOAD_TIMEOUT_MS = 30_000
+
+export function registerConnectionCommands(context: ConnectionCommandContext): vscode.Disposable[] {
   return registerAll(context, [
     { id: CommandId.AddConnection, action: 'Add Connection', run: addConnection },
     { id: CommandId.ImportConnectionUrl, action: 'Import Connection', run: importConnectionUrl },
@@ -26,22 +32,32 @@ export function registerConnectionCommands(context: CommandContext): vscode.Disp
   ])
 }
 
-async function addConnection(context: CommandContext): Promise<void> {
-  const engines = context.service.engines.engines
-  const engineId = await askChoice(
-    'Add Connection: choose the database',
-    engines.map((engine) => ({ label: engine.displayName, value: engine.id })),
-  )
-  if (engineId !== undefined) {
-    await editAndSave(
-      context,
-      newDraft(context.service.draft(engineId), new Map()),
-      'Add Connection',
-    )
+// The commands that open a form answer true once it has loaded, false when it was closed first.
+async function loaded(form: ConnectionFormPanel): Promise<boolean> {
+  return withTimeout(form.whenLoaded, LOAD_TIMEOUT_MS, 'The connection form did not load')
+}
+
+function newRequest(
+  connection: ConnectionConfig,
+  pendingSecrets: ReadonlyMap<SecretKind, string>,
+  notices: readonly string[],
+): FormRequest {
+  return {
+    mode: FormMode.New,
+    connection,
+    heldSecrets: new Set(pendingSecrets.keys()),
+    pendingSecrets,
+    notices,
   }
 }
 
-async function importConnectionUrl(context: CommandContext): Promise<void> {
+async function addConnection(context: ConnectionCommandContext): Promise<boolean> {
+  return loaded(context.forms.openNew(() => newRequest(context.service.draft(), new Map(), [])))
+}
+
+// The password of the URL stays in the extension until the connection is saved: the form only
+// knows there is one.
+async function importConnectionUrl(context: ConnectionCommandContext): Promise<boolean> {
   const schemes = context.service.engines.urlSchemes.map((scheme) => `${scheme}://`).join(', ')
   const url = await askText({
     title: 'Import Connection from URL',
@@ -51,31 +67,36 @@ async function importConnectionUrl(context: CommandContext): Promise<void> {
     isPassword: true,
   })
   if (url === undefined) {
-    return
+    return false
   }
   const result = context.service.importUrl(url)
   if (!result.isValid) {
     void vscode.window.showErrorMessage(`Cannot import this URL: ${result.message}`)
-    return
+    return false
   }
   const { connection, password, warnings } = result.imported
-  if (warnings.length > 0) {
-    void vscode.window.showWarningMessage(warnings.join('. '))
-  }
   const secrets = password === '' ? new Map() : new Map([[SecretKind.Password, password]])
-  await editAndSave(context, newDraft(connection, secrets), 'Import Connection from URL')
+  return loaded(context.forms.open(newRequest(connection, secrets, warnings)))
 }
 
-async function editConnection(context: CommandContext, target: unknown): Promise<void> {
+async function editConnection(
+  context: ConnectionCommandContext,
+  target: unknown,
+): Promise<boolean> {
   const connection = await connectionFrom(target, context, 'Edit Connection')
-  if (connection !== undefined) {
-    const draft = {
-      connection,
-      secretChanges: new Map(),
-      storedSecrets: await context.secrets.storedKinds(connection),
-    }
-    await editAndSave(context, draft, `Edit Connection: ${connection.name}`)
+  if (connection === undefined) {
+    return false
   }
+  const heldSecrets = await context.secrets.storedKinds(connection)
+  return loaded(
+    context.forms.open({
+      mode: FormMode.Edit,
+      connection,
+      heldSecrets,
+      pendingSecrets: new Map(),
+      notices: [],
+    }),
+  )
 }
 
 async function duplicateConnection(context: CommandContext, target: unknown): Promise<void> {
@@ -108,35 +129,6 @@ async function testSavedConnection(context: CommandContext, target: unknown): Pr
   }
 }
 
-function newDraft(
-  connection: ConnectionConfig,
-  secretChanges: ReadonlyMap<SecretKind, string>,
-): FormDraft {
-  return { connection, secretChanges, storedSecrets: new Set() }
-}
-
-async function editAndSave(
-  context: CommandContext,
-  draft: FormDraft,
-  title: string,
-): Promise<void> {
-  const result = await runConnectionForm(draft, {
-    title,
-    engines: context.service.engines,
-    validate: (connection) => context.service.validate(connection),
-    test: async (edited) =>
-      testConnection(
-        context,
-        edited.connection,
-        applySecretChanges(await context.secrets.read(edited.connection), edited.secretChanges),
-      ),
-  })
-  if (result !== undefined) {
-    await context.service.save(result.connection, result.secretChanges)
-  }
-}
-
-// Opens a session, pings the server and closes it again: the saved connection is not changed.
 async function testConnection(
   context: CommandContext,
   connection: ConnectionConfig,
@@ -155,25 +147,5 @@ async function testConnection(
     void vscode.window.showErrorMessage(
       `Could not connect to "${connection.name}": ${describeError(error)}`,
     )
-  }
-}
-
-async function pingServer(
-  context: CommandContext,
-  connection: ConnectionConfig,
-  secrets: ConnectionSecrets,
-): Promise<string> {
-  const session = await context.open({
-    connection,
-    secrets,
-    onUnexpectedClose: (error) => {
-      context.log.debug(`The test session of ${connection.name} ended: ${describeError(error)}`)
-    },
-  })
-  try {
-    await session.engineSession.ping()
-    return `${session.engine.displayName} ${session.engineSession.serverVersion}`
-  } finally {
-    await session.close()
   }
 }

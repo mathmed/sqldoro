@@ -1,11 +1,12 @@
 import * as vscode from 'vscode'
 
 import { type ConnectionConfig, EnvironmentTag } from '../../core/connection/connection.ts'
+import { ENVIRONMENT_LABELS, labelOf } from '../../core/connection/labels.ts'
 import { bindingScope, describeBinding } from '../../core/editor/binding.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import { type GuardPolicy, isProduction } from '../../core/safety/guard.ts'
 import { CommandId, ContextKey, SQL_LANGUAGE } from '../command-id.ts'
-import { ENVIRONMENT_LABELS, environmentBadge, environmentColor, labelOf } from '../labels.ts'
+import { environmentBadge, environmentColor } from '../labels.ts'
 import type { EditorBindings } from './bindings.ts'
 import type { QueryRunner } from './query-runner.ts'
 

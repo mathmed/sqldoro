@@ -13,6 +13,7 @@ const CONTRIBUTED_VIEWS = Object.values(manifest.contributes.views)
 const MILLISECONDS_PER_SECOND = 1000
 // VS Code prefixes the view type of the webviews of extensions.
 const RESULTS_VIEW_TYPE = 'sqldoro.results'
+const CONNECTION_FORM_VIEW_TYPE = 'sqldoro.connectionForm'
 const MANUAL_COMMIT = '$(git-commit) Manual commit'
 const AUTO_COMMIT = '$(check-all) Auto-commit'
 
@@ -26,6 +27,7 @@ export async function run(): Promise<void> {
     await probeResultView()
     await probeResultViewReopens()
     await probeTransactionStatus()
+    await probeConnectionForm()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
     throw error
@@ -103,21 +105,25 @@ async function probeResultView(): Promise<void> {
 // Closing the result view drops it (the changes of its rows it had not applied are warned about, so
 // that nothing goes silently); showing it again loads a new one, with its grid editor and preview.
 async function probeResultViewReopens(): Promise<void> {
-  const tab = vscode.window.tabGroups.all
-    .flatMap((group) => group.tabs)
-    .find(
-      ({ input }) =>
-        input instanceof vscode.TabInputWebview && input.viewType.endsWith(RESULTS_VIEW_TYPE),
-    )
-  if (tab === undefined) {
-    throw new Error('the result view has no tab to close')
-  }
-  await vscode.window.tabGroups.close(tab)
+  await vscode.window.tabGroups.close(webviewTab(RESULTS_VIEW_TYPE))
   const isLoaded = await vscode.commands.executeCommand(CommandId.ShowResults)
   if (isLoaded !== true) {
     throw new Error(`${CommandId.ShowResults} did not open the result view again`)
   }
   report('result view closed and loaded again')
+}
+
+// The connection form is a second React bundle in its own webview: Add Connection answers true once
+// it runs under its Content Security Policy and tells the extension it is ready. It closes again.
+async function probeConnectionForm(): Promise<void> {
+  const started = performance.now()
+  const isLoaded = await vscode.commands.executeCommand(CommandId.AddConnection)
+  if (isLoaded !== true) {
+    throw new Error(`${CommandId.AddConnection} did not open the connection form`)
+  }
+  const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
+  await vscode.window.tabGroups.close(webviewTab(CONNECTION_FORM_VIEW_TYPE))
+  report(`connection form loaded in ${seconds.toFixed(3)}s`)
 }
 
 // The status bar of a SQL editor shows its transaction mode; the command that switches it answers
@@ -129,4 +135,17 @@ async function probeTransactionStatus(): Promise<void> {
     throw new Error(`${CommandId.ToggleTransactionMode} answered ${JSON.stringify([manual, auto])}`)
   }
   report(`transaction status: ${manual} -> ${auto}`)
+}
+
+// The editor tab of the webview of this view type.
+function webviewTab(viewType: string): vscode.Tab {
+  const tab = vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .find(
+      ({ input }) => input instanceof vscode.TabInputWebview && input.viewType.endsWith(viewType),
+    )
+  if (tab === undefined) {
+    throw new Error(`the webview ${viewType} has no tab to close`)
+  }
+  return tab
 }

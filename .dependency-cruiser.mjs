@@ -5,7 +5,7 @@
 //   src/drivers    one folder per database (mysql, postgres) implementing the core engine interface
 //   src/tunnel     SSH tunnel implementing the core tunnel interface with ssh2
 //   src/extension  VS Code extension host: commands, views, secrets; wires drivers in factories/
-//   src/webview    React result grid running in the browser sandbox of a webview
+//   src/webview    React webviews (the result grid, the connection form) in the browser sandbox
 
 const DATABASE_CLIENTS = 'node_modules/(@types/)?(mysql|mysql2|mariadb|pg|pg-[^/]+|postgres)/'
 const SSH_CLIENTS = 'node_modules/(@types/)?ssh2/'

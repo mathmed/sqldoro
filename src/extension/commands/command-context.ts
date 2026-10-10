@@ -24,8 +24,9 @@ export interface CommandContext {
 export interface CommandSpec<C = CommandContext> {
   readonly id: string
   readonly action: string
-  // The target is the tree node, connection id or nothing VS Code calls the command with.
-  readonly run: (context: C, target: unknown) => Promise<void>
+  // The target is the tree node, connection id or nothing VS Code calls the command with. What it
+  // resolves with is what the command answers.
+  readonly run: (context: C, target: unknown) => Promise<unknown>
 }
 
 export function registerAll<C extends { readonly log: Logger }>(
@@ -40,19 +41,21 @@ export function registerAll<C extends { readonly log: Logger }>(
   )
 }
 
-// A command that fails says why in a notification and in the log, instead of a stack trace.
+// A command that fails says why in a notification and in the log, instead of a stack trace, and
+// answers nothing.
 function guarded<T extends unknown[]>(
   context: { readonly log: Logger },
   action: string,
-  run: (...args: T) => Promise<void>,
-): (...args: T) => Promise<void> {
+  run: (...args: T) => Promise<unknown>,
+): (...args: T) => Promise<unknown> {
   return async (...args) => {
     try {
-      await run(...args)
+      return await run(...args)
     } catch (error) {
       const message = describeError(error)
       context.log.error(`${action} failed: ${message}`)
       void vscode.window.showErrorMessage(`${action} failed: ${message}`)
+      return undefined
     }
   }
 }

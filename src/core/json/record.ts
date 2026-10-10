@@ -74,6 +74,18 @@ export function readArray(record: JsonRecord, key: string): readonly unknown[] {
   return readField(record, key, LIST)
 }
 
+// A list of records, each read by `read`.
+export function readList<T>(record: JsonRecord, key: string, read: (item: JsonRecord) => T): T[] {
+  return readArray(record, key).map((item) => read(readRecord(item)))
+}
+
+// A list of strings: a TypeError names the position of the first item that is not one.
+export function readStrings(record: JsonRecord, key: string): string[] {
+  return readArray(record, key).map((value, index) =>
+    readString(new Map([[String(index), value]]), String(index)),
+  )
+}
+
 export function readNested(record: JsonRecord, key: string): JsonRecord {
   return readRecord(readField(record, key, { description: 'an object', matches: isObject }))
 }

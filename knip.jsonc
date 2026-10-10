@@ -3,6 +3,7 @@
   "entry": [
     "src/extension/extension.ts",
     "src/webview/main.tsx",
+    "src/webview/connection-form/main.tsx",
     "scripts/*.ts",
     "test/smoke/suite.ts",
   ],

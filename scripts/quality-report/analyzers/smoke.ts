@@ -10,6 +10,7 @@ const ACTIVATED_LINE = /^>> extension \S+ activated in ([\d.]+)s$/m
 const COMMANDS_LINE = /^>> contributed commands registered: (\d+)$/m
 const VIEWS_LINE = /^>> contributed views registered: (\d+)$/m
 const RESULT_VIEW_LINE = /^>> result view loaded in ([\d.]+)s$/m
+const CONNECTION_FORM_LINE = /^>> connection form loaded in ([\d.]+)s$/m
 const SUITE_FAILURE = /^>> smoke: (\S.*)$/m
 const LAUNCH_FAILURE = /^>> smoke FAILED: (\S.*)$/m
 
@@ -31,14 +32,15 @@ function passedSummary(output: string): string {
   const parts = [
     activation,
     registered.length === 0 ? '' : `${registered.join(' and ')} registered`,
-    resultViewTime(output),
+    loadTime(RESULT_VIEW_LINE, output, 'result view'),
+    loadTime(CONNECTION_FORM_LINE, output, 'connection form'),
   ]
   return parts.filter((part) => part !== '').join(' · ')
 }
 
-function resultViewTime(output: string): string {
-  const seconds = RESULT_VIEW_LINE.exec(output)?.[1]
-  return seconds === undefined ? '' : `result view loaded in ${seconds}s`
+function loadTime(line: RegExp, output: string, webview: string): string {
+  const seconds = line.exec(output)?.[1]
+  return seconds === undefined ? '' : `${webview} loaded in ${seconds}s`
 }
 
 function countOf(

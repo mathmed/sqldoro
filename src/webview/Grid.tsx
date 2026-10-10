@@ -24,7 +24,7 @@ import { handleGridKey } from './grid-keys.ts'
 import { cellId, HEADER_HEIGHT, ROW_HEIGHT, scrollToShow } from './grid-model.ts'
 import { GridHeader } from './GridHeader.tsx'
 import { type CellEvents, GridRows, type RowLayout, type ShownEditor } from './GridRows.tsx'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 import type { RowStore } from './row-store.ts'
 import type { OpenEditor } from './use-cell-editor.ts'
 import { type GridTable, useGridTable } from './use-grid-table.ts'
@@ -39,7 +39,7 @@ export interface GridEdit {
 }
 
 export interface GridProps {
-  readonly api: VsCodeApi
+  readonly api: ResultsApi
   readonly tab: ResultTab
   readonly store: RowStore
   readonly selection: GridSelection | undefined

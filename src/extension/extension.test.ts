@@ -3,6 +3,7 @@ import * as vscode from 'vscode'
 
 import manifest from '../../package.json' with { type: 'json' }
 import { FakeMemento, FakeSecretStorage } from '../../test/fakes/extension-context.ts'
+import { formPanels, fromForm, openForm, sentToForm } from '../../test/support/forms.ts'
 import { outputChannels, resetVscode, treeViews, window } from '../../test/vscode.ts'
 import { CommandId, ViewId } from './command-id.ts'
 import { activate, deactivate } from './extension.ts'
@@ -160,6 +161,30 @@ describe('activate', () => {
     disposeSubscriptions()
 
     await expect(vscode.commands.executeCommand(CommandId.Hello)).rejects.toThrow(CommandId.Hello)
+  })
+
+  it('should test the connection of a form through the session opener of the extension', async () => {
+    const globalState = new FakeMemento()
+    await globalState.update('sqldoro.connections', { version: 1, connections: [SAVED_CONNECTION] })
+    activateIn(vscode.ExtensionMode.Production, globalState)
+    const { panel } = await openForm(
+      vscode.commands.executeCommand(CommandId.EditConnection, 'shop'),
+    )
+    const ssl = { ...SAVED_CONNECTION.ssl, mode: 'require', caPath: '/missing/sqldoro-ca.pem' }
+
+    await fromForm(panel, {
+      type: 'test',
+      draft: { connection: { ...SAVED_CONNECTION, ssl }, secretChanges: [] },
+    })
+
+    await vi.waitFor(() => {
+      expect(sentToForm(panel, 'tested')).toHaveLength(1)
+    })
+    const [tested] = sentToForm(panel, 'tested')
+    expect(tested).toMatchObject({ type: 'tested', isSuccess: false })
+    expect(String(tested?.['message'])).toContain('sqldoro-ca.pem')
+    disposeSubscriptions()
+    expect(formPanels()).toStrictEqual([])
   })
 
   it('should close the open sessions on deactivate', async () => {

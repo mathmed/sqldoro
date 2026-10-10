@@ -1,17 +1,15 @@
-/* The result view follows the VS Code theme: every color comes from its CSS variables. */
+/* The result view follows the VS Code theme: every color comes from its CSS variables. The page,
+   buttons and inputs come from base.css. */
 :root {
   --row-height: 24px;
   --grid-font: var(--vscode-editor-font-family, monospace);
   --grid-font-size: var(--vscode-editor-font-size, 13px);
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
-  font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
+.grid:focus-visible,
+.plan:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 #root,
@@ -19,38 +17,6 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-}
-
-button {
-  color: var(--vscode-button-secondaryForeground);
-  background: var(--vscode-button-secondaryBackground);
-  border: 1px solid var(--vscode-button-border, transparent);
-  border-radius: 2px;
-  padding: 2px 8px;
-  font: inherit;
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: var(--vscode-button-secondaryHoverBackground);
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-button:focus-visible,
-input:focus-visible,
-.grid:focus-visible,
-.plan:focus-visible {
-  outline: 1px solid var(--vscode-focusBorder);
-  outline-offset: -1px;
-}
-
-.empty-state {
-  margin: 16px;
-  color: var(--vscode-descriptionForeground);
 }
 
 .connection-banner {
@@ -249,10 +215,6 @@ input:focus-visible,
   box-sizing: border-box;
   width: 100%;
   height: calc(var(--row-height) - 3px);
-  color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  font: inherit;
 }
 
 .look-number {
@@ -358,15 +320,6 @@ input:focus-visible,
 
 .edit-notice.error {
   color: var(--vscode-errorForeground);
-}
-
-button.primary {
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-}
-
-button.primary:hover:not(:disabled) {
-  background: var(--vscode-button-hoverBackground);
 }
 
 .grid-cell.pending {

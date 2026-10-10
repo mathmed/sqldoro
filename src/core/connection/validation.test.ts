@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import { fakeEngine } from '../../../test/fakes/engine.ts'
-import { EngineRegistry } from '../engine/engine-registry.ts'
 import {
   type ConnectionConfig,
   DEFAULT_SSH_TUNNEL,
@@ -15,7 +14,7 @@ import { ConnectionField, validateConnection, type ValidationContext } from './v
 
 const ENGINE = fakeEngine({ id: 'postgres', defaultPort: 5432 })
 const CONTEXT: ValidationContext = {
-  engines: new EngineRegistry([ENGINE]),
+  engines: [ENGINE],
   takenNameKeys: new Set(['billing']),
 }
 const VALID: ConnectionConfig = { ...newConnection('id', ENGINE), name: 'Shop', user: 'app' }

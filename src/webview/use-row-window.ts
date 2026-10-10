@@ -2,12 +2,12 @@ import type { VirtualItem } from '@tanstack/react-virtual'
 import { useEffect } from 'react'
 
 import { type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 import { type RowStore, WINDOW_ROWS } from './row-store.ts'
 
 // Asks the host for the windows of rows the grid is about to show and does not hold yet.
 export function useRowWindow(
-  api: VsCodeApi,
+  api: ResultsApi,
   tab: ResultTab,
   { store, items }: { readonly store: RowStore; readonly items: readonly VirtualItem[] },
 ): void {

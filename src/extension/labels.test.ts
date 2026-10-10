@@ -1,28 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as vscode from 'vscode'
 
-import {
-  ENVIRONMENT_LABELS,
-  environmentBadge,
-  environmentColor,
-  labelOf,
-  SSH_AUTH_LABELS,
-  SSL_MODE_DETAILS,
-  SSL_MODE_LABELS,
-} from './labels.ts'
-
-describe('labelOf', () => {
-  it('should name each stored value', () => {
-    expect(labelOf(ENVIRONMENT_LABELS, 'prod')).toBe('Production')
-    expect(labelOf(SSL_MODE_LABELS, 'verify-ca')).toBe('Verify CA')
-    expect(labelOf(SSL_MODE_DETAILS, 'disable')).toBe('Plain connection, nothing is encrypted')
-    expect(labelOf(SSH_AUTH_LABELS, 'private-key')).toBe('Private key')
-  })
-
-  it('should show an unknown value as it is', () => {
-    expect(labelOf(ENVIRONMENT_LABELS, 'qa')).toBe('qa')
-  })
-})
+import { environmentBadge, environmentColor } from './labels.ts'
 
 describe('environmentColor', () => {
   it('should paint production red and staging orange', () => {

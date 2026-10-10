@@ -14,6 +14,7 @@ const PASSED = `>> launching VS Code stable with the extension under development
 >> contributed views registered: 1
 >> sqldoro.hello -> Hello from sqldoro (development)!
 >> result view loaded in 0.812s
+>> connection form loaded in 0.103s
 >> smoke OK`
 
 function smoke(output: string, exitCode: number): Fragment {
@@ -21,11 +22,11 @@ function smoke(output: string, exitCode: number): Fragment {
 }
 
 describe('analyzeSmoke', () => {
-  it('should report the activation time, VS Code version, commands and the result view', () => {
+  it('should report the activation time, VS Code version, commands and the webviews', () => {
     expect(analyzeSmoke(smoke(PASSED, 0))).toStrictEqual({
       status: Status.Ok,
       summary:
-        'Activated in 0.194s on VS Code 1.141.0 · 12 contributed commands and 1 contributed view registered · result view loaded in 0.812s',
+        'Activated in 0.194s on VS Code 1.141.0 · 12 contributed commands and 1 contributed view registered · result view loaded in 0.812s · connection form loaded in 0.103s',
     })
   })
 

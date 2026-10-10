@@ -4,19 +4,15 @@ import {
   readArray,
   readBoolean,
   readCount,
+  readList,
   readNested,
   readOneOf,
-  readRecord,
   readString,
 } from '../json/record.ts'
 import type { CellRange } from './protocol.ts'
 import type { ColumnFilter, SortKey, ViewSpec } from './view.ts'
 
 const CELL_TYPES: ReadonlySet<string> = new Set(['boolean', 'number', 'string'])
-
-export function readList<T>(record: JsonRecord, key: string, read: (item: JsonRecord) => T): T[] {
-  return readArray(record, key).map((item) => read(readRecord(item)))
-}
 
 function isCellValue(value: unknown): value is CellValue {
   return value === null || CELL_TYPES.has(typeof value)
@@ -41,12 +37,6 @@ export function readCells(record: JsonRecord, key: string): CellValue[] {
 export function readCounts(record: JsonRecord, key: string): number[] {
   return readArray(record, key).map((value, index) =>
     readCount(new Map([[String(index), value]]), String(index)),
-  )
-}
-
-export function readStrings(record: JsonRecord, key: string): string[] {
-  return readArray(record, key).map((value, index) =>
-    readString(new Map([[String(index), value]]), String(index)),
   )
 }
 

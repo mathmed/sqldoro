@@ -1,7 +1,7 @@
 import type { EditKind } from '../core/edits/edit-kind.ts'
 import { type GridSelection, selectionRange } from '../core/grid/selection.ts'
 import { type CellRange, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 
 // The edits of the toolbar and the keyboard, on the selection or on the whole result.
 export interface EditActions {
@@ -13,7 +13,7 @@ export interface EditActions {
 }
 
 export function editActions(
-  api: VsCodeApi,
+  api: ResultsApi,
   tab: ResultTab,
   selection: GridSelection | undefined,
 ): EditActions {
@@ -40,7 +40,7 @@ export function editActions(
 
 // An edit names the view it was made on: the host drops it if the view changed meanwhile.
 function sendEdit(
-  api: VsCodeApi,
+  api: ResultsApi,
   tab: ResultTab,
   edit: { readonly kind: EditKind; readonly range: CellRange | null },
 ): void {

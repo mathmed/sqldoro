@@ -1,0 +1,303 @@
+/* The connection form follows the VS Code theme: every color comes from its CSS variables. The page,
+   buttons and inputs come from base.css. */
+:root {
+  --label-width: 9.5em;
+  --form-gutter: 24px;
+}
+
+.connection-form {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px var(--form-gutter) 8px;
+}
+
+/* The icon of sqldoro, painted in the color of the text of the theme. */
+.form-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  background-color: var(--vscode-foreground);
+  mask: url('../../../media/sqldoro.svg') center / contain no-repeat;
+}
+
+.form-header h1 {
+  margin: 0;
+  font-size: 1.9em;
+  font-weight: 400;
+}
+
+.form-notice {
+  margin: 4px var(--form-gutter) 0;
+  padding: 6px 12px;
+  color: var(--vscode-foreground);
+  background: var(--vscode-inputValidation-warningBackground, transparent);
+  border-left: 3px solid var(--vscode-editorWarning-foreground, currentColor);
+}
+
+.form-notice ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.form-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px var(--form-gutter) 20px;
+}
+
+.top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 12px 32px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.field {
+  display: grid;
+  grid-template-columns: var(--label-width) minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 12px;
+}
+
+.top-row .field {
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.field-label {
+  padding-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.required {
+  margin-left: 3px;
+  color: var(--vscode-errorForeground);
+}
+
+.field-control {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.field input[type='text'],
+.field input[type='password'],
+.field select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.field input.port-input {
+  width: 9ch;
+}
+
+.field input[aria-invalid='true'],
+.field select[aria-invalid='true'] {
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+}
+
+.field-issue,
+.field-help {
+  margin: 0;
+  font-size: 0.92em;
+}
+
+.field-issue {
+  color: var(--vscode-errorForeground);
+}
+
+.field-help {
+  color: var(--vscode-descriptionForeground);
+}
+
+.input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input-row button {
+  flex: none;
+  min-height: 28px;
+}
+
+/* A switch: a checkbox drawn as a sliding toggle. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 18px;
+  margin: 5px 0 0;
+  appearance: none;
+  cursor: pointer;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+  border-radius: 9px;
+}
+
+.switch::before {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  content: '';
+  background: var(--vscode-descriptionForeground);
+  border-radius: 50%;
+  transition: transform 0.1s;
+}
+
+.switch:checked {
+  background: var(--vscode-button-background);
+  border-color: var(--vscode-button-background);
+}
+
+.switch:checked::before {
+  background: var(--vscode-button-foreground);
+  transform: translateX(16px);
+}
+
+.switch:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.section-label {
+  display: block;
+  margin: 16px 0 4px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* The engines and the setting tabs: a row of labels, the chosen one underlined. */
+.engine-tabs,
+.config-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.config-tabs {
+  margin-top: 18px;
+}
+
+.engine-tab,
+.config-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 2px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+
+.engine-tab:hover:not(:disabled),
+.config-tab:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+  background: transparent;
+}
+
+.engine-tab[aria-checked='true'],
+.config-tab[aria-selected='true'] {
+  color: var(--vscode-panelTitle-activeForeground, var(--vscode-foreground));
+  border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder));
+}
+
+.tab-on {
+  padding: 0 5px;
+  font-size: 0.8em;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  border-radius: 8px;
+}
+
+.tab-issue {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 0.75em;
+  font-weight: bold;
+  color: var(--vscode-editor-background);
+  background: var(--vscode-errorForeground);
+  border-radius: 50%;
+}
+
+/* The fields of a tab: rows of one or two fields, the labels on the left of their controls. */
+.field-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1200px;
+  padding-top: 18px;
+}
+
+.field-grid[hidden] {
+  display: none;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 32px;
+}
+
+.form-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px var(--form-gutter);
+  background: var(--vscode-editor-background);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.form-footer button {
+  min-height: 28px;
+  padding: 2px 14px;
+}
+
+.footer-status {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.test-status.succeeded {
+  color: var(--vscode-testing-iconPassed, var(--vscode-foreground));
+}
+
+.test-status.failed,
+.save-notice {
+  color: var(--vscode-errorForeground);
+}
+
+/* Narrow panels: one field per row, and the top row stacked. */
+@media (width <= 760px) {
+  .top-row,
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

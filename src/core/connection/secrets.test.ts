@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { fakeEngine } from '../../../test/fakes/engine.ts'
 import { DEFAULT_SSH_TUNNEL, newConnection, SshAuthMethod } from './connection.ts'
-import { applySecretChanges, SecretKind, secretKindsOf, secretOf } from './secrets.ts'
+import { applySecretChanges, isSecretKind, SecretKind, secretKindsOf, secretOf } from './secrets.ts'
 
 const CONNECTION = newConnection('id', fakeEngine())
 
@@ -24,6 +24,14 @@ describe('secretKindsOf', () => {
       SecretKind.Password,
       SecretKind.SshPassphrase,
     ])
+  })
+})
+
+describe('isSecretKind', () => {
+  it('should know every kind of secret and nothing else', () => {
+    expect(Object.values(SecretKind).every(isSecretKind)).toBe(true)
+    expect(isSecretKind('token')).toBe(false)
+    expect(isSecretKind(1)).toBe(false)
   })
 })
 

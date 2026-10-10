@@ -24,17 +24,29 @@ built to make the dangerous queries hard and the everyday ones quick.
   failed), its environment (tagged connections show a badge such as `PROD`, and the icon takes the
   environment's color, production in red) and whether it is read-only; **Allow Writes** and **Make
   Read-Only** change that.
-- **Connection form**: a quick pick where each field shows its value and its problems; select a field
-  to change it, then **Save** or **Test Connection**. Fields: name, engine, host, port, user, password,
-  database, SSL (mode, CA certificate, client certificate and key, whether unauthorized certificates
-  are rejected), SSH tunnel, environment tag (none, local, dev, staging, prod) and the read-only flag.
-  New connections are **read-only** and untagged until you decide otherwise, and tagging a connection
-  as production makes it read-only again (see [Safety model](#safety-model)).
+- **Connection form**: **Add Connection** and **Edit Connection** open a form in its own editor tab,
+  following the VS Code theme. On top, always in sight: the name, the environment tag (none, local,
+  dev, staging, prod) and a **Read-only** switch. Under them, the server type (one tab per registered
+  engine, the first one for a new connection; changing it brings its default port unless you changed
+  the port), then three tabs: **Main** (host, port, user, password, database), **SSL/TLS** (mode with
+  what it means, CA certificate, client certificate and key, typed or picked with **Browse…**, and
+  whether unauthorized certificates are rejected) and **SSH Tunnel** (none, password or private key,
+  with the SSH host, port and user). Problems show under each field as you type; **Save** with
+  problems shows them all, brings the first tab with one to the front and focuses the field; a tab
+  with problems is marked, and SSL/TLS and SSH Tunnel say when they are on. **Test Connection** shows
+  the server and its version, or the server's error, right in the form. A saved password is never
+  shown: the field says it is saved, typing replaces it and **Remove** deletes it on save. One form
+  per connection: editing a connection whose form is open, or adding while a new one is open, brings
+  that form back with what was typed. New connections are **read-only** and untagged until you decide
+  otherwise, and tagging a connection as production makes it read-only again (see
+  [Safety model](#safety-model)).
 - **Import from URL**: `mysql://`, `postgres://` and `postgresql://` URLs, with percent-encoded user,
   password and database, IPv6 hosts in brackets and the SSL parameters of both dialects (`sslmode` or
-  `ssl-mode`, `sslrootcert`/`ssl-ca`, `sslcert`/`ssl-cert`, `sslkey`/`ssl-key`, `ssl=true`). The
-  form opens with what the URL holds for you to review; unknown parameters are reported, and `prefer`
-  is turned into `require` rather than silently falling back to plain text.
+  `ssl-mode`, `sslrootcert`/`ssl-ca`, `sslcert`/`ssl-cert`, `sslkey`/`ssl-key`, `ssl=true`). The URL
+  is asked for in a masked input box; the connection form then opens with what it holds for you to
+  review, the parameters it ignored listed at the top of the form. Its password stays in the
+  extension (the form only says there is one) until you save, and `prefer` is turned into `require`
+  rather than silently falling back to plain text.
 - **SSL modes**: `disable`; `require` (encrypted, and the certificate must verify unless you accept
   unauthorized certificates); `verify-ca` (trusted certificate, any host name); `verify-full`
   (trusted certificate naming the host). Certificates are checked against the database host name even
@@ -248,7 +260,7 @@ servers running: connect the Extension Development Host to them (see
 | Command                 | Description                                                                         |
 | ----------------------- | ----------------------------------------------------------------------------------- |
 | `make setup`            | Install the locked dependencies and the git hooks.                                  |
-| `make build`            | Bundle the extension (esbuild) and the result view (Vite) into `dist/`.             |
+| `make build`            | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.                |
 | `make format`           | Format every file (Prettier) and apply the fixes ESLint can make.                   |
 | `make lint`             | ESLint (strict type-checked, complexity and security rules) and the Prettier check. |
 | `make typecheck`        | tsc 7 strict on the whole project, then on the platform-agnostic core alone.        |
@@ -274,9 +286,11 @@ src/
 │                #   of results (what can be edited, pending changes, their statements): pure TypeScript
 ├── drivers/     # One folder per database (mysql/ with mysql2, postgres/ with pg) implementing the engine interface
 ├── tunnel/      # The SSH tunnel (ssh2) implementing the core tunnel interface
-├── extension/   # VS Code extension host: activation, commands, views, editors, result panels, storage
+├── extension/   # VS Code extension host: activation, commands, views, editors, result panels, the
+│   │            #   connection forms, storage
 │   └── factories/   # the only place that instantiates the drivers and the SSH tunnel
-└── webview/     # React result grid (TanStack Table and Virtual), a browser bundle built by Vite
+└── webview/     # React webviews, browser bundles built by Vite: the result grid (TanStack Table and
+                 #   Virtual), and the connection form in connection-form/
 scripts/         # CI tooling: build, smoke launcher, mutation runner and the Quality Report
 test/            # Test support: fakes, the vscode fake, the integration servers and the VS Code suite
 ```
@@ -311,6 +325,16 @@ shows them. They talk through a typed message protocol declared in the core
 webview asks for windows of rows around what is in view and keeps a bounded cache of them; sorting,
 filtering, copying and exporting happen in the host on all the rows. The webview gets a strict Content
 Security Policy with a nonce: no inline script, no remote resource.
+
+**The connection form.** A second webview with its own bundle and the same page and policy. Its
+message protocol is declared in the core (`src/core/connection-form/protocol.ts`) and checked on both
+sides like the result view's. The form keeps its state with pure functions of the core
+(`src/core/connection-form/form-state.ts`, and the changes of a connection in
+`src/core/connection/transitions.ts`) and validates with the same validators as the extension host;
+the host checks the connection again before it saves, for example against connections added
+meanwhile. Secrets never travel to the form: it learns which ones are stored, and what the user types
+goes to the host only inside a test or a save. File dialogs open in the host, which sends the chosen
+path back.
 
 **Editing rows.** Drivers say which table and column each result column comes from
 (`ResultColumn.origin`, from the result metadata of the server) and describe a table for editing
@@ -382,11 +406,11 @@ changes on both servers.
 [`@vscode/test-electron`](https://github.com/microsoft/vscode-test), starts it with the built
 extension (`dist/`) in a fresh profile without telemetry, and runs `test/smoke/suite.ts` inside it:
 the extension must activate, every command and view contributed in `package.json` must be registered
-(each view opens and refreshes), `sqldoro.hello` must answer, and the result view of a SQL editor must
+(each view opens and refreshes), `sqldoro.hello` must answer, the result view of a SQL editor must
 load (the React bundle runs under its Content Security Policy and tells the extension it is ready),
-then close and load again.
-Each step prints a `>> ` line (VS Code version, activation time, commands, views, result view load
-time) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
+then close and load again, and **Add Connection** must load the connection form the same way.
+Each step prints a `>> ` line (VS Code version, activation time, commands, views, result view and
+connection form load times) that the Quality Report summarises. Linux needs a display: CI wraps it in `xvfb-run`, and
 `make smoke` does the same on a headless machine that has it installed.
 
 ### Architecture contracts (`make lint-arch`)
@@ -458,7 +482,7 @@ testing). Long output goes inside collapsible `<details>` blocks, trimmed to fit
 | Tests and coverage | Vitest                   | `quality`        | passed/failed tests and coverage; failures or files below the thresholds  |
 | Integration tests  | Vitest + real servers    | `integration`    | passed/failed tests against MySQL, PostgreSQL and SSH; the failures       |
 | Architecture       | dependency-cruiser       | `architecture`   | modules checked; broken contracts and the violating imports               |
-| Extension smoke    | esbuild + Vite + VS Code | `smoke`          | bundle sizes, VS Code version, activation, commands, views, result view   |
+| Extension smoke    | esbuild + Vite + VS Code | `smoke`          | bundle sizes, VS Code version, activation, commands, views, the webviews  |
 | Mutation testing   | Stryker (`mutation.yml`) | `mutation`       | score vs. ratchet, killed and surviving mutants by file, line and mutator |
 
 **How it works.** Each analysis runs through `node scripts/quality-report.ts run <analysis> -- <command>`.

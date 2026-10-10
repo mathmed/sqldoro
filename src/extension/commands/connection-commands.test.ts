@@ -8,11 +8,15 @@ import {
   saved,
 } from '../../../test/support/commands.ts'
 import {
-  answerInputs,
-  answerQuickPicks,
-  labelOf,
-  lastQuickPickItems,
-} from '../../../test/support/prompts.ts'
+  formPanels,
+  fromForm,
+  lastFormPanel,
+  openForm,
+  sentToForm,
+  settled,
+  setupOf,
+} from '../../../test/support/forms.ts'
+import { answerInputs, answerQuickPicks } from '../../../test/support/prompts.ts'
 import { resetVscode, window } from '../../../test/vscode.ts'
 import { type ConnectionConfig, newConnection } from '../../core/connection/connection.ts'
 import { SecretKind } from '../../core/connection/secrets.ts'
@@ -41,53 +45,74 @@ afterEach(() => {
 })
 
 describe('Add Connection', () => {
-  it('should create a read-only connection for the chosen engine', async () => {
-    answerQuickPicks('PostgreSQL', 'Name', 'User', 'Password', 'Save')
-    answerInputs('Shop', 'app', 's3cret')
+  it('should open the form of a new connection on the first engine, without asking anything', async () => {
+    const { panel, answer } = await openForm(
+      vscode.commands.executeCommand(CommandId.AddConnection),
+    )
 
-    await vscode.commands.executeCommand(CommandId.AddConnection)
+    expect(answer).toBe(true)
+    expect(window.showQuickPick).not.toHaveBeenCalled()
+    expect(panel.title).toBe('New Connection')
+    expect(setupOf(panel)).toMatchObject({
+      mode: 'new',
+      connection: { id: 'id-1', engine: 'mysql', port: 3306, isReadOnly: true },
+      heldSecrets: [],
+      engines: [
+        { id: 'mysql', displayName: 'MySQL', defaultPort: 3306 },
+        { id: 'postgres', displayName: 'PostgreSQL', defaultPort: 5432 },
+      ],
+      notices: [],
+    })
+  })
 
-    expect(harness.store.list()).toStrictEqual([
-      { ...newConnection('id-1', POSTGRES), name: 'Shop', user: 'app' },
-    ])
+  it('should save what the form sends, close it and say so', async () => {
+    const { panel } = await openForm(vscode.commands.executeCommand(CommandId.AddConnection))
+    const connection = { ...newConnection('id-1', POSTGRES), name: 'Shop', user: 'app' }
+
+    await fromForm(panel, {
+      type: 'save',
+      draft: { connection, secretChanges: [{ kind: 'password', value: 's3cret' }] },
+    })
+
+    expect(harness.store.list()).toStrictEqual([connection])
     expect(harness.storage.values).toStrictEqual(
       new Map([['sqldoro.connection.id-1.password', 's3cret']]),
     )
+    expect(panel.isDisposed).toBe(true)
+    expect(window.showInformationMessage).toHaveBeenCalledWith('Saved the connection "Shop".')
   })
 
-  it('should do nothing when the engine or the form is dismissed', async () => {
-    answerQuickPicks(undefined)
-    await vscode.commands.executeCommand(CommandId.AddConnection)
+  it('should bring back the form already open instead of a new one', async () => {
+    const { panel } = await openForm(vscode.commands.executeCommand(CommandId.AddConnection))
 
-    answerQuickPicks('MySQL', undefined)
-    await vscode.commands.executeCommand(CommandId.AddConnection)
+    await expect(vscode.commands.executeCommand(CommandId.AddConnection)).resolves.toBe(true)
 
-    expect(harness.store.list()).toStrictEqual([])
+    expect(formPanels()).toStrictEqual([panel])
+    expect(panel.reveal).toHaveBeenCalledOnce()
+    await fromForm(panel, { type: 'cancel' })
+    await openForm(vscode.commands.executeCommand(CommandId.AddConnection))
+    expect(setupOf(lastFormPanel())).toMatchObject({ connection: { id: 'id-2' } })
   })
 
-  it('should say why it could not save, and log it', async () => {
-    await harness.memento.update('sqldoro.connections', { version: 99, connections: [] })
-    harness.dispose()
-    harness = commandHarness({ memento: harness.memento })
-    answerQuickPicks('PostgreSQL', 'Name', 'User', 'Save')
-    answerInputs('Shop', 'app')
+  it('should answer false when the form is closed before it loads', async () => {
+    const shown = vscode.commands.executeCommand(CommandId.AddConnection)
+    await settled()
 
-    await vscode.commands.executeCommand(CommandId.AddConnection)
+    lastFormPanel().dispose()
 
-    const message =
-      'Add Connection failed: sqldoro cannot change the saved connections because it cannot read them: see the sqldoro output'
-    expect(window.showErrorMessage).toHaveBeenCalledWith(message)
-    expect(harness.log.error).toHaveBeenCalledWith(message)
+    await expect(shown).resolves.toBe(false)
   })
 })
 
 describe('Import Connection from URL', () => {
-  it('should fill the form from the URL, keep its password secret and warn about what it ignored', async () => {
+  it('should open the form with what the URL holds, its warnings and its password kept back', async () => {
     answerInputs('postgresql://app:pa55@db.example.com/shop?connect_timeout=5')
-    answerQuickPicks('Save')
 
-    await vscode.commands.executeCommand(CommandId.ImportConnectionUrl)
+    const { panel, answer } = await openForm(
+      vscode.commands.executeCommand(CommandId.ImportConnectionUrl),
+    )
 
+    expect(answer).toBe(true)
     expect(window.showInputBox).toHaveBeenCalledWith(
       expect.objectContaining({
         password: true,
@@ -95,80 +120,115 @@ describe('Import Connection from URL', () => {
           'A mysql://, postgres://, postgresql:// URL. The password it holds goes to the VS Code secret storage.',
       }),
     )
-    expect(window.showWarningMessage).toHaveBeenCalledWith(
-      'Ignored the URL parameter "connect_timeout"',
-    )
-    expect(harness.store.list()).toMatchObject([
-      {
-        id: 'id-1',
-        name: 'db.example.com/shop',
-        engine: 'postgres',
-        host: 'db.example.com',
-        user: 'app',
-      },
-    ])
+    expect(window.showWarningMessage).not.toHaveBeenCalled()
+    expect(setupOf(panel)).toMatchObject({
+      mode: 'new',
+      connection: { id: 'id-1', name: 'db.example.com/shop', host: 'db.example.com', user: 'app' },
+      heldSecrets: ['password'],
+      notices: ['Ignored the URL parameter "connect_timeout"'],
+    })
+    expect(JSON.stringify(panel.webview.posted)).not.toContain('pa55')
+  })
+
+  it('should save the password of the URL unless the form replaces it', async () => {
+    answerInputs('postgresql://app:pa55@db.example.com/shop', 'mysql://root:pw@localhost/app')
+    const first = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
+    const second = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
+    const [one, two] = [first, second].map(({ panel }) => setupOf(panel)['connection'])
+
+    await fromForm(first.panel, { type: 'save', draft: { connection: one, secretChanges: [] } })
+    await fromForm(second.panel, {
+      type: 'save',
+      draft: { connection: two, secretChanges: [{ kind: 'password', value: 'typed' }] },
+    })
+
     expect(harness.storage.values).toStrictEqual(
-      new Map([['sqldoro.connection.id-1.password', 'pa55']]),
+      new Map([
+        ['sqldoro.connection.id-1.password', 'pa55'],
+        ['sqldoro.connection.id-2.password', 'typed'],
+      ]),
     )
   })
 
   it('should import a URL without a password or warnings', async () => {
     answerInputs('mysql://root@localhost/app')
-    answerQuickPicks('Save')
 
-    await vscode.commands.executeCommand(CommandId.ImportConnectionUrl)
+    const { panel } = await openForm(vscode.commands.executeCommand(CommandId.ImportConnectionUrl))
 
-    expect(window.showWarningMessage).not.toHaveBeenCalled()
-    expect(harness.storage.values.size).toBe(0)
+    expect(setupOf(panel)).toMatchObject({ heldSecrets: [], notices: [] })
   })
 
   it('should explain why a URL cannot be imported', async () => {
     answerInputs('mongodb://db')
 
-    await vscode.commands.executeCommand(CommandId.ImportConnectionUrl)
+    await expect(vscode.commands.executeCommand(CommandId.ImportConnectionUrl)).resolves.toBe(false)
 
     expect(window.showErrorMessage).toHaveBeenCalledWith(
       'Cannot import this URL: Unsupported URL scheme "mongodb": use mysql://, postgres:// or postgresql://',
     )
+    expect(formPanels()).toStrictEqual([])
   })
 
   it('should do nothing when the URL prompt is dismissed', async () => {
     answerInputs(undefined)
 
-    await vscode.commands.executeCommand(CommandId.ImportConnectionUrl)
+    await expect(vscode.commands.executeCommand(CommandId.ImportConnectionUrl)).resolves.toBe(false)
 
-    expect(harness.store.list()).toStrictEqual([])
+    expect(formPanels()).toStrictEqual([])
   })
 })
 
 describe('Edit Connection', () => {
-  it('should edit the connection of a tree node and show which secrets are stored', async () => {
+  it('should open the form of a tree node with its values and which secrets are stored', async () => {
     await saved(harness, SHOP, new Map([[SecretKind.Password, 's3cret']]))
-    answerQuickPicks('Host', 'Save')
-    answerInputs('db.example.com')
 
-    await vscode.commands.executeCommand(CommandId.EditConnection, { connectionId: 'shop' })
-
-    expect(harness.store.find('shop')?.host).toBe('db.example.com')
-    expect(lastQuickPickItems().find((item) => labelOf(item) === 'Password')?.description).toBe(
-      'stored',
+    const { panel, answer } = await openForm(
+      vscode.commands.executeCommand(CommandId.EditConnection, { connectionId: 'shop' }),
     )
+    await fromForm(panel, {
+      type: 'save',
+      draft: { connection: { ...SHOP, host: 'db.example.com' }, secretChanges: [] },
+    })
+
+    expect(answer).toBe(true)
+    expect(panel.title).toBe('Edit Connection: Shop')
+    expect(setupOf(panel)).toMatchObject({
+      mode: 'edit',
+      connection: SHOP,
+      heldSecrets: ['password'],
+    })
+    expect(JSON.stringify(panel.webview.posted)).not.toContain('s3cret')
+    expect(harness.store.find('shop')?.host).toBe('db.example.com')
+    expect(harness.storage.values.get('sqldoro.connection.shop.password')).toBe('s3cret')
+  })
+
+  it('should bring back the form of a connection already open', async () => {
+    await saved(harness, SHOP)
+    const { panel } = await openForm(
+      vscode.commands.executeCommand(CommandId.EditConnection, 'shop'),
+    )
+
+    await vscode.commands.executeCommand(CommandId.EditConnection, 'shop')
+
+    expect(formPanels()).toStrictEqual([panel])
+    expect(panel.reveal).toHaveBeenCalledOnce()
   })
 
   it('should let the user pick the connection from the Command Palette', async () => {
     await saved(harness, SHOP)
-    answerQuickPicks('Shop', 'Save')
+    answerQuickPicks('Shop')
 
-    await vscode.commands.executeCommand(CommandId.EditConnection)
+    const { panel } = await openForm(vscode.commands.executeCommand(CommandId.EditConnection))
 
     expect(window.showQuickPick).toHaveBeenCalledWith(
       [{ label: 'Shop', description: 'localhost', value: SHOP }],
       { title: 'Edit Connection', ignoreFocusOut: true },
     )
+    expect(setupOf(panel)).toMatchObject({ connection: SHOP })
   })
 
   it('should say there is nothing to edit yet', async () => {
-    await vscode.commands.executeCommand(CommandId.EditConnection)
+    await expect(vscode.commands.executeCommand(CommandId.EditConnection)).resolves.toBe(false)
 
     expect(window.showInformationMessage).toHaveBeenCalledWith(
       'There is no connection yet: add one first.',
@@ -182,7 +242,7 @@ describe('Edit Connection', () => {
     await vscode.commands.executeCommand(CommandId.EditConnection, 'gone')
     await vscode.commands.executeCommand(CommandId.EditConnection, { connectionId: 7 })
 
-    expect(harness.store.list()).toStrictEqual([SHOP])
+    expect(formPanels()).toStrictEqual([])
   })
 })
 
@@ -249,8 +309,6 @@ describe('Test Connection', () => {
       'Connected to "Shop": PostgreSQL 18.6.',
     )
     expect(harness.close).toHaveBeenCalledOnce()
-    harness.requests[0]?.onUnexpectedClose(new Error('late'))
-    expect(harness.log.debug).toHaveBeenCalledWith('The test session of Shop ended: late')
   })
 
   it('should show why the test failed', async () => {
@@ -265,14 +323,22 @@ describe('Test Connection', () => {
     )
   })
 
-  it('should test the connection being edited with the secrets typed in the form', async () => {
+  it('should test the connection of a form with the secrets typed in it', async () => {
     await saved(harness, SHOP, new Map([[SecretKind.Password, 'old']]))
-    answerQuickPicks('Password', 'Enter a new password', 'Test Connection', undefined)
-    answerInputs('new')
+    const { panel } = await openForm(
+      vscode.commands.executeCommand(CommandId.EditConnection, 'shop'),
+    )
 
-    await vscode.commands.executeCommand(CommandId.EditConnection, 'shop')
+    await fromForm(panel, {
+      type: 'test',
+      draft: { connection: SHOP, secretChanges: [{ kind: 'password', value: 'new' }] },
+    })
 
     expect(harness.requests[0]?.secrets).toStrictEqual(new Map([[SecretKind.Password, 'new']]))
+    expect(sentToForm(panel, 'tested')).toStrictEqual([
+      { type: 'tested', isSuccess: true, message: 'Connected: PostgreSQL 18.6' },
+    ])
+    expect(window.showInformationMessage).not.toHaveBeenCalled()
   })
 
   it('should do nothing without a connection', async () => {

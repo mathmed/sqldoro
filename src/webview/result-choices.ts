@@ -9,7 +9,7 @@ import {
 import { ExportFormat } from '../core/results/export-format.ts'
 import { type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import { gridRowCount } from './edit-overlay.ts'
-import type { VsCodeApi } from './host.ts'
+import type { ResultsApi } from './results-api.ts'
 import type { ToolbarActions } from './Toolbar.tsx'
 
 // What the user chose in the result: selected cells, the cell shown whole, where to sort and filter.
@@ -35,7 +35,7 @@ export function useChoices(tab: ResultTab): ResultChoices {
 }
 
 export function toolbarActions(
-  api: VsCodeApi,
+  api: ResultsApi,
   tab: ResultTab,
   choices: ResultChoices,
 ): ToolbarActions {
@@ -70,7 +70,7 @@ interface CopyRequest {
   readonly isWholeRows: boolean
 }
 
-function copySelection(api: VsCodeApi, tab: ResultTab, request: CopyRequest): void {
+function copySelection(api: ResultsApi, tab: ResultTab, request: CopyRequest): void {
   if (request.selection !== undefined) {
     const selected = selectionRange(request.selection)
     const range = request.isWholeRows

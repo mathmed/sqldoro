@@ -6,17 +6,23 @@ import type { ConnectionConfig } from '../../src/core/connection/connection.ts'
 import type { SecretKind } from '../../src/core/connection/secrets.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { SessionRequest } from '../../src/core/session/open-session.ts'
-import type { CommandContext } from '../../src/extension/commands/command-context.ts'
-import { registerConnectionCommands } from '../../src/extension/commands/connection-commands.ts'
+import {
+  type ConnectionCommandContext,
+  registerConnectionCommands,
+} from '../../src/extension/commands/connection-commands.ts'
 import { registerExplorerCommands } from '../../src/extension/commands/explorer-commands.ts'
 import { ConnectionService } from '../../src/extension/connections/connection-service.ts'
+import { pingServer } from '../../src/extension/connections/server-test.ts'
+import { ConnectionForms } from '../../src/extension/form/connection-forms.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
+import { readSettings } from '../../src/extension/settings.ts'
 import { ConnectionStore } from '../../src/extension/storage/connection-store.ts'
 import { SecretStore } from '../../src/extension/storage/secret-store.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { FakeMemento, FakeSecretStorage } from '../fakes/extension-context.ts'
 import { recordingLogger } from '../fakes/logger.ts'
+import { Uri } from '../vscode.ts'
 
 const MYSQL = fakeEngine({
   id: 'mysql',
@@ -32,7 +38,7 @@ export const POSTGRES = fakeEngine({
 })
 
 export interface CommandHarness {
-  readonly context: CommandContext
+  readonly context: ConnectionCommandContext
   readonly store: ConnectionStore
   readonly storage: FakeSecretStorage
   readonly memento: FakeMemento
@@ -59,7 +65,7 @@ export function commandHarness({
   const secrets = new SecretStore(storage)
   const requests: SessionRequest[] = []
   const close = vi.fn(async () => Promise.resolve())
-  const open = async (request: SessionRequest): ReturnType<CommandContext['open']> => {
+  const open = async (request: SessionRequest): ReturnType<ConnectionCommandContext['open']> => {
     requests.push(request)
     return openError === undefined
       ? Promise.resolve({
@@ -78,16 +84,26 @@ export function commandHarness({
   const service = new ConnectionService({ store, secrets, sessions, engines, createId: idMaker() })
   const explorer = new ExplorerProvider({ connections: () => store.list(), sessions, engines, log })
   const viewMessages: string[] = []
-  const context: CommandContext = {
+  const forms = new ConnectionForms({
+    extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
+    service,
+    secrets,
+    test: async (connection, typed) => pingServer({ open, log }, connection, typed),
+    policy: () => readSettings().policy,
+    log,
+  })
+  const context: ConnectionCommandContext = {
     service,
     sessions,
     secrets,
     open,
     explorer,
     log,
+    forms,
     setViewMessage: (message) => viewMessages.push(message),
   }
   const disposables: vscode.Disposable[] = [
+    forms,
     ...registerConnectionCommands(context),
     ...registerExplorerCommands(context),
   ]
