@@ -5,7 +5,7 @@ import type { ResultSet } from '../../core/results/result-set.ts'
 import { IDENTITY_VIEW } from '../../core/results/view.ts'
 import type { QueryRunner } from './query-runner.ts'
 import type { RunWork } from './run-types.ts'
-import { openDocument, runServerView } from './server-view.ts'
+import { isSourceOpen, runServerView } from './server-view.ts'
 
 // Runs the query of a tab again without its automatic limit (the row limit of the settings still
 // applies), through the guards like any run; a view sorted on the server keeps its sort and filters.
@@ -18,9 +18,8 @@ export async function loadAllRows(
     await runServerView(runner, uri, { tab, view: tab.view, shouldAutoLimit: false })
     return
   }
-  const document = openDocument(uri)
-  if (document !== undefined) {
-    await runner.perform(document, async () => Promise.resolve(loadAllWork(runner, tab)))
+  if (isSourceOpen(uri)) {
+    await runner.perform(uri, async () => Promise.resolve(loadAllWork(runner, tab)))
   }
 }
 

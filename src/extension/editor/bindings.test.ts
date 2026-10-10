@@ -4,6 +4,7 @@ import type * as vscode from 'vscode'
 import { FakeMemento } from '../../../test/fakes/extension-context.ts'
 import { recordingLogger } from '../../../test/fakes/logger.ts'
 import { Uri } from '../../../test/vscode.ts'
+import { tableUri } from '../tables/table-uri.ts'
 import { EditorBindings } from './bindings.ts'
 
 const FILE = Uri.parse('file:/work/report.sql') as unknown as vscode.Uri
@@ -20,6 +21,18 @@ beforeEach(() => {
 })
 
 describe('EditorBindings', () => {
+  it('should run a table panel where its table is, without keeping anything for it', () => {
+    const sut = new EditorBindings(memento, log)
+    const table = { database: 'shop', schema: 'sales', name: 'orders' }
+
+    expect(sut.get(tableUri({ connectionId: 'shop', table }))).toStrictEqual({
+      connectionId: 'shop',
+      database: 'shop',
+      schema: 'sales',
+    })
+    expect(memento.keys()).toStrictEqual([])
+  })
+
   it('should keep the connection of files for the next window, and of untitled editors in memory', async () => {
     const sut = new EditorBindings(memento, log)
     const changes = vi.fn()

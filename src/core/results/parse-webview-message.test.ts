@@ -21,6 +21,16 @@ describe('parseWebviewMessage', () => {
     )
   })
 
+  it('should read a request to read the rows of a tab again', () => {
+    expect(parseWebviewMessage({ type: 'refresh', tabId: 't' })).toStrictEqual({
+      type: 'refresh',
+      tabId: 't',
+    })
+    expect(() => parseWebviewMessage({ type: 'refresh', tabId: 1 })).toThrow(
+      new TypeError('"tabId" must be a string'),
+    )
+  })
+
   it('should read a request for rows', () => {
     expect(
       parseWebviewMessage({ type: 'fetchRows', tabId: 't', viewVersion: 2, start: 100, count: 50 }),

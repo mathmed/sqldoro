@@ -3,12 +3,14 @@ import * as vscode from 'vscode'
 import { BINDING_FORMAT, type EditorBinding } from '../../core/editor/binding.ts'
 import { decodeList, encodeList } from '../../core/json/versioned-list.ts'
 import type { Logger } from '../../core/platform.ts'
+import { tableBinding } from '../tables/table-uri.ts'
 
 const BINDINGS_KEY = 'sqldoro.editorConnections'
 // Untitled documents get their names again in a later window: only files keep their connection.
 const PERSISTED_SCHEME = 'file'
 
-// The connection each SQL editor runs on, by document URI.
+// The connection each SQL editor runs on, by document URI. A table panel runs where its table is:
+// its URI says so, and nothing is kept for it.
 export class EditorBindings implements vscode.Disposable {
   readonly #memento: vscode.Memento
   readonly #bindings = new Map<string, EditorBinding>()
@@ -33,7 +35,7 @@ export class EditorBindings implements vscode.Disposable {
   }
 
   get(uri: vscode.Uri): EditorBinding | undefined {
-    return this.#bindings.get(uri.toString())
+    return tableBinding(uri) ?? this.#bindings.get(uri.toString())
   }
 
   async set(uri: vscode.Uri, binding: EditorBinding): Promise<void> {

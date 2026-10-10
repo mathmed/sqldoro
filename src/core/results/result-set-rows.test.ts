@@ -10,6 +10,7 @@ function resultSet(): ResultSet {
     sql: 'SELECT * FROM orders',
     kind: 'rows',
     canServerView: true,
+    canRefresh: false,
   })
   sut.describe(ORDERS_RESULT)
   sut.addRows([[30], [10], [20]])

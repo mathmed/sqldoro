@@ -16,6 +16,8 @@ import type { Services } from './services.ts'
 import { ConnectionStatus } from './sessions/session-manager.ts'
 import { readSettings } from './settings.ts'
 import { registerSavedQueryCommands } from './snippets/saved-query-commands.ts'
+import { registerTableDataCommands } from './tables/table-data.ts'
+import { followTablePanels } from './tables/table-panels.ts'
 import { watchClosedEditors } from './transactions/closed-editors.ts'
 import { CloseReason } from './transactions/editor-transactions.ts'
 import { registerTransactionCommands } from './transactions/transaction-commands.ts'
@@ -46,6 +48,7 @@ export function registerQueryFeatures(
     ...registerCommands(base, query, log),
     ...followDocuments(query, log),
     ...followConnections(base, query, log),
+    ...registerTables(base, query, log),
   ]
 }
 
@@ -94,6 +97,21 @@ function registerCommands(base: Services, query: QueryServices, log: Logger): vs
       log,
     }),
     ...registerDdlCommands({ ddl, log }),
+  ]
+}
+
+// The rows of the tables opened from the explorer, each in a panel of its own.
+function registerTables(base: Services, query: QueryServices, log: Logger): vscode.Disposable[] {
+  return [
+    ...registerTableDataCommands({
+      runner: query.runner,
+      panels: query.panels,
+      connections: (id) => base.store.find(id),
+      engines: base.engines,
+      createId: randomUUID,
+      log,
+    }),
+    ...followTablePanels({ ...query, sessions: base.sessions, store: base.store }),
   ]
 }
 

@@ -57,6 +57,16 @@ export interface ItemLook {
 
 export const NO_CHILDREN = async (): Promise<readonly ExplorerNode[]> => Promise.resolve([])
 
+// What the commands of tables and views (Show DDL, Open Table Data) are run on.
+export function isObjectNode(value: unknown): value is ExplorerNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    (value.kind === NodeKind.Table || value.kind === NodeKind.View)
+  )
+}
+
 export function nodeId(kind: NodeKind, connectionId: string, path: readonly string[] = []): string {
   return JSON.stringify([kind, connectionId, ...path])
 }

@@ -40,12 +40,7 @@ export function toolbarActions(
   choices: ResultChoices,
 ): ToolbarActions {
   return {
-    cancel: () => {
-      api.postMessage({ type: WebviewMessageType.Cancel })
-    },
-    loadAll: () => {
-      api.postMessage({ type: WebviewMessageType.LoadAll, tabId: tab.id })
-    },
+    ...runActions(api, tab),
     copy: (format: ExportFormat) => {
       copySelection(api, tab, { selection: choices.selection, format, isWholeRows: false })
     },
@@ -60,6 +55,24 @@ export function toolbarActions(
       api.postMessage({ type: WebviewMessageType.Export, tabId: tab.id, format })
     },
     setServerSide: choices.setIsServerSide,
+  }
+}
+
+// What stops the statement of the tab, or runs it again.
+function runActions(
+  api: ResultsApi,
+  tab: ResultTab,
+): Pick<ToolbarActions, 'cancel' | 'loadAll' | 'refresh'> {
+  return {
+    cancel: () => {
+      api.postMessage({ type: WebviewMessageType.Cancel })
+    },
+    loadAll: () => {
+      api.postMessage({ type: WebviewMessageType.LoadAll, tabId: tab.id })
+    },
+    refresh: () => {
+      api.postMessage({ type: WebviewMessageType.Refresh, tabId: tab.id })
+    },
   }
 }
 

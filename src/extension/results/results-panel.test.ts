@@ -33,6 +33,7 @@ function tab(id = 't1'): ResultSet {
     sql: 'SELECT id, name FROM orders',
     kind: 'rows',
     canServerView: true,
+    canRefresh: false,
   })
   result.describe(RESULT_COLUMNS)
   result.addRows([
@@ -52,6 +53,7 @@ beforeEach(() => {
     cancel: vi.fn(),
     serverView: vi.fn(),
     loadAll: vi.fn(),
+    refresh: vi.fn(),
     copy: vi.fn(),
     export: vi.fn(),
     applyEdits: vi.fn(),
@@ -109,7 +111,13 @@ describe('ResultsPanel and its connection', () => {
     const sut = panel()
     sut.startRun(POSTGRES_DIALECT)
     const finished = tab()
-    const running = new ResultSet({ id: 't2', sql: 'SELECT 1', kind: 'rows', canServerView: false })
+    const running = new ResultSet({
+      id: 't2',
+      sql: 'SELECT 1',
+      kind: 'rows',
+      canServerView: false,
+      canRefresh: false,
+    })
     sut.addTab(finished)
     sut.addTab(running)
 
@@ -221,7 +229,13 @@ describe('ResultsPanel', () => {
 
   it('should not change the view of a statement that still runs', async () => {
     const sut = panel()
-    const running = new ResultSet({ id: 't2', sql: 'SELECT 1', kind: 'rows', canServerView: true })
+    const running = new ResultSet({
+      id: 't2',
+      sql: 'SELECT 1',
+      kind: 'rows',
+      canServerView: true,
+      canRefresh: false,
+    })
     sut.addTab(running)
 
     await sut.receive({

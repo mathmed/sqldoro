@@ -20,12 +20,12 @@ export async function explain(
   if (!(await runner.confirmDropChanges(editor.document.uri))) {
     return
   }
-  await runner.perform(editor.document, async (target) => {
+  await runner.perform(editor.document.uri, async (target) => {
     const statement = singleStatement(editor, target)
     if (statement === undefined || (isAnalyze && !(await confirmAnalyze(statement.sql, target)))) {
       return undefined
     }
-    return explainWork(runner, { statement, target, isAnalyze })
+    return explainWork(runner, { document: editor.document, statement, target, isAnalyze })
   })
 }
 
@@ -47,12 +47,14 @@ function singleStatement(
 }
 
 interface ExplainSpec {
+  readonly document: vscode.TextDocument
   readonly statement: PlannedStatement
   readonly target: RunTarget
   readonly isAnalyze: boolean
 }
 
-function explainWork(runner: QueryRunner, { statement, target, isAnalyze }: ExplainSpec): RunWork {
+function explainWork(runner: QueryRunner, spec: ExplainSpec): RunWork {
+  const { document, statement, target, isAnalyze } = spec
   const dialect = target.engine.dialect
   const prefixLength = explainStatement('', dialect, isAnalyze).length
   const sql = explainStatement(statement.sql, dialect, isAnalyze)
@@ -63,7 +65,7 @@ function explainWork(runner: QueryRunner, { statement, target, isAnalyze }: Expl
       await runner.runJob(parts, {
         sql,
         values: [],
-        place: { offset: statement.offset, prefixLength },
+        place: { document, offset: statement.offset, prefixLength },
         isRecorded: true,
         kind: TabKind.Plan,
         shouldAutoLimit: false,

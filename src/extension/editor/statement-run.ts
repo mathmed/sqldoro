@@ -21,9 +21,8 @@ import { describeError } from '../../core/text/errors.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { ResultsPanel } from '../results/results-panel.ts'
 
-// Everything a statement needs to run in an editor and show its result.
+// Everything a statement needs to run and show its result.
 export interface StatementContext {
-  readonly document: vscode.TextDocument
   readonly connectionId: string
   readonly scope: ObjectScope
   readonly dialect: Dialect
@@ -36,9 +35,10 @@ export interface StatementContext {
   readonly onExecution: (execution: QueryExecution) => void
 }
 
-// Where a statement is in its editor: errors are shown there. `prefixLength` is what the text
-// that runs adds before the statement as written (EXPLAIN ...).
+// Where a statement is in the document of its editor: errors are shown there. `prefixLength` is
+// what the text that runs adds before the statement as written (EXPLAIN ...).
 interface StatementPlace {
+  readonly document: vscode.TextDocument
   readonly offset: number
   readonly prefixLength: number
 }
@@ -123,18 +123,28 @@ function failed(context: StatementContext, job: StatementJob, error: unknown): S
   const range =
     job.place === undefined
       ? undefined
-      : errorRange(context.document, { sql: job.sql, place: job.place }, error)
-  if (range !== undefined) {
-    showDiagnostic(context, range, message)
-  }
+      : markError(context, job.place, { sql: job.sql, error, message })
   job.tab.fail({ message, ...positionOf(error instanceof QueryError ? range : undefined) })
   return { status: RunOutcome.Failed, rowCount: null, message }
 }
 
-function showDiagnostic(context: StatementContext, range: vscode.Range, message: string): void {
+interface Failure {
+  readonly sql: string
+  readonly error: unknown
+  readonly message: string
+}
+
+// Underlines the statement in its editor where the server located the error, and says where.
+function markError(
+  context: StatementContext,
+  place: StatementPlace,
+  { sql, error, message }: Failure,
+): vscode.Range {
+  const range = errorRange({ sql, place }, error)
   const diagnostic = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Error)
   diagnostic.source = DIAGNOSTIC_SOURCE
-  context.diagnostics.set(context.document.uri, [diagnostic])
+  context.diagnostics.set(place.document.uri, [diagnostic])
+  return range
 }
 
 // 1-based, as editors show them.
@@ -150,11 +160,10 @@ function positionOf(range: vscode.Range | undefined): {
 // Where the server located the error, or the whole statement when it did not say. The range stays
 // inside the statement as written.
 function errorRange(
-  document: vscode.TextDocument,
   { sql, place }: { readonly sql: string; readonly place: StatementPlace },
   error: unknown,
 ): vscode.Range {
-  const { offset, prefixLength } = place
+  const { document, offset, prefixLength } = place
   const { start, end } =
     error instanceof QueryError
       ? locateError(error.location, sql)

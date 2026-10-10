@@ -22,6 +22,11 @@ All notable changes to sqldoro are documented in this file. The format is based 
   URL** opens the form with that input instead of asking in an input box.
 - **Databases of the server** in the connection form: the refresh button of the database field lists
   them, with the connection as typed, to pick one.
+- **Open table data**: a click on a table or view of the explorer (or its inline button, or the
+  first entry of its context menu) opens its rows in a result panel of their own, without an SQL
+  editor. The read goes through the guards with the automatic `LIMIT`, on a session of the panel's
+  own, in auto-commit, and stays out of the query history; the rows of a table with a key can be
+  edited, and **Refresh** reads them again in the same view.
 
 ## [0.1.0] - Unreleased
 

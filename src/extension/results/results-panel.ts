@@ -30,6 +30,8 @@ export interface PanelActions {
   readonly cancel: () => void
   readonly serverView: (tab: ResultSet, view: ViewSpec) => Promise<void>
   readonly loadAll: (tab: ResultSet) => Promise<void>
+  // Reads the rows of the tab again, in its view, through the guards.
+  readonly refresh: (tab: ResultSet) => Promise<void>
   readonly copy: (tab: ResultSet, request: CopyRequest, dialect: Dialect) => Promise<void>
   readonly export: (tab: ResultSet, format: ExportFormat, dialect: Dialect) => Promise<void>
   // Runs the statements of the changes of a tab, through the guards; the tab hears how it went.
@@ -92,6 +94,7 @@ export class ResultsPanel {
       route(WebviewMessageType.Export, async (message) => this.#export(message)),
       route(WebviewMessageType.Cancel, async () => this.#cancel()),
       route(WebviewMessageType.LoadAll, async (message) => this.#loadAll(message)),
+      route(WebviewMessageType.Refresh, async (message) => this.#refresh(message)),
       route(WebviewMessageType.Problem, async (message) => this.#problem(message)),
       route(WebviewMessageType.Edit, async (message) => this.#edit(message)),
       route(WebviewMessageType.PreviewEdits, async (message) => this.#previewEdits(message)),
@@ -152,6 +155,16 @@ export class ResultsPanel {
     this.#tabs.set(tab.id, tab)
     this.#activeTabId = tab.id
     this.updateTab(tab, true)
+  }
+
+  // A run that stopped on an error leaves no tab running: each one it did not finish says why.
+  failRunning(message: string): void {
+    for (const tab of this.#tabs.values()) {
+      if (tab.isRunning) {
+        tab.fail({ message, line: null, column: null })
+        this.updateTab(tab, true)
+      }
+    }
   }
 
   // Progress is sent at most every PROGRESS_INTERVAL_MS; what ends a statement is sent at once.
@@ -257,6 +270,14 @@ export class ResultsPanel {
     const tab = this.#tabs.get(message.tabId)
     if (tab !== undefined && !tab.isRunning) {
       await this.#unlessChanged(tab, async () => this.#actions.loadAll(tab))
+    }
+  }
+
+  // Only the tabs made to be read again are: the rows of a table opened from the explorer.
+  async #refresh(message: MessageOf<typeof WebviewMessageType.Refresh>): Promise<void> {
+    const tab = this.#tabs.get(message.tabId)
+    if (tab?.canRefresh === true && !tab.isRunning) {
+      await this.#unlessChanged(tab, async () => this.#actions.refresh(tab))
     }
   }
 

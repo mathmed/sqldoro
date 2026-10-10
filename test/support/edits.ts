@@ -21,10 +21,14 @@ const ORDERS_ROWS: readonly Row[] = [
   [2, 'A-2', 'gift', null, null, '2026-01-03 03:04:05+00', null],
 ]
 
-export interface EditableResult {
-  readonly editor: vscode.TextEditor
+// A tab of results and the panel that shows it: an editor's, or a table's.
+export interface GridResult {
   readonly panel: FakeWebviewPanel
   readonly tab: ResultSet
+}
+
+export interface EditableResult extends GridResult {
+  readonly editor: vscode.TextEditor
 }
 
 const WRITE = /^(UPDATE|INSERT|DELETE)/
@@ -75,7 +79,7 @@ export function cell(row: number, column: number): CellRange {
 
 // What the result view sends when the user changes cells or rows.
 export async function edit(
-  { panel, tab }: EditableResult,
+  { panel, tab }: GridResult,
   change: { readonly kind: EditKind; readonly range?: CellRange | null; readonly input?: string },
 ): Promise<void> {
   panel.webview.send({
@@ -90,7 +94,7 @@ export async function edit(
 }
 
 // Previews the changes, then applies the preview, and waits until the apply is over.
-export async function previewAndApply(result: EditableResult): Promise<void> {
+export async function previewAndApply(result: GridResult): Promise<void> {
   result.panel.webview.send({ type: 'previewEdits', tabId: result.tab.id })
   const preview = editingOf(result.tab).preview
   if (preview === null) {

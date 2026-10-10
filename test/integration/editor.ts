@@ -1,6 +1,8 @@
 // The extension host wired as in VS Code (createServices, createQueryServices) on a real server: a
 // SQL editor runs a query, its result panel edits the rows, and the user previews and applies the
 // changes there.
+import { randomUUID } from 'node:crypto'
+
 import { expect } from 'vitest'
 import type * as vscode from 'vscode'
 
@@ -8,14 +10,18 @@ import { type ConnectionConfig, newConnection } from '../../src/core/connection/
 import { SecretKind } from '../../src/core/connection/secrets.ts'
 import { RunScope } from '../../src/core/editor/run-plan.ts'
 import type { EditKind } from '../../src/core/edits/edit-kind.ts'
+import type { ObjectRef } from '../../src/core/engine/catalog.ts'
 import type { CellRange } from '../../src/core/results/protocol.ts'
 import type { ResultSet } from '../../src/core/results/result-set.ts'
+import { CommandId } from '../../src/extension/command-id.ts'
 import { createQueryServices, type QueryServices } from '../../src/extension/query-services.ts'
 import { createServices, type Services } from '../../src/extension/services.ts'
+import { registerTableDataCommands } from '../../src/extension/tables/table-data.ts'
+import { tableUri } from '../../src/extension/tables/table-uri.ts'
 import { FakeMemento, FakeSecretStorage } from '../fakes/extension-context.ts'
 import { recordingLogger } from '../fakes/logger.ts'
 import { postedTabs } from '../support/query.ts'
-import { FakeWebviewPanel, showEditor, Uri, webviewPanels, workspace } from '../vscode.ts'
+import { commands, FakeWebviewPanel, showEditor, Uri, webviewPanels, workspace } from '../vscode.ts'
 import type { DatabaseServer } from './servers.ts'
 
 export interface EditorTarget {
@@ -112,6 +118,33 @@ export async function openGrid(
   panel.webview.send({ type: 'ready' })
   await query.runner.run(textEditor as unknown as vscode.TextEditor, RunScope.All)
   const [tabId = ''] = postedTabs(panel).keys()
+  const editor = { base, query, uri, panel, tabId }
+  await expect.poll(() => editingOf(editor).state).toMatch(/^(editable|readOnly)$/)
+  return editor
+}
+
+// Opens a table of the server as the explorer does, and waits until the grid knows whether its rows
+// can be edited.
+export async function openTableGrid(target: EditorTarget, table: ObjectRef): Promise<GridEditor> {
+  const { base, query } = await wired(target, {})
+  registerTableDataCommands({
+    runner: query.runner,
+    panels: query.panels,
+    connections: (id) => base.store.find(id),
+    engines: base.engines,
+    createId: randomUUID,
+    log: recordingLogger(),
+  })
+  const node = { kind: 'table', connectionId: 'it', place: table }
+  const opening = commands.executeCommand(CommandId.OpenTableData, node)
+  const panel = webviewPanels.at(-1)
+  if (!(panel instanceof FakeWebviewPanel)) {
+    throw new Error('no table panel')
+  }
+  panel.webview.send({ type: 'ready' })
+  await opening
+  const [tabId = ''] = postedTabs(panel).keys()
+  const uri = tableUri({ connectionId: 'it', table })
   const editor = { base, query, uri, panel, tabId }
   await expect.poll(() => editingOf(editor).state).toMatch(/^(editable|readOnly)$/)
   return editor

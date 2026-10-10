@@ -82,6 +82,7 @@ function readTab(tab: JsonRecord): ResultTab {
     viewVersion: readCount(tab, 'viewVersion'),
     isServerView: readBoolean(tab, 'isServerView'),
     canServerView: readBoolean(tab, 'canServerView'),
+    canRefresh: readBoolean(tab, 'canRefresh'),
     summary: readNullable(tab, 'summary', (record, key) => readSummary(readNested(record, key))),
     error: readNullable(tab, 'error', (record, key) => readError(readNested(record, key))),
     notice: readString(tab, 'notice'),

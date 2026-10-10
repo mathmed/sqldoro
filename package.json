@@ -189,6 +189,12 @@
         "icon": "$(code)"
       },
       {
+        "command": "sqldoro.openTableData",
+        "title": "Open Table Data",
+        "category": "sqldoro",
+        "icon": "$(table)"
+      },
+      {
         "command": "sqldoro.searchHistory",
         "title": "Search Query History",
         "category": "sqldoro",
@@ -495,9 +501,19 @@
           "group": "0_query@1"
         },
         {
-          "command": "sqldoro.showDdl",
+          "command": "sqldoro.openTableData",
+          "when": "view == sqldoro.connections && viewItem =~ /^(table|view)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.openTableData",
           "when": "view == sqldoro.connections && viewItem =~ /^(table|view)$/",
           "group": "0_query@1"
+        },
+        {
+          "command": "sqldoro.showDdl",
+          "when": "view == sqldoro.connections && viewItem =~ /^(table|view)$/",
+          "group": "0_query@2"
         },
         {
           "command": "sqldoro.openHistoryEntry",
@@ -567,6 +583,10 @@
         },
         {
           "command": "sqldoro.showDdl",
+          "when": "false"
+        },
+        {
+          "command": "sqldoro.openTableData",
           "when": "false"
         },
         {

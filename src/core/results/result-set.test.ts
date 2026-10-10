@@ -7,7 +7,14 @@ import { ResultSet } from './result-set.ts'
 const SQL = 'SELECT id, name\nFROM orders'
 
 function resultSet(changes: Partial<ConstructorParameters<typeof ResultSet>[0]> = {}): ResultSet {
-  const sut = new ResultSet({ id: 't1', sql: SQL, kind: 'rows', canServerView: true, ...changes })
+  const sut = new ResultSet({
+    id: 't1',
+    sql: SQL,
+    kind: 'rows',
+    canServerView: true,
+    canRefresh: false,
+    ...changes,
+  })
   sut.describe(RESULT_COLUMNS)
   sut.addRows([
     ['3', 'c'],
@@ -19,7 +26,13 @@ function resultSet(changes: Partial<ConstructorParameters<typeof ResultSet>[0]> 
 
 describe('ResultSet', () => {
   it('should start as a running tab of the statement', () => {
-    const sut = new ResultSet({ id: 't1', sql: SQL, kind: 'rows', canServerView: true })
+    const sut = new ResultSet({
+      id: 't1',
+      sql: SQL,
+      kind: 'rows',
+      canServerView: true,
+      canRefresh: false,
+    })
 
     expect(sut.toTab()).toStrictEqual({
       id: 't1',
@@ -34,6 +47,7 @@ describe('ResultSet', () => {
       viewVersion: 0,
       isServerView: false,
       canServerView: true,
+      canRefresh: false,
       summary: null,
       error: null,
       notice: '',
@@ -177,11 +191,20 @@ describe('ResultSet', () => {
     expect(resultSet({ canServerView: false }).toTab().canServerView).toBe(false)
   })
 
+  it('should offer to read the rows again only when it was made to', () => {
+    const sut = resultSet({ canRefresh: true })
+
+    expect(sut.canRefresh).toBe(true)
+    expect(sut.toTab().canRefresh).toBe(true)
+    expect(resultSet().canRefresh).toBe(false)
+  })
+
   it('should cut a long statement in the tab', () => {
     const sql = `SELECT ${'x'.repeat(3000)}`
 
     expect(
-      new ResultSet({ id: 't', sql, kind: 'rows', canServerView: false }).toTab().sql,
+      new ResultSet({ id: 't', sql, kind: 'rows', canServerView: false, canRefresh: false }).toTab()
+        .sql,
     ).toHaveLength(2000)
   })
 })

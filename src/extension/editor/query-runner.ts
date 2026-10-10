@@ -41,17 +41,23 @@ export interface QueryRunnerDependencies {
   readonly settings: () => Settings
   readonly clock: Clock
   readonly createId: () => string
-  readonly pickBinding: (document: vscode.TextDocument) => Promise<EditorBinding | undefined>
+  readonly pickBinding: () => Promise<EditorBinding | undefined>
   // Finds out whether the rows of a tab that ran can be edited; it reports what it finds itself.
   readonly checkEditing: (parts: RunParts, tab: ResultSet) => void
   readonly log: Logger
 }
 
+// The statements of an editor to run, from its document.
+interface EditorStatements {
+  readonly document: vscode.TextDocument
+  readonly statements: readonly PlannedStatement[]
+}
+
 const BUSY = 'A query is already running in this editor: cancel it first.'
 const DROP_CHANGES = 'Drop the Changes and Run'
 
-// Runs the statements of SQL editors, one run per editor at a time, each on the editor's own
-// connection, into the editor's result panel. Nothing runs before the guards approve it.
+// Runs the statements of SQL editors and of table panels, one run per source at a time, each on its
+// own connection, into its result panel. Nothing runs before the guards approve it.
 export class QueryRunner implements vscode.Disposable {
   readonly #dependencies: QueryRunnerDependencies
   readonly #runs = new Map<string, ActiveRun>()
@@ -67,10 +73,11 @@ export class QueryRunner implements vscode.Disposable {
   }
 
   async run(editor: vscode.TextEditor, scope: RunScope): Promise<void> {
-    if (!(await this.confirmDropChanges(editor.document.uri))) {
+    const { document } = editor
+    if (!(await this.confirmDropChanges(document.uri))) {
       return
     }
-    await this.perform(editor.document, async (target) => {
+    await this.perform(document.uri, async (target) => {
       const statements = planRun(sourceOf(editor), scope, target.engine.dialect.lexical)
       if (statements.length === 0) {
         void vscode.window.showInformationMessage(
@@ -82,14 +89,15 @@ export class QueryRunner implements vscode.Disposable {
         statements: statements.map((statement) => statement.sql),
         run: async (parts: RunParts) => {
           this.startRun(parts)
-          await this.#runAll(parts, statements)
+          await this.#runAll(parts, { document, statements })
         },
       })
     })
   }
 
-  async perform(document: vscode.TextDocument, plan: RunPlanner): Promise<void> {
-    const target = await this.#target(document)
+  // Runs what `plan` decides on the source `uri`: the document of an editor, or a table panel.
+  async perform(uri: vscode.Uri, plan: RunPlanner): Promise<void> {
+    const target = await this.#target(uri)
     const work = target === undefined ? undefined : await plan(target)
     if (target !== undefined && work !== undefined) {
       await this.#withRun(target, work)
@@ -109,7 +117,9 @@ export class QueryRunner implements vscode.Disposable {
     try {
       await action(run)
     } catch (error) {
-      void vscode.window.showErrorMessage(`Could not run the query: ${describeError(error)}`)
+      const message = describeError(error)
+      this.#dependencies.panels.get(uri)?.failRunning(message)
+      void vscode.window.showErrorMessage(`Could not run the query: ${message}`)
     } finally {
       this.#runs.delete(key)
       this.#changes.fire(uri)
@@ -119,7 +129,7 @@ export class QueryRunner implements vscode.Disposable {
   // A new run replaces the tabs of the panel and the errors shown in the editor.
   startRun(parts: RunParts): void {
     parts.panel.startRun(parts.target.engine.dialect)
-    this.#dependencies.diagnostics.delete(parts.target.document.uri)
+    this.#dependencies.diagnostics.delete(parts.target.uri)
   }
 
   async cancel(uri: vscode.Uri): Promise<void> {
@@ -166,11 +176,12 @@ export class QueryRunner implements vscode.Disposable {
   }
 
   #newTab(sql: string, kind: TabKind): ResultSet {
-    return new ResultSet({ id: this.#dependencies.createId(), sql, kind, canServerView: false })
+    const id = this.#dependencies.createId()
+    return new ResultSet({ id, sql, kind, canServerView: false, canRefresh: false })
   }
 
-  async #target(document: vscode.TextDocument): Promise<RunTarget | undefined> {
-    const binding = await this.#bindingOf(document)
+  async #target(uri: vscode.Uri): Promise<RunTarget | undefined> {
+    const binding = await this.#bindingOf(uri)
     if (binding === undefined) {
       return undefined
     }
@@ -182,31 +193,31 @@ export class QueryRunner implements vscode.Disposable {
       return undefined
     }
     const engine = this.#dependencies.engines.get(connection.engine)
-    return { document, connection, engine, scope: bindingScope(binding, engine.dialect) }
+    return { uri, connection, engine, scope: bindingScope(binding, engine.dialect) }
   }
 
   // An editor without a connection asks for one, and keeps it.
-  async #bindingOf(document: vscode.TextDocument): Promise<EditorBinding | undefined> {
+  async #bindingOf(uri: vscode.Uri): Promise<EditorBinding | undefined> {
     const { bindings, pickBinding } = this.#dependencies
-    const existing = bindings.get(document.uri)
+    const existing = bindings.get(uri)
     if (existing !== undefined) {
       return existing
     }
-    const picked = await pickBinding(document)
+    const picked = await pickBinding()
     if (picked !== undefined) {
-      await bindings.set(document.uri, picked)
+      await bindings.set(uri, picked)
     }
     return picked
   }
 
   // The guards see every statement before the session opens; nothing runs without their approval.
   async #withRun(target: RunTarget, work: RunWork): Promise<void> {
-    await this.exclusive(target.document.uri, async (run) => {
+    await this.exclusive(target.uri, async (run) => {
       const approval = await this.#dependencies.guard.approve({
         connection: target.connection,
         dialect: target.engine.dialect,
         statements: work.statements,
-        transaction: this.#dependencies.transactions.of(target.document.uri.toString()),
+        transaction: this.#dependencies.transactions.of(target.uri.toString()),
       })
       // Cancelling while the guard waits for a confirmation runs nothing.
       if (approval !== undefined && !run.isCancelled) {
@@ -224,28 +235,29 @@ export class QueryRunner implements vscode.Disposable {
     const { connect, editorSessions, panels, settings } = this.#dependencies
     const catalog = (await connect(target.connection)).engineSession
     const session = await editorSessions.acquire(
-      target.document.uri.toString(),
+      target.uri.toString(),
       target.connection,
       target.scope,
     )
-    const panel = panels.show(target.document.uri)
+    const panel = panels.show(target.uri)
     panel.showConnection(target.connection, settings().policy)
     return { target, session, catalog, panel, run, approval }
   }
 
-  async #runAll(parts: RunParts, statements: readonly PlannedStatement[]): Promise<void> {
+  async #runAll(parts: RunParts, { document, statements }: EditorStatements): Promise<void> {
     for (const [index, statement] of statements.entries()) {
       const tab = new ResultSet({
         id: this.#dependencies.createId(),
         sql: statement.sql,
         kind: TabKind.Rows,
         canServerView: isReadOnlyQuery(statement.sql, parts.target.engine.dialect.lexical),
+        canRefresh: false,
       })
       parts.panel.addTab(tab)
       const isDone = await this.runJob(parts, {
         sql: statement.sql,
         values: [],
-        place: { offset: statement.offset, prefixLength: 0 },
+        place: { document, offset: statement.offset, prefixLength: 0 },
         isRecorded: true,
         tab,
         kind: TabKind.Rows,

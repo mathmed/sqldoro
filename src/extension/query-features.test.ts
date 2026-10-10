@@ -9,6 +9,7 @@ import {
   contentProviders,
   diagnosticCollections,
   type FakeTextDocument,
+  type FakeWebviewPanel,
   outputChannels,
   Position,
   Range,
@@ -72,6 +73,15 @@ async function newQueryEditor(): Promise<FakeTextDocument> {
     throw new Error('no editor')
   }
   return document
+}
+
+// The id of the tab a result panel shows last.
+function tabIdIn(panel: FakeWebviewPanel): string {
+  const tabs = panel.webview.posted.flatMap((message) => {
+    const { type, tab } = message as { type: string; tab?: { id: string } }
+    return type === 'tab' && tab !== undefined ? [tab.id] : []
+  })
+  return tabs.at(-1) ?? ''
 }
 
 function statusText(): string | undefined {
@@ -200,6 +210,38 @@ describe('the SQL editor features', () => {
     expect(webviewPanels[0]?.webview.posted.at(-1)).toMatchObject({
       type: 'connection',
       connection: { name: 'Shop', isReadOnly: false },
+    })
+  })
+
+  it('should open a table on a connection of its own, read it again, and close it on Disconnect', async () => {
+    await activated()
+    const orders = { database: 'shop', schema: 'public', name: 'orders' }
+    const opening = vscode.commands.executeCommand(CommandId.OpenTableData, {
+      kind: 'table',
+      connectionId: 'shop',
+      place: orders,
+    })
+    const [panel] = webviewPanels
+    if (panel === undefined) {
+      throw new Error('no table panel')
+    }
+    panel.webview.send({ type: 'ready' })
+    await opening
+    const tableClient = pg.clients.at(-1)
+    expect(panel.title).toBe('orders — public')
+    expect(tableClient?.cursors.map((cursor) => cursor.sql)).toStrictEqual([
+      'SELECT * FROM "public"."orders" LIMIT 1001',
+    ])
+
+    panel.webview.send({ type: 'refresh', tabId: tabIdIn(panel) })
+    await vi.waitFor(() => {
+      expect(tableClient?.cursors).toHaveLength(2)
+    })
+
+    await vscode.commands.executeCommand(CommandId.Disconnect, 'shop')
+    expect(panel.isDisposed).toBe(true)
+    await vi.waitFor(() => {
+      expect(tableClient?.isEnded).toBe(true)
     })
   })
 

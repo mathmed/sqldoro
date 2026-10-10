@@ -62,15 +62,15 @@ export async function runApprovedJob(
   return isSucceeded
 }
 
-// The session of the editor, as its transaction knows it.
+// The session of the editor (or table panel), as its transaction knows it.
 export function transactionScope({
   target,
   session,
 }: Pick<RunParts, 'session' | 'target'>): TransactionScope {
   return {
-    uri: target.document.uri.toString(),
+    uri: target.uri.toString(),
     session: session.engineSession,
-    place: `"${documentLabel(target.document.uri)}" on "${target.connection.name}"`,
+    place: `"${documentLabel(target.uri)}" on "${target.connection.name}"`,
     isReadOnly: target.connection.isReadOnly,
   }
 }
@@ -78,7 +78,6 @@ export function transactionScope({
 function statementContext(context: JobContext): StatementContext {
   const { parts, diagnostics, clock, createId, log } = context
   return {
-    document: parts.target.document,
     connectionId: parts.target.connection.id,
     scope: parts.target.scope,
     dialect: parts.target.engine.dialect,

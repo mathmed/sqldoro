@@ -97,10 +97,11 @@ describe('QueryRunner and the guards', () => {
     expect(sent()).toStrictEqual(['INSERT INTO t VALUES (1)'])
   })
 
-  it('should refuse a statement the guards did not approve', async () => {
+  it('should refuse a statement the guards did not approve, and say so in its tab', async () => {
     const editor = await sqlEditor(harness, 'SELECT 1')
+    const panel = readyPanel(harness, editor)
 
-    await harness.runner.perform(editor.document as unknown as vscode.TextDocument, async () =>
+    await harness.runner.perform(editor.document.uri as unknown as vscode.Uri, async () =>
       Promise.resolve({
         statements: ['SELECT 1'],
         run: async (parts) => {
@@ -120,6 +121,13 @@ describe('QueryRunner and the guards', () => {
     expect(window.showErrorMessage).toHaveBeenCalledWith(
       'Could not run the query: sqldoro did not check this statement before running it, so it did not run',
     )
+    expect(postedTabs(panel).get('id-1')).toMatchObject({
+      sql: 'DROP TABLE t',
+      status: 'failed',
+      error: {
+        message: 'sqldoro did not check this statement before running it, so it did not run',
+      },
+    })
   })
 })
 

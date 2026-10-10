@@ -21,6 +21,7 @@ export const CommandId = {
   ExplainAnalyze: 'sqldoro.explainAnalyze',
   ShowResults: 'sqldoro.showResults',
   ShowDdl: 'sqldoro.showDdl',
+  OpenTableData: 'sqldoro.openTableData',
   SearchHistory: 'sqldoro.searchHistory',
   OpenHistoryEntry: 'sqldoro.openHistoryEntry',
   RunHistoryEntry: 'sqldoro.runHistoryEntry',

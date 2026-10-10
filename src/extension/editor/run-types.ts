@@ -8,9 +8,11 @@ import type { ResultsPanel } from '../results/results-panel.ts'
 import type { Approval } from '../safety/approval.ts'
 import type { ActiveRun } from './active-run.ts'
 
-// Where an editor runs: its connection, the engine and the database and schema.
+// Where a run goes and runs: its source (the document of a SQL editor, or the table of a table
+// panel), which keys its session and its result panel, and its connection, engine, database and
+// schema.
 export interface RunTarget {
-  readonly document: vscode.TextDocument
+  readonly uri: vscode.Uri
   readonly connection: ConnectionConfig
   readonly engine: Engine
   readonly scope: ObjectScope
