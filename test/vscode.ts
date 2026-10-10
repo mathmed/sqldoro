@@ -19,10 +19,23 @@ export * from './vscode/workbench.ts'
 
 type CommandHandler = (...args: unknown[]) => unknown
 const handlers = new Map<string, CommandHandler>()
-// Commands VS Code itself provides: they answer without a handler from the extension.
-const BUILT_IN_COMMANDS: ReadonlySet<string> = new Set(['setContext'])
+// Commands VS Code and its built-in extensions provide: they answer without a handler from the
+// extension, and the fake records the calls. A test takes one away like a disabled built-in
+// extension would.
+const BUILT_IN_COMMANDS: ReadonlySet<string> = new Set([
+  'setContext',
+  'workbench.action.openWalkthrough',
+  'markdown.showPreview',
+])
 
 export const contextKeys = new Map<string, unknown>()
+export const builtInCalls: { readonly command: string; readonly args: readonly unknown[] }[] = []
+const missingBuiltIns = new Set<string>()
+
+// Takes a built-in command away, as when the built-in extension that provides it is disabled.
+export function disableBuiltIn(command: string): void {
+  missingBuiltIns.add(command)
+}
 
 export const ExtensionMode = {
   Production: 1,
@@ -94,8 +107,11 @@ export const commands = {
     }
   },
   async executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
-    if (BUILT_IN_COMMANDS.has(command)) {
-      contextKeys.set(String(args[0]), args[1])
+    if (BUILT_IN_COMMANDS.has(command) && !missingBuiltIns.has(command)) {
+      builtInCalls.push({ command, args })
+      if (command === 'setContext') {
+        contextKeys.set(String(args[0]), args[1])
+      }
       return undefined
     }
     const handler = handlers.get(command)
@@ -110,6 +126,8 @@ export const commands = {
 export function resetVscode(): void {
   handlers.clear()
   contextKeys.clear()
+  builtInCalls.length = 0
+  missingBuiltIns.clear()
   completionProviders.length = 0
   diagnosticCollections.length = 0
   resetWorkbench()

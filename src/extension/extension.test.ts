@@ -30,6 +30,7 @@ function activateIn(extensionMode: vscode.ExtensionMode, globalState = new FakeM
     workspaceState: new FakeMemento(),
     secrets: new FakeSecretStorage(),
     extensionUri: vscode.Uri.file('/extension'),
+    extension: { id: 'mathmed.sqldoro', packageJSON: { version: '0.1.0' } },
   })
 }
 

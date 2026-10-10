@@ -203,8 +203,9 @@ export const window = {
     return activeTextEditor
   },
   onDidChangeActiveTextEditor: activeEditorChanges.event,
-  showTextDocument: async (document: FakeTextDocument): Promise<FakeTextEditor> =>
-    Promise.resolve(showEditor(document)),
+  // Like VS Code, it takes a document or the URI of one.
+  showTextDocument: async (target: FakeTextDocument | FakeUri): Promise<FakeTextEditor> =>
+    showEditor(target instanceof FakeUri ? await openTextDocument(target) : target),
   createTreeView: (viewId: string, options: { treeDataProvider: unknown }): FakeTreeView => {
     const view: FakeTreeView = { viewId, options, message: undefined, dispose: vi.fn() }
     treeViews.push(view)

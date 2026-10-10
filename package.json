@@ -301,6 +301,18 @@
         "title": "Make Read-Only",
         "category": "sqldoro",
         "icon": "$(lock)"
+      },
+      {
+        "command": "sqldoro.gettingStarted",
+        "title": "Get Started",
+        "category": "sqldoro",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "sqldoro.about",
+        "title": "About sqldoro and Its Safety Model",
+        "category": "sqldoro",
+        "icon": "$(shield)"
       }
     ],
     "viewsContainers": {
@@ -337,7 +349,7 @@
     "viewsWelcome": [
       {
         "view": "sqldoro.connections",
-        "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)"
+        "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)\nNew connections are read-only until you allow writes. [Get Started](command:sqldoro.gettingStarted) walks through connecting, querying, the safety model and editing rows."
       },
       {
         "view": "sqldoro.history",
@@ -404,6 +416,16 @@
           "command": "sqldoro.exportSavedQueries",
           "when": "view == sqldoro.savedQueries",
           "group": "navigation@3"
+        },
+        {
+          "command": "sqldoro.gettingStarted",
+          "when": "view == sqldoro.connections",
+          "group": "2_help@1"
+        },
+        {
+          "command": "sqldoro.about",
+          "when": "view == sqldoro.connections",
+          "group": "2_help@2"
         }
       ],
       "view/item/context": [
@@ -675,6 +697,12 @@
         "key": "ctrl+alt+enter",
         "mac": "cmd+alt+enter",
         "when": "editorTextFocus && editorLangId == sql && sqldoro.editorHasConnection"
+      },
+      {
+        "command": "sqldoro.cancelQuery",
+        "key": "ctrl+shift+backspace",
+        "mac": "cmd+shift+backspace",
+        "when": "editorTextFocus && editorLangId == sql && sqldoro.isQueryRunning"
       }
     ],
     "configuration": {
@@ -738,7 +766,74 @@
           "markdownDescription": "The transaction mode new SQL editors start in; **Switch Transaction Mode** changes it per editor."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "sqldoro.gettingStarted",
+        "title": "Get Started with sqldoro",
+        "description": "Connect to MySQL or PostgreSQL, run your first query, and see how sqldoro keeps the dangerous statements hard.",
+        "steps": [
+          {
+            "id": "connect",
+            "title": "Add a connection",
+            "description": "Connect to MySQL or PostgreSQL, directly or through an SSH tunnel. Passwords stay in the VS Code secret storage, and new connections are read-only.\n[Add Connection](command:sqldoro.addConnection)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.addConnection",
+              "onCommand:sqldoro.importConnectionUrl"
+            ]
+          },
+          {
+            "id": "query",
+            "title": "Run a query",
+            "description": "Open a SQL editor on a connection, run the statement under the cursor with Ctrl+Enter (Cmd+Enter on macOS) and browse the results in the grid.\n[New Query](command:sqldoro.newQuery)",
+            "media": {
+              "markdown": "media/walkthrough/query.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.runQuery",
+              "onCommand:sqldoro.runScript"
+            ]
+          },
+          {
+            "id": "safety",
+            "title": "Know the safety model",
+            "description": "Read-only connections, confirmations for UPDATE and DELETE without WHERE and for production, manual transactions and an automatic LIMIT: what each guard does, and what it cannot do.\n[About the Safety Model](command:sqldoro.about)",
+            "media": {
+              "markdown": "media/walkthrough/safety.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.about"
+            ]
+          },
+          {
+            "id": "edit",
+            "title": "Edit rows with a preview",
+            "description": "Change the rows of a table in the grid, then preview the exact SQL before anything is written. Allow writes on the connection first.\n[Allow Writes](command:sqldoro.allowWrites)",
+            "media": {
+              "markdown": "media/walkthrough/edit.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.allowWrites"
+            ]
+          },
+          {
+            "id": "keep",
+            "title": "Keep your queries",
+            "description": "Every statement you run lands in the query history; name the ones you need again in Saved Queries.\n[Search Query History](command:sqldoro.searchHistory)",
+            "media": {
+              "markdown": "media/walkthrough/keep.md"
+            },
+            "completionEvents": [
+              "onCommand:sqldoro.searchHistory",
+              "onCommand:sqldoro.saveQuery"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "hooks": "lefthook install",
