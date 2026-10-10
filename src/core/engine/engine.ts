@@ -12,6 +12,7 @@ import type {
 } from './catalog.ts'
 import type { Dialect } from './dialect.ts'
 import type { QueryExecution, QueryRequest } from './query.ts'
+import type { TableDescription } from './table.ts'
 import type { TransactionStatus } from './transaction-status.ts'
 
 export interface Endpoint {
@@ -76,4 +77,13 @@ export interface EngineSession {
   readonly execute: (request: QueryRequest) => QueryExecution
   // Asks the server whether the session is in a transaction, after the statements before it ended.
   readonly transactionStatus: () => Promise<TransactionStatus>
+  // The table result columns come from (ColumnOrigin.table), as editing needs it, read from the
+  // catalog of a database of the session (empty: its own); undefined when the server does not know it.
+  readonly describeTable: (
+    database: string,
+    table: readonly string[],
+  ) => Promise<TableDescription | undefined>
+  // Why the server could change the values sqldoro writes instead of refusing them (MySQL outside
+  // strict mode), for people; undefined when it refuses them.
+  readonly writeProblem: () => Promise<string | undefined>
 }

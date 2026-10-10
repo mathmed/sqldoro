@@ -10,6 +10,10 @@ interface FieldParts {
   readonly columnType?: number
   readonly type?: number
   readonly characterSet?: number
+  readonly db?: string
+  readonly schema?: string
+  readonly orgTable?: string
+  readonly orgName?: string
 }
 
 function column(field: FieldParts): ReturnType<typeof toResultColumn> {
@@ -46,6 +50,32 @@ describe('toResultColumn', () => {
       name: 'c',
       dataType: 'UNKNOWN',
       kind: 'other',
+    })
+  })
+
+  it('should say which table and column a value comes from, as the server names them', () => {
+    const origin = { orgTable: 'orders', orgName: 'Total' }
+
+    expect(column({ columnType: 3, db: 'shop', ...origin }).origin).toStrictEqual({
+      table: ['shop', 'orders'],
+      column: 'Total',
+    })
+    expect(column({ columnType: 3, schema: 'crm', ...origin }).origin).toStrictEqual({
+      table: ['crm', 'orders'],
+      column: 'Total',
+    })
+  })
+
+  it.each([
+    { db: '', orgTable: '', orgName: '' },
+    { db: 'shop', orgTable: '', orgName: 'total' },
+    { db: 'shop', orgTable: 'orders', orgName: '' },
+    { orgTable: 'orders', orgName: 'total' },
+  ])('should give a computed value no origin: %j', (parts) => {
+    expect(column({ columnType: 3, ...parts })).toStrictEqual({
+      name: 'c',
+      dataType: 'LONG',
+      kind: 'number',
     })
   })
 })

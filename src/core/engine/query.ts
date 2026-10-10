@@ -25,10 +25,20 @@ export function isColumnKind(value: unknown): value is ColumnKind {
   return typeof value === 'string' && COLUMN_KINDS.has(value)
 }
 
+// Where a column of a result comes from, as the server reported it: a column of a table or a view
+// the query read. Both are the engine's own references (database and table names, or object and
+// column numbers), only ever compared with the ones EngineSession.describeTable gives.
+export interface ColumnOrigin {
+  readonly table: readonly string[]
+  readonly column: string
+}
+
 export interface ResultColumn {
   readonly name: string
   readonly dataType: string
   readonly kind: ColumnKind
+  // Absent for a computed value, or when the server does not say.
+  readonly origin?: ColumnOrigin
 }
 
 export interface QueryRequest {
