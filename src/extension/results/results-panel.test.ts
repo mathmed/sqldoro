@@ -81,6 +81,30 @@ describe('ResultsPanel and its connection', () => {
     expect(posted().at(-1)).toMatchObject({ connection: { environment: '', isProduction: false } })
   })
 
+  it('should show its connection again when it changes, and ignore the others', async () => {
+    const sut = panel()
+    sut.showConnection(SHOP, POLICY)
+    await sut.receive({ type: 'ready' })
+
+    sut.followConnection([{ ...SHOP, id: 'other', isReadOnly: true }], POLICY)
+    expect(posted()).toHaveLength(2)
+    sut.followConnection([{ ...PROD, isReadOnly: true }], POLICY)
+
+    expect(webviewPanel.title).toBe('Results · PROD')
+    expect(posted().at(-1)).toStrictEqual({
+      type: 'connection',
+      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: true },
+    })
+  })
+
+  it('should show no connection before its editor runs', () => {
+    const sut = panel()
+
+    sut.followConnection([SHOP], POLICY)
+
+    expect(webviewPanel.title).toBe('Results')
+  })
+
   it('should load every row of a finished tab when asked', async () => {
     const sut = panel()
     sut.startRun(POSTGRES_DIALECT)

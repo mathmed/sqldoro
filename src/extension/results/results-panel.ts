@@ -72,6 +72,7 @@ export class ResultsPanel {
   readonly #handlers: ReadonlyMap<string, Handler>
   readonly #title: string
   #dialect: Dialect | undefined
+  #connectionId: string | undefined
   #connection: PanelConnection | undefined
   #activeTabId: string | null = null
   #isReady = false
@@ -124,9 +125,18 @@ export class ResultsPanel {
   // The connection the editor runs on, shown above the tabs; its environment goes in the title.
   showConnection(connection: ConnectionConfig, policy: GuardPolicy): void {
     const shown = panelConnection(connection, policy)
+    this.#connectionId = connection.id
     this.#connection = shown
     this.#panel.title = panelTitle(this.#title, shown)
     this.#post({ type: HostMessageType.Connection, connection: shown })
+  }
+
+  // A connection tagged production or made read-only says so at once, not at the next run.
+  followConnection(connections: readonly ConnectionConfig[], policy: GuardPolicy): void {
+    const connection = connections.find((candidate) => candidate.id === this.#connectionId)
+    if (connection !== undefined) {
+      this.showConnection(connection, policy)
+    }
   }
 
   // A new run replaces the tabs of the previous one, and their rows.
