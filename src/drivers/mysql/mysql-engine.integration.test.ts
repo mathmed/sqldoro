@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { queryRequest } from '../../../test/fakes/query-request.ts'
 import { connectRequest, MYSQL, waitUntilReady } from '../../../test/integration/servers.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { QueryCancelledError, type Row } from '../../core/engine/query.ts'
@@ -33,7 +34,13 @@ const FIXTURE = [
 let session: EngineSession
 
 async function run(sql: string, maxRows = 100): ReturnType<EngineSession['execute']>['result'] {
-  return session.execute({ sql, maxRows, onRows: () => undefined }).result
+  return session.execute(
+    queryRequest({
+      sql,
+      maxRows,
+      onRows: () => undefined,
+    }),
+  ).result
 }
 
 describe('mysqlEngine against a real MySQL server', () => {
@@ -190,11 +197,13 @@ describe('mysqlEngine against a real MySQL server', () => {
       const sql =
         'SELECT n FROM (SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3) AS numbers ORDER BY n'
 
-      const result = await session.execute({
-        sql,
-        maxRows: 2,
-        onRows: (rows) => batches.push(rows),
-      }).result
+      const result = await session.execute(
+        queryRequest({
+          sql,
+          maxRows: 2,
+          onRows: (rows) => batches.push(rows),
+        }),
+      ).result
 
       expect(result).toMatchObject({ rows: [['1'], ['2']], isTruncated: true })
       expect(batches.flat()).toStrictEqual([['1'], ['2']])
@@ -207,11 +216,13 @@ describe('mysqlEngine against a real MySQL server', () => {
     })
 
     it('should cancel a running statement and stay usable', async () => {
-      const execution = session.execute({
-        sql: 'SELECT SLEEP(20)',
-        maxRows: 1,
-        onRows: () => undefined,
-      })
+      const execution = session.execute(
+        queryRequest({
+          sql: 'SELECT 1 AS one FROM DUAL WHERE SLEEP(20) = 0',
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      )
       await new Promise((resolve) => setTimeout(resolve, 200))
 
       await execution.cancel()
@@ -220,8 +231,25 @@ describe('mysqlEngine against a real MySQL server', () => {
       await expect(run('SELECT 1 AS one')).resolves.toMatchObject({ rows: [['1']] })
     })
 
+    it('should report what an interrupted SLEEP returns: MySQL ends it without an error', async () => {
+      const execution = session.execute(
+        queryRequest({ sql: 'SELECT SLEEP(20) AS slept', maxRows: 1 }),
+      )
+      await new Promise((resolve) => setTimeout(resolve, 200))
+
+      await execution.cancel()
+
+      await expect(execution.result).resolves.toMatchObject({ rows: [['1']] })
+    })
+
     it('should ignore a cancel that comes after the end', async () => {
-      const execution = session.execute({ sql: 'SELECT 1', maxRows: 1, onRows: () => undefined })
+      const execution = session.execute(
+        queryRequest({
+          sql: 'SELECT 1',
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      )
       await execution.result
 
       await expect(execution.cancel()).resolves.toBeUndefined()
@@ -240,11 +268,13 @@ describe('mysqlEngine against a real MySQL server', () => {
       }
       const encrypted = await mysqlEngine.connect(connectRequest(MYSQL, { tls }))
 
-      const result = await encrypted.execute({
-        sql: "SHOW SESSION STATUS LIKE 'Ssl_cipher'",
-        maxRows: 1,
-        onRows: () => undefined,
-      }).result
+      const result = await encrypted.execute(
+        queryRequest({
+          sql: "SHOW SESSION STATUS LIKE 'Ssl_cipher'",
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      ).result
       await encrypted.close()
 
       expect(result.rows[0]?.[1]).toMatch(/\w+/)
@@ -270,8 +300,13 @@ describe('mysqlEngine against a real MySQL server', () => {
     const onUnexpectedClose = vi.fn()
     const victim = await mysqlEngine.connect(connectRequest(MYSQL, { onUnexpectedClose }))
     const [row] = (
-      await victim.execute({ sql: 'SELECT CONNECTION_ID()', maxRows: 1, onRows: () => undefined })
-        .result
+      await victim.execute(
+        queryRequest({
+          sql: 'SELECT CONNECTION_ID()',
+          maxRows: 1,
+          onRows: () => undefined,
+        }),
+      ).result
     ).rows
 
     await run(`KILL CONNECTION ${String(row?.[0])}`)

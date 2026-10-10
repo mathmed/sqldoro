@@ -11,11 +11,15 @@ import type { ConnectRequest } from '../../src/core/engine/engine.ts'
 export interface ScriptedQuery {
   readonly sql: string
   readonly values: readonly unknown[]
+  // Sent with execute(): a prepared statement.
+  readonly isPrepared?: boolean
 }
 
 export interface Answer {
   readonly error?: Error
   readonly result?: unknown
+  // The answer waits for this promise, like a slow server.
+  readonly after?: Promise<unknown>
 }
 
 export interface MysqlScript {
@@ -59,8 +63,21 @@ export class FakeMysqlConnection extends EventEmitter {
         mysql.script.stream(query, events)
         return
       }
-      const { error, result } = mysql.script.answer(query)
-      callback(error ?? null, result)
+      const { error, result, after = Promise.resolve() } = mysql.script.answer(query)
+      void after.then(() => {
+        callback(error ?? null, result)
+      })
+    })
+    return events
+  }
+
+  // Prepared statements stream their rows like queries.
+  execute(options: { sql: string; values?: unknown[] }): EventEmitter {
+    const query = { sql: options.sql, values: options.values ?? [], isPrepared: true }
+    this.queries.push(query)
+    const events = new EventEmitter()
+    setImmediate(() => {
+      mysql.script.stream(query, events)
     })
     return events
   }

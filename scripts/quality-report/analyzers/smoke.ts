@@ -9,6 +9,7 @@ const VERSION_LINE = /^>> VS Code (\S+)$/m
 const ACTIVATED_LINE = /^>> extension \S+ activated in ([\d.]+)s$/m
 const COMMANDS_LINE = /^>> contributed commands registered: (\d+)$/m
 const VIEWS_LINE = /^>> contributed views registered: (\d+)$/m
+const RESULT_VIEW_LINE = /^>> result view loaded in ([\d.]+)s$/m
 const SUITE_FAILURE = /^>> smoke: (\S.*)$/m
 const LAUNCH_FAILURE = /^>> smoke FAILED: (\S.*)$/m
 
@@ -27,9 +28,17 @@ function passedSummary(output: string): string {
     countOf(COMMANDS_LINE, output, ['contributed command', 'contributed commands']),
     countOf(VIEWS_LINE, output, ['contributed view', 'contributed views']),
   ].filter((count) => count !== '')
-  return registered.length === 0
-    ? activation
-    : `${activation} · ${registered.join(' and ')} registered`
+  const parts = [
+    activation,
+    registered.length === 0 ? '' : `${registered.join(' and ')} registered`,
+    resultViewTime(output),
+  ]
+  return parts.filter((part) => part !== '').join(' · ')
+}
+
+function resultViewTime(output: string): string {
+  const seconds = RESULT_VIEW_LINE.exec(output)?.[1]
+  return seconds === undefined ? '' : `result view loaded in ${seconds}s`
 }
 
 function countOf(

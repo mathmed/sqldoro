@@ -4,20 +4,44 @@ import { buildGreeting } from '../core/greeting.ts'
 import { CommandId, ViewId } from './command-id.ts'
 import { registerConnectionCommands } from './commands/connection-commands.ts'
 import { registerExplorerCommands } from './commands/explorer-commands.ts'
+import type { EditorSessions } from './editor/editor-sessions.ts'
+import { registerQueryFeatures } from './query-features.ts'
+import { createQueryServices, type WorkbenchContext } from './query-services.ts'
 import { createServices, type Services, type StorageContext } from './services.ts'
 import type { SessionManager } from './sessions/session-manager.ts'
 
 type ActivationContext = Pick<vscode.ExtensionContext, 'extensionMode' | 'subscriptions'> &
-  StorageContext
+  StorageContext &
+  WorkbenchContext
 
 const OUTPUT_CHANNEL = 'sqldoro'
 const SHOW_OUTPUT = 'Show Output'
 
 let openSessions: SessionManager | undefined
+let editorSessions: EditorSessions | undefined
 
 export function activate(context: ActivationContext): void {
   const log = vscode.window.createOutputChannel(OUTPUT_CHANNEL, { log: true })
   const services = createServices(context, log)
+  const query = createQueryServices(context, services, log)
+  const isDevelopment = context.extensionMode !== vscode.ExtensionMode.Production
+  context.subscriptions.push(
+    log,
+    ...registerConnections(services, log),
+    vscode.commands.registerCommand(CommandId.Hello, () => showGreeting(isDevelopment)),
+    ...registerQueryFeatures(services, query, log),
+  )
+  query.status.update()
+  openSessions = services.sessions
+  editorSessions = query.editorSessions
+  reportUnreadableConnections(services, log)
+}
+
+// The Connections view and its commands (phase 1).
+function registerConnections(
+  services: Services,
+  log: vscode.LogOutputChannel,
+): vscode.Disposable[] {
   const view = vscode.window.createTreeView(ViewId.Connections, {
     treeDataProvider: services.explorer,
     showCollapseAll: true,
@@ -29,9 +53,7 @@ export function activate(context: ActivationContext): void {
       view.message = message
     },
   }
-  const isDevelopment = context.extensionMode !== vscode.ExtensionMode.Production
-  context.subscriptions.push(
-    log,
+  return [
     view,
     ...disposablesOf(services),
     services.store.onDidChange(() => {
@@ -39,16 +61,14 @@ export function activate(context: ActivationContext): void {
     }),
     ...registerConnectionCommands(commandContext),
     ...registerExplorerCommands(commandContext),
-    vscode.commands.registerCommand(CommandId.Hello, () => showGreeting(isDevelopment)),
-  )
-  openSessions = services.sessions
-  reportUnreadableConnections(services, log)
+  ]
 }
 
 // VS Code waits for the sessions to close before it stops the extension host.
 export async function deactivate(): Promise<void> {
-  await openSessions?.disconnectAll()
+  await Promise.all([openSessions?.disconnectAll(), editorSessions?.releaseAll()])
   openSessions = undefined
+  editorSessions = undefined
 }
 
 function disposablesOf({ explorer, sessions, store }: Services): vscode.Disposable[] {

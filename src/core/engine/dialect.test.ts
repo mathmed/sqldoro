@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { type Dialect, qualifiedName, quoteIdentifier } from './dialect.ts'
+import { parameterPlaceholder, ParameterStyle, qualifiedName, quoteIdentifier } from './dialect.ts'
 
-const BACKTICK: Dialect = { identifierQuote: '`', hasSchemas: false }
-const DOUBLE_QUOTE: Dialect = { identifierQuote: '"', hasSchemas: true }
+const BACKTICK = { identifierQuote: '`' }
+const DOUBLE_QUOTE = { identifierQuote: '"' }
 
 describe('quoteIdentifier', () => {
   it('should wrap the identifier in the quote of the dialect', () => {
@@ -38,5 +38,21 @@ describe('qualifiedName', () => {
 
   it('should return a single quoted part when there is only one', () => {
     expect(qualifiedName(BACKTICK, ['orders'])).toBe('`orders`')
+  })
+})
+
+describe('parameterPlaceholder', () => {
+  it('should number the placeholders from 1 in the numbered style', () => {
+    const numbered = { parameterStyle: ParameterStyle.Numbered }
+
+    expect([0, 1, 9].map((index) => parameterPlaceholder(numbered, index))).toStrictEqual([
+      '$1',
+      '$2',
+      '$10',
+    ])
+  })
+
+  it('should use a question mark for every value in the question mark style', () => {
+    expect(parameterPlaceholder({ parameterStyle: ParameterStyle.QuestionMark }, 3)).toBe('?')
   })
 })

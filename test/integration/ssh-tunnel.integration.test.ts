@@ -21,6 +21,7 @@ import { mysqlEngine } from '../../src/drivers/mysql/mysql-engine.ts'
 import { postgresEngine } from '../../src/drivers/postgres/postgres-engine.ts'
 import { SshTunnelOpener } from '../../src/tunnel/ssh-tunnel.ts'
 import { recordingLogger } from '../fakes/logger.ts'
+import { queryRequest } from '../fakes/query-request.ts'
 import { type DatabaseServer, MYSQL, POSTGRES, SSH, waitUntilReady } from './servers.ts'
 
 const KEY_PATH = '/keys/id_ed25519'
@@ -150,11 +151,13 @@ describe('connections through a real OpenSSH server', () => {
       onUnexpectedClose: vi.fn(),
     })
 
-    const result = await session.engineSession.execute({
-      sql: 'SELECT 1 + 1 AS two',
-      maxRows: 1,
-      onRows: () => undefined,
-    }).result
+    const result = await session.engineSession.execute(
+      queryRequest({
+        sql: 'SELECT 1 + 1 AS two',
+        maxRows: 1,
+        onRows: () => undefined,
+      }),
+    ).result
     await session.close()
 
     expect(result.rows).toStrictEqual([['2']])

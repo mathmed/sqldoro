@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { answerBy, mysql, mysqlRequest, nextStream } from '../../../test/fakes/mysql2.ts'
+import { queryRequest } from '../../../test/fakes/query-request.ts'
 import type { ConnectRequest, EngineSession } from '../../core/engine/engine.ts'
-import { QueryCancelledError, type Row } from '../../core/engine/query.ts'
+import { QueryError } from '../../core/engine/query-error.ts'
+import type { Row } from '../../core/engine/query.ts'
 import { mysqlEngine } from './mysql-engine.ts'
 
 vi.mock('mysql2', async (importOriginal) => {
@@ -28,11 +30,13 @@ describe('MySQL statements', () => {
     it('should stream the rows of the first result set in batches and describe its columns', async () => {
       const sut = await connected()
       const batches: (readonly Row[])[] = []
-      const execution = sut.execute({
-        sql: 'SELECT id, name FROM orders',
-        maxRows: 1000,
-        onRows: (rows) => batches.push(rows),
-      })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT id, name FROM orders',
+          maxRows: 1000,
+          onRows: (rows) => batches.push(rows),
+        }),
+      )
       const events = await nextStream()
 
       events.emit('fields', [
@@ -48,8 +52,8 @@ describe('MySQL statements', () => {
 
       await expect(execution.result).resolves.toStrictEqual({
         columns: [
-          { name: 'id', dataType: 'LONGLONG' },
-          { name: 'name', dataType: 'VAR_STRING' },
+          { name: 'id', dataType: 'LONGLONG', kind: 'number' },
+          { name: 'name', dataType: 'VAR_STRING', kind: 'text' },
         ],
         rows: [
           ['1', 'one'],
@@ -72,7 +76,13 @@ describe('MySQL statements', () => {
 
     it('should name a column type it does not know as unknown', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT x', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT x',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
 
       events.emit('fields', [{ name: 'a' }, { name: 'b', columnType: 999 }])
@@ -80,15 +90,62 @@ describe('MySQL statements', () => {
 
       await expect(execution.result).resolves.toMatchObject({
         columns: [
-          { name: 'a', dataType: 'UNKNOWN' },
-          { name: 'b', dataType: 'UNKNOWN' },
+          { name: 'a', dataType: 'UNKNOWN', kind: 'other' },
+          { name: 'b', dataType: 'UNKNOWN', kind: 'other' },
         ],
       })
     })
 
+    it('should send bound values through a prepared statement', async () => {
+      const sut = await connected()
+      const execution = sut.execute(
+        queryRequest({
+          values: ['%a%', 3, null],
+          sql: "SELECT 'why?' FROM t WHERE a LIKE ? AND b = ? AND c <=> ?",
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
+      const events = await nextStream()
+      events.emit('end')
+      await execution.result
+
+      expect(mysql.connections[0]?.queries[1]).toStrictEqual({
+        sql: "SELECT 'why?' FROM t WHERE a LIKE ? AND b = ? AND c <=> ?",
+        values: ['%a%', 3, null],
+        isPrepared: true,
+      })
+    })
+
+    it('should fail when the consumer of the columns fails', async () => {
+      const sut = await connected()
+      const execution = sut.execute(
+        queryRequest({
+          onColumns: () => {
+            throw new Error('no grid')
+          },
+          sql: 'SELECT 1',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
+      const events = await nextStream()
+
+      events.emit('fields', [{ name: 'a', columnType: LONGLONG }])
+      events.emit('end')
+
+      await expect(execution.result).rejects.toThrow('no grid')
+    })
+
     it('should keep at most maxRows rows', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT n', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT n',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
 
       events.emit('result', ['1'], 0)
@@ -100,11 +157,13 @@ describe('MySQL statements', () => {
 
     it('should report the rows a statement changed', async () => {
       const sut = await connected()
-      const execution = sut.execute({
-        sql: 'UPDATE orders SET paid = 1',
-        maxRows: 10,
-        onRows: vi.fn(),
-      })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'UPDATE orders SET paid = 1',
+          maxRows: 10,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
 
       events.emit('fields', undefined)
@@ -121,24 +180,53 @@ describe('MySQL statements', () => {
 
     it('should show the server message of a failed statement', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELEC 1', maxRows: 10, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELEC 1',
+          maxRows: 10,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
 
-      events.emit('error', new Error('You have an error in your SQL syntax'))
+      events.emit('error', new Error('Table shop.missing does not exist'))
       events.emit('end')
 
-      await expect(execution.result).rejects.toThrow('You have an error in your SQL syntax')
+      await expect(execution.result).rejects.toThrow(new Error('Table shop.missing does not exist'))
+    })
+
+    it('should say where in the statement a syntax error is', async () => {
+      const sut = await connected()
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT 1\nFORM t',
+          maxRows: 10,
+          onRows: vi.fn(),
+        }),
+      )
+      const events = await nextStream()
+      const message =
+        "You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'FORM t' at line 2"
+
+      events.emit('error', new Error(message))
+      events.emit('end')
+
+      const error: unknown = await execution.result.catch((caught: unknown) => caught)
+      expect(error).toBeInstanceOf(QueryError)
+      expect(error).toMatchObject({ message, location: { kind: 'line', line: 2, near: 'FORM t' } })
     })
 
     it('should fail when the consumer of the rows fails, and let the statement finish', async () => {
       const sut = await connected()
-      const execution = sut.execute({
-        sql: 'SELECT n',
-        maxRows: 10,
-        onRows: () => {
-          throw new Error('the grid broke')
-        },
-      })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT n',
+          maxRows: 10,
+          onRows: () => {
+            throw new Error('the grid broke')
+          },
+        }),
+      )
       const events = await nextStream()
 
       for (let row = 0; row < 600; row += 1) {
@@ -151,14 +239,16 @@ describe('MySQL statements', () => {
 
     it('should turn anything thrown by the consumer into an error', async () => {
       const sut = await connected()
-      const execution = sut.execute({
-        sql: 'SELECT n',
-        maxRows: 1,
-        onRows: () => {
-          // eslint-disable-next-line @typescript-eslint/only-throw-error -- what a careless consumer could throw
-          throw 'not an error'
-        },
-      })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT n',
+          maxRows: 1,
+          onRows: () => {
+            // eslint-disable-next-line @typescript-eslint/only-throw-error -- what a careless consumer could throw
+            throw 'not an error'
+          },
+        }),
+      )
       const events = await nextStream()
 
       events.emit('result', ['1'], 0)
@@ -169,7 +259,13 @@ describe('MySQL statements', () => {
 
     it('should refuse a statement result of the wrong shape', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'UPDATE x', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'UPDATE x',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
 
       events.emit('result', { message: 'no count' })
@@ -183,7 +279,13 @@ describe('MySQL statements', () => {
     it('should fail a streamed statement when the connection drops', async () => {
       const onUnexpectedClose = vi.fn()
       const sut = await connected({ onUnexpectedClose })
-      const execution = sut.execute({ sql: 'SELECT SLEEP(10)', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT SLEEP(10)',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       const events = await nextStream()
       const lost = new Error('Connection lost: The server closed the connection.')
 
@@ -196,75 +298,19 @@ describe('MySQL statements', () => {
 
     it('should stop listening to the connection once the statement ended', async () => {
       const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT 1', maxRows: 1, onRows: vi.fn() })
+      const execution = sut.execute(
+        queryRequest({
+          sql: 'SELECT 1',
+          maxRows: 1,
+          onRows: vi.fn(),
+        }),
+      )
       ;(await nextStream()).emit('end')
       await execution.result
 
       mysql.connections[0]?.emit('error', new Error('later'))
 
       await expect(execution.result).resolves.toMatchObject({ rows: [] })
-    })
-  })
-
-  describe('cancel', () => {
-    it('should kill the statement from another connection and reject the result as cancelled', async () => {
-      const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT SLEEP(10)', maxRows: 1, onRows: vi.fn() })
-      const events = await nextStream()
-
-      await Promise.all([execution.cancel(), execution.cancel()])
-      events.emit('result', ['1'], 0)
-      events.emit('end')
-
-      await expect(execution.result).rejects.toBeInstanceOf(QueryCancelledError)
-      expect(mysql.connections).toHaveLength(2)
-      expect(mysql.connections[1]?.queries).toStrictEqual([{ sql: 'KILL QUERY ?', values: [42] }])
-      expect(mysql.connections[1]?.isEnded).toBe(true)
-    })
-
-    it('should report the statement as cancelled when the kill interrupts it', async () => {
-      const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT SLEEP(10)', maxRows: 1, onRows: vi.fn() })
-      const events = await nextStream()
-
-      await execution.cancel()
-      events.emit('error', new Error('Query execution was interrupted'))
-      events.emit('end')
-
-      await expect(execution.result).rejects.toBeInstanceOf(QueryCancelledError)
-    })
-
-    it('should do nothing once the statement ended', async () => {
-      const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT 1', maxRows: 1, onRows: vi.fn() })
-      ;(await nextStream()).emit('end')
-      await execution.result
-
-      await execution.cancel()
-
-      expect(mysql.connections).toHaveLength(1)
-    })
-
-    it('should say why the kill failed', async () => {
-      const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT SLEEP(10)', maxRows: 1, onRows: vi.fn() })
-      await nextStream()
-      mysql.script.answer = () => ({ error: new Error('Unknown thread id: 42') })
-
-      await expect(execution.cancel()).rejects.toThrow('Unknown thread id: 42')
-      expect(mysql.connections[1]?.isEnded).toBe(true)
-    })
-
-    it('should say why the kill connection failed', async () => {
-      const sut = await connected()
-      const execution = sut.execute({ sql: 'SELECT SLEEP(10)', maxRows: 1, onRows: vi.fn() })
-      await nextStream()
-      mysql.script.answer = (query) => {
-        mysql.connections[1]?.emit('error', new Error('Connection lost'))
-        return { result: { affectedRows: 0, sql: query.sql } }
-      }
-
-      await expect(execution.cancel()).rejects.toThrow('Connection lost')
     })
   })
 })

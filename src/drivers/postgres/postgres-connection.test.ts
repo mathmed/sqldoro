@@ -50,9 +50,17 @@ describe('TYPES', () => {
     [builtins.TIMESTAMPTZ, '2024-02-29 23:59:59.123+00'],
     [builtins.DATE, '2024-02-29'],
     [builtins.JSONB, '{"a": 1}'],
-    [builtins.BYTEA, '\\x00ff'],
   ])('should keep the text of type %i as the server sent it', (oid, text) => {
     expect(parse(oid, text)).toBe(text)
+  })
+
+  it('should write binary values as hexadecimal text with a 0x prefix, like MySQL', () => {
+    expect(parse(builtins.BYTEA, '\\x00ff')).toBe('0x00ff')
+    expect(parse(builtins.BYTEA, '\\x')).toBe('0x')
+  })
+
+  it('should keep binary values in the escape format as the server sent them', () => {
+    expect(parse(builtins.BYTEA, 'ab\\000')).toBe('ab\\000')
   })
 })
 

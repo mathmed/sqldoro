@@ -1,7 +1,12 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/extension/extension.ts", "scripts/*.ts", "test/smoke/suite.ts"],
-  "project": ["src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"],
+  "entry": [
+    "src/extension/extension.ts",
+    "src/webview/main.tsx",
+    "scripts/*.ts",
+    "test/smoke/suite.ts",
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"],
   // knip maps Stryker's `testRunner: "command"` to a package named @stryker-mutator/command-runner,
   // which does not exist: the command runner is built into @stryker-mutator/core.
   "ignoreDependencies": ["@stryker-mutator/command-runner"],

@@ -21,16 +21,16 @@ export interface CommandContext {
   readonly log: Logger
 }
 
-export interface CommandSpec {
+export interface CommandSpec<C = CommandContext> {
   readonly id: string
   readonly action: string
   // The target is the tree node, connection id or nothing VS Code calls the command with.
-  readonly run: (context: CommandContext, target: unknown) => Promise<void>
+  readonly run: (context: C, target: unknown) => Promise<void>
 }
 
-export function registerAll(
-  context: CommandContext,
-  commands: readonly CommandSpec[],
+export function registerAll<C extends { readonly log: Logger }>(
+  context: C,
+  commands: readonly CommandSpec<C>[],
 ): vscode.Disposable[] {
   return commands.map(({ id, action, run }) =>
     vscode.commands.registerCommand(
@@ -42,7 +42,7 @@ export function registerAll(
 
 // A command that fails says why in a notification and in the log, instead of a stack trace.
 function guarded<T extends unknown[]>(
-  context: CommandContext,
+  context: { readonly log: Logger },
   action: string,
   run: (...args: T) => Promise<void>,
 ): (...args: T) => Promise<void> {

@@ -13,7 +13,7 @@ README for the v1 scope and what is deliberately out of it.
 
 ```bash
 make setup             # install the locked dependencies and the git hooks
-make build             # bundle the extension into dist/ (esbuild)
+make build             # bundle the extension (esbuild) and the result view (Vite) into dist/
 make format            # format with Prettier and apply the fixes ESLint can make
 make lint              # ESLint (strict, complexity and security rules) and the Prettier check
 make typecheck         # tsc 7 strict: the whole project, then the platform-agnostic core alone
@@ -40,9 +40,9 @@ src/core/       engine interface, shared types and safety guards: pure TypeScrip
 src/drivers/    one folder per database (mysql/, postgres/) implementing the core engine interface
 src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
-src/webview/    React result grid: a browser bundle loaded by the webview
+src/webview/    React result grid (TanStack Table and Virtual): a browser bundle built by Vite
 scripts/        CI tooling: build, smoke launcher, mutation runner and the Quality Report
-test/           test support: the vscode fake for unit tests and the suite that runs inside VS Code
+test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
 - `src/core` imports nothing from `drivers`, `extension` or `webview`, and neither `vscode`, Node.js
@@ -56,12 +56,19 @@ test/           test support: the vscode fake for unit tests and the suite that 
   `src/extension/factories/` instantiates concrete drivers and the SSH tunnel. Supporting another
   engine means writing its driver and registering it in `src/extension/factories/engines.ts`.
 - The extension host and the webview never import each other: they share types and the message
-  protocol through the core. The webview never imports `vscode` (it uses `acquireVsCodeApi()`), Node.js
-  built-ins or database clients.
+  protocol through the core (`src/core/results/protocol.ts`), and each side validates every message it
+  receives with the core parsers. The webview never imports `vscode` (it uses `acquireVsCodeApi()`),
+  Node.js built-ins or database clients. UI libraries (React, TanStack) are only imported by the
+  webview. The rows stay in the extension host: the webview asks for windows of them and only shows
+  them; sorting, filtering, copying and exporting run in the host.
 - Product code never imports `scripts/` or `test/`, and the scripts never import the product.
 - Unit tests live next to the code (`greeting.test.ts` beside `greeting.ts`). The `vscode` module only
   exists inside VS Code: unit tests get the fake in `test/vscode.ts` (extend it when the extension uses
-  more of the API), and the smoke test exercises the real one.
+  more of the API), and the smoke test exercises the real one. Webview tests (`*.test.tsx`) run in
+  jsdom with Testing Library (the `webview` Vitest project): they render the components, act like the
+  user and stand in for VS Code with `fakeVsCodeApi()` and `fromHost()` from
+  `test/webview/vscode-api.ts`; `test/webview/setup.ts` gives elements a panel's size, since jsdom lays
+  nothing out.
 - Contributed commands are declared in `package.json` (`contributes.commands`) with their id in
   `src/extension/command-id.ts`. The smoke test fails when a contributed command is not registered on
   activation.

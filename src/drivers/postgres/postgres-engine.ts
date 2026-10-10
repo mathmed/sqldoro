@@ -1,6 +1,8 @@
 import type { Client } from 'pg'
 
+import type { ObjectScope } from '../../core/engine/catalog.ts'
 import { ConnectionWatch } from '../../core/engine/connection-watch.ts'
+import { quoteIdentifier } from '../../core/engine/dialect.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../core/engine/engine.ts'
 import { readNumber, readString } from '../../core/json/record.ts'
 import {
@@ -14,15 +16,22 @@ import {
   queryRows,
 } from './postgres-catalog.ts'
 import { clientConfig, closeClient, openClient } from './postgres-connection.ts'
+import { objectDdl } from './postgres-ddl.ts'
+import { POSTGRES_DIALECT } from './postgres-dialect.ts'
 import { executeQuery } from './postgres-query.ts'
 
 const DEFAULT_PORT = 5432
 const SESSION_INFO = `SELECT current_setting('server_version') AS version, pg_backend_pid() AS pid,
   current_database() AS database`
+const BACKEND_PID = 'SELECT pg_backend_pid() AS pid'
 const CANCEL = 'SELECT pg_cancel_backend($1)'
+const RESET_SEARCH_PATH = 'RESET search_path'
+// Objects of public (extensions, shared functions) stay reachable from another schema.
+const PUBLIC_SCHEMA = 'public'
 
-interface SessionInfo {
-  readonly version: string
+// A connection of the session to one database, with the backend that serves it.
+interface DatabaseClient {
+  readonly client: Client
   readonly pid: number
   readonly database: string
 }
@@ -32,37 +41,48 @@ export const postgresEngine: Engine = {
   displayName: 'PostgreSQL',
   defaultPort: DEFAULT_PORT,
   urlSchemes: ['postgres', 'postgresql'],
-  dialect: { identifierQuote: '"', hasSchemas: true },
+  dialect: POSTGRES_DIALECT,
   connect: connectPostgres,
 }
 
-// A PostgreSQL connection is bound to one database: browsing another one opens its own connection,
-// on first use, kept until the session closes.
+// A PostgreSQL connection is bound to one database: another database gets its own connection, on
+// first use, kept until the session closes. Statements run on the current one, which useScope
+// chooses.
 class Clients {
-  readonly #clients = new Map<string, Promise<Client>>()
+  readonly #clients = new Map<string, Promise<DatabaseClient>>()
   readonly #request: ConnectRequest
   readonly #watch: ConnectionWatch
+  #current: DatabaseClient
 
-  constructor(request: ConnectRequest, watch: ConnectionWatch) {
+  constructor(request: ConnectRequest, watch: ConnectionWatch, main: DatabaseClient) {
     this.#request = request
     this.#watch = watch
+    this.#current = main
   }
 
-  add(database: string, client: Client): void {
-    this.#clients.set(database, Promise.resolve(client))
+  add(opened: DatabaseClient): void {
+    this.#clients.set(opened.database, Promise.resolve(opened))
   }
 
-  async of(database: string): Promise<Client> {
+  get current(): DatabaseClient {
+    return this.#current
+  }
+
+  async use(scope: ObjectScope): Promise<void> {
+    const target = await this.of(scope.database === '' ? this.#request.database : scope.database)
+    await setSearchPath(target.client, scope.schema)
+    this.#current = target
+  }
+
+  async of(database: string): Promise<DatabaseClient> {
     const existing = this.#clients.get(database)
     if (existing !== undefined) {
       return existing
     }
-    const opening = openClient(clientConfig(this.#request, database), this.#watch.report).catch(
-      (error: unknown) => {
-        this.#clients.delete(database)
-        throw error
-      },
-    )
+    const opening = this.#open(database).catch((error: unknown) => {
+      this.#clients.delete(database)
+      throw error
+    })
     this.#clients.set(database, opening)
     return opening
   }
@@ -71,20 +91,41 @@ class Clients {
     const opened = await Promise.allSettled(this.#clients.values())
     this.#clients.clear()
     const clients = opened.flatMap((result) =>
-      result.status === 'fulfilled' ? [result.value] : [],
+      result.status === 'fulfilled' ? [result.value.client] : [],
     )
     await Promise.all(clients.map(closeClient))
   }
+
+  async #open(database: string): Promise<DatabaseClient> {
+    const client = await openClient(clientConfig(this.#request, database), this.#watch.report)
+    const [row] = await queryRows(client, BACKEND_PID, [])
+    return { client, pid: row === undefined ? 0 : readNumber(row, 'pid'), database }
+  }
+}
+
+// Unqualified names resolve in the schema first; an empty schema brings the default back.
+async function setSearchPath(client: Client, schema: string): Promise<void> {
+  if (schema === '') {
+    await client.query(RESET_SEARCH_PATH)
+    return
+  }
+  const schemas = schema === PUBLIC_SCHEMA ? [schema] : [schema, PUBLIC_SCHEMA]
+  const path = schemas.map((name) => quoteIdentifier(POSTGRES_DIALECT, name)).join(', ')
+  await client.query(`SET search_path TO ${path}`)
 }
 
 async function connectPostgres(request: ConnectRequest): Promise<EngineSession> {
   const watch = new ConnectionWatch(request.onUnexpectedClose)
   const client = await openClient(clientConfig(request, request.database), watch.report)
   try {
-    const info = await sessionInfo(client)
-    const clients = new Clients(request, watch)
-    clients.add(info.database, client)
-    return createSession({ client, clients, request, watch }, info)
+    const [row] = await queryRows(client, SESSION_INFO, [])
+    if (row === undefined) {
+      throw new TypeError('PostgreSQL did not describe the session')
+    }
+    const main = { client, pid: readNumber(row, 'pid'), database: readString(row, 'database') }
+    const clients = new Clients({ ...request, database: main.database }, watch, main)
+    clients.add(main)
+    return createSession({ clients, request, watch }, readString(row, 'version'))
   } catch (error) {
     watch.close()
     await Promise.allSettled([closeClient(client)])
@@ -92,29 +133,17 @@ async function connectPostgres(request: ConnectRequest): Promise<EngineSession> 
   }
 }
 
-async function sessionInfo(client: Client): Promise<SessionInfo> {
-  const [row] = await queryRows(client, SESSION_INFO, [])
-  if (row === undefined) {
-    throw new TypeError('PostgreSQL did not describe the session')
-  }
-  return {
-    version: readString(row, 'version'),
-    pid: readNumber(row, 'pid'),
-    database: readString(row, 'database'),
-  }
-}
-
 interface SessionParts {
-  readonly client: Client
   readonly clients: Clients
   readonly request: ConnectRequest
   readonly watch: ConnectionWatch
 }
 
-function createSession(parts: SessionParts, info: SessionInfo): EngineSession {
-  const { client, clients, request, watch } = parts
+function createSession({ clients, request, watch }: SessionParts, version: string): EngineSession {
+  const { client } = clients.current
+  const of = async (database: string): Promise<Client> => (await clients.of(database)).client
   return {
-    serverVersion: info.version,
+    serverVersion: version,
     ping: async () => {
       await client.query('SELECT 1')
     },
@@ -123,25 +152,32 @@ function createSession(parts: SessionParts, info: SessionInfo): EngineSession {
       await clients.closeAll()
     },
     listDatabases: async () => listDatabases(client),
-    listSchemas: async (database) => listSchemas(await clients.of(database)),
-    listTables: async (scope) => listTables(await clients.of(scope.database), scope),
-    listViews: async (scope) => listViews(await clients.of(scope.database), scope),
-    listColumns: async (object) => listColumns(await clients.of(object.database), object),
-    listIndexes: async (table) => listIndexes(await clients.of(table.database), table),
-    listForeignKeys: async (table) => listForeignKeys(await clients.of(table.database), table),
-    execute: (query) =>
-      executeQuery({ client, cancel: async () => cancelBackend(request, info) }, query),
+    listSchemas: async (database) => listSchemas(await of(database)),
+    listTables: async (scope) => listTables(await of(scope.database), scope),
+    listViews: async (scope) => listViews(await of(scope.database), scope),
+    listColumns: async (object) => listColumns(await of(object.database), object),
+    listIndexes: async (table) => listIndexes(await of(table.database), table),
+    listForeignKeys: async (table) => listForeignKeys(await of(table.database), table),
+    objectDdl: async (object, kind) => objectDdl(await of(object.database), object, kind),
+    useScope: async (scope) => clients.use(scope),
+    execute: (query) => {
+      const target = clients.current
+      return executeQuery(
+        { client: target.client, cancel: async () => cancelBackend(request, target) },
+        query,
+      )
+    },
   }
 }
 
 // The cancel request comes from another connection: the session's own is busy with the statement.
-async function cancelBackend(request: ConnectRequest, info: SessionInfo): Promise<void> {
+async function cancelBackend(request: ConnectRequest, target: DatabaseClient): Promise<void> {
   let failure: Error | undefined
-  const client = await openClient(clientConfig(request, info.database), (error) => {
+  const client = await openClient(clientConfig(request, target.database), (error) => {
     failure = error
   })
   try {
-    await client.query(CANCEL, [info.pid])
+    await client.query(CANCEL, [target.pid])
   } finally {
     await closeClient(client)
   }

@@ -3,7 +3,7 @@
 import * as vscode from 'vscode'
 
 import manifest from '../../package.json' with { type: 'json' }
-import { CommandId } from '../../src/extension/command-id.ts'
+import { CommandId, SQL_LANGUAGE } from '../../src/extension/command-id.ts'
 
 const EXTENSION_ID = `${manifest.publisher}.${manifest.name}`
 const CONTRIBUTED_COMMANDS = manifest.contributes.commands.map(({ command }) => command)
@@ -19,6 +19,7 @@ export async function run(): Promise<void> {
     await expectContributedCommandsRegistered()
     await expectContributedViewsShown()
     await probeHelloCommand()
+    await probeResultView()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
     throw error
@@ -74,4 +75,21 @@ async function probeHelloCommand(): Promise<void> {
     throw new Error(`${CommandId.Hello} answered ${JSON.stringify(greeting)}`)
   }
   report(`${CommandId.Hello} -> ${greeting}`)
+}
+
+// The result view is a React bundle in a webview with a strict Content Security Policy: it counts as
+// loaded once it runs and tells the extension it is ready.
+async function probeResultView(): Promise<void> {
+  const document = await vscode.workspace.openTextDocument({
+    language: SQL_LANGUAGE,
+    content: 'SELECT 1',
+  })
+  await vscode.window.showTextDocument(document)
+  const started = performance.now()
+  const isLoaded = await vscode.commands.executeCommand(CommandId.ShowResults)
+  if (isLoaded !== true) {
+    throw new Error(`${CommandId.ShowResults} did not open the result view`)
+  }
+  const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
+  report(`result view loaded in ${seconds.toFixed(3)}s`)
 }

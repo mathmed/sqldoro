@@ -3,6 +3,7 @@ import type {
   DatabaseInfo,
   ForeignKeyInfo,
   IndexInfo,
+  ObjectKind,
   ObjectRef,
   ObjectScope,
   SchemaInfo,
@@ -63,5 +64,10 @@ export interface EngineSession {
   readonly listColumns: (object: ObjectRef) => Promise<readonly ColumnInfo[]>
   readonly listIndexes: (table: ObjectRef) => Promise<readonly IndexInfo[]>
   readonly listForeignKeys: (table: ObjectRef) => Promise<readonly ForeignKeyInfo[]>
+  // The CREATE statement of a table or a view, as the server shows it or rebuilt from the catalog.
+  readonly objectDdl: (object: ObjectRef, kind: ObjectKind) => Promise<string>
+  // Makes later statements run in this database and schema (USE, search_path): unqualified names
+  // resolve there.
+  readonly useScope: (scope: ObjectScope) => Promise<void>
   readonly execute: (request: QueryRequest) => QueryExecution
 }

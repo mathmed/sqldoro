@@ -1,0 +1,177 @@
+import type { CellValue, ResultColumn, Row } from '../engine/query.ts'
+import {
+  type CellRange,
+  type ResultTab,
+  type TabError,
+  TabKind,
+  TabStatus,
+  type TabSummary,
+  type WireRow,
+} from './protocol.ts'
+import { tabTitle } from './tabs.ts'
+import { applyView, IDENTITY_VIEW, isIdentityView, type ViewSpec } from './view.ts'
+import { toWireRow, toWireValue } from './wire.ts'
+
+export interface ResultSetSpec {
+  readonly id: string
+  readonly sql: string
+  readonly kind: TabKind
+  // Whether the statement can run again to sort and filter on the server.
+  readonly canServerView: boolean
+}
+
+export interface ProjectedRows {
+  readonly columns: readonly ResultColumn[]
+  readonly rows: readonly Row[]
+}
+
+// The tooltip of a tab shows the statement up to this many characters.
+const MAX_TAB_SQL = 2000
+
+// The rows of one statement, held by the extension host while the webview shows a window of them,
+// and the view (filters and sort) they are shown through.
+export class ResultSet {
+  readonly #spec: ResultSetSpec
+  #status: TabStatus = TabStatus.Running
+  #columns: readonly ResultColumn[] = []
+  #rows: Row[] = []
+  #view: ViewSpec = IDENTITY_VIEW
+  #order: readonly number[] | undefined
+  #viewVersion = 0
+  #isServerView = false
+  #summary: TabSummary | null = null
+  #error: TabError | null = null
+  #notice = ''
+  #plan: readonly string[] = []
+
+  constructor(spec: ResultSetSpec) {
+    this.#spec = spec
+  }
+
+  get id(): string {
+    return this.#spec.id
+  }
+
+  get sql(): string {
+    return this.#spec.sql
+  }
+
+  get columns(): readonly ResultColumn[] {
+    return this.#columns
+  }
+
+  get view(): ViewSpec {
+    return this.#view
+  }
+
+  get viewVersion(): number {
+    return this.#viewVersion
+  }
+
+  get isRunning(): boolean {
+    return this.#status === TabStatus.Running
+  }
+
+  // Rows in the view, after its filters.
+  get rowCount(): number {
+    return this.#order?.length ?? this.#rows.length
+  }
+
+  describe(columns: readonly ResultColumn[]): void {
+    this.#columns = columns
+  }
+
+  addRows(rows: readonly Row[]): void {
+    this.#rows.push(...rows)
+  }
+
+  // A run again on the server brings rows already sorted and filtered by the view.
+  restart(view: ViewSpec): void {
+    this.#status = TabStatus.Running
+    this.#rows = []
+    this.#order = undefined
+    this.#view = view
+    this.#isServerView = !isIdentityView(view)
+    this.#summary = null
+    this.#error = null
+    this.#viewVersion += 1
+  }
+
+  succeed(summary: TabSummary, plan: readonly string[] = []): void {
+    this.#status = TabStatus.Succeeded
+    this.#summary = summary
+    this.#plan = plan
+  }
+
+  fail(error: TabError): void {
+    this.#status = TabStatus.Failed
+    this.#error = error
+  }
+
+  cancel(durationMs: number): void {
+    this.#status = TabStatus.Cancelled
+    this.#summary = { durationMs, affectedRows: null, isTruncated: false }
+  }
+
+  setNotice(notice: string): void {
+    this.#notice = notice
+  }
+
+  // Sorting and filtering the rows already here: the server is not asked again.
+  applyView(view: ViewSpec): void {
+    this.#view = view
+    this.#isServerView = false
+    this.#order = isIdentityView(view) ? undefined : applyView(this.#rows, this.#columns, view)
+    this.#viewVersion += 1
+  }
+
+  // Rows of the view, from `start`; past the end there are fewer.
+  rows(start: number, count: number): Row[] {
+    const from = Math.max(start, 0)
+    const to = from + Math.max(count, 0)
+    return this.#order === undefined
+      ? this.#rows.slice(from, to)
+      : this.#order.slice(from, to).flatMap((index) => this.#rows.slice(index, index + 1))
+  }
+
+  window(start: number, count: number, maxCellLength: number): WireRow[] {
+    return this.rows(start, count).map((row) => toWireRow(row, maxCellLength))
+  }
+
+  cell(viewRow: number, column: number): CellValue {
+    return toWireValue(this.rows(viewRow, 1).at(0)?.at(column) ?? null)
+  }
+
+  // The cells of a range, with the columns they belong to.
+  project(range: CellRange): ProjectedRows {
+    const first = range.firstColumn
+    const end = range.lastColumn + 1
+    return {
+      columns: this.#columns.slice(first, end),
+      rows: this.rows(range.firstRow, range.lastRow - range.firstRow + 1).map((row) =>
+        row.slice(first, end),
+      ),
+    }
+  }
+
+  toTab(): ResultTab {
+    return {
+      id: this.#spec.id,
+      title: tabTitle(this.#spec.sql),
+      sql: this.#spec.sql.slice(0, MAX_TAB_SQL),
+      kind: this.#spec.kind,
+      status: this.#status,
+      columns: this.#columns,
+      rowCount: this.rowCount,
+      loadedRows: this.#rows.length,
+      view: this.#view,
+      viewVersion: this.#viewVersion,
+      isServerView: this.#isServerView,
+      canServerView: this.#spec.canServerView && this.#spec.kind === TabKind.Rows,
+      summary: this.#summary,
+      error: this.#error,
+      notice: this.#notice,
+      plan: this.#plan,
+    }
+  }
+}

@@ -16,6 +16,14 @@ export interface ObjectRef extends ObjectScope {
   readonly name: string
 }
 
+// The objects whose definition (DDL) can be shown.
+export const ObjectKind = {
+  Table: 'table',
+  View: 'view',
+} as const
+
+export type ObjectKind = (typeof ObjectKind)[keyof typeof ObjectKind]
+
 export interface TableInfo {
   readonly name: string
 }

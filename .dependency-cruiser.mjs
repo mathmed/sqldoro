@@ -9,8 +9,9 @@
 
 const DATABASE_CLIENTS = 'node_modules/(@types/)?(mysql|mysql2|mariadb|pg|pg-[^/]+|postgres)/'
 const SSH_CLIENTS = 'node_modules/(@types/)?ssh2/'
-const UI_LIBRARIES = 'node_modules/(@types/)?(react|react-dom|preact|@vscode-elements/[^/]+)/'
-const TEST_FILE = '\\.test\\.ts$'
+const UI_LIBRARIES =
+  'node_modules/(@types/)?(react|react-dom|preact|@tanstack/[^/]+|@vscode-elements/[^/]+)/'
+const TEST_FILE = '\\.test\\.tsx?$'
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 export default {
@@ -86,6 +87,15 @@ export default {
       severity: 'error',
       from: { path: '^src/extension/' },
       to: { path: '^src/webview/' },
+    },
+    {
+      name: 'extension-host-has-no-ui-libraries',
+      comment:
+        'React and the grid libraries run in the webview bundle; the host renders nothing ' +
+        'itself and only loads the bundle by URI.',
+      severity: 'error',
+      from: { path: '^src/extension/' },
+      to: { path: UI_LIBRARIES },
     },
     {
       name: 'webview-is-isolated-from-the-host',

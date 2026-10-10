@@ -22,7 +22,14 @@ const SAVED_CONNECTION = {
 }
 
 function activateIn(extensionMode: vscode.ExtensionMode, globalState = new FakeMemento()): void {
-  activate({ extensionMode, subscriptions, globalState, secrets: new FakeSecretStorage() })
+  activate({
+    extensionMode,
+    subscriptions,
+    globalState,
+    workspaceState: new FakeMemento(),
+    secrets: new FakeSecretStorage(),
+    extensionUri: vscode.Uri.file('/extension'),
+  })
 }
 
 function disposeSubscriptions(): void {
@@ -57,7 +64,11 @@ describe('activate', () => {
   it('should show the Connections view and log to its own output channel', () => {
     activateIn(vscode.ExtensionMode.Production)
 
-    expect(treeViews.map((view) => view.viewId)).toStrictEqual([ViewId.Connections])
+    expect(treeViews.map((view) => view.viewId)).toStrictEqual([
+      ViewId.Connections,
+      ViewId.History,
+      ViewId.SavedQueries,
+    ])
     expect(outputChannels.map((channel) => channel.name)).toStrictEqual(['sqldoro'])
   })
 

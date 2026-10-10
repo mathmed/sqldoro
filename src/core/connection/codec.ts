@@ -1,6 +1,5 @@
 import {
   type JsonRecord,
-  readArray,
   readBoolean,
   readNested,
   readNumber,
@@ -8,6 +7,7 @@ import {
   readRecord,
   readString,
 } from '../json/record.ts'
+import { decodeList, encodeList, type ListFormat } from '../json/versioned-list.ts'
 import {
   type ConnectionConfig,
   isEnvironmentTag,
@@ -17,11 +17,12 @@ import {
   type SslOptions,
 } from './connection.ts'
 
-const STORAGE_VERSION = 1
-
-export interface StoredConnections {
-  readonly version: number
-  readonly connections: readonly unknown[]
+const FORMAT: ListFormat<ConnectionConfig> = {
+  version: 1,
+  key: 'connections',
+  listName: 'saved connections',
+  entryName: 'Saved connection',
+  decode: decodeConnection,
 }
 
 export interface DecodedConnections {
@@ -33,67 +34,16 @@ export interface DecodedConnections {
   readonly isWritable: boolean
 }
 
-interface DecodedEntry {
-  readonly entry: unknown
-  readonly connection: ConnectionConfig | undefined
-  readonly problem: string | undefined
-}
-
 export function encodeConnections(
   connections: readonly ConnectionConfig[],
   unreadable: readonly unknown[],
-): StoredConnections {
-  return { version: STORAGE_VERSION, connections: [...connections, ...unreadable] }
+): Readonly<Record<string, unknown>> {
+  return encodeList(connections, unreadable, FORMAT)
 }
 
 export function decodeConnections(value: unknown): DecodedConnections {
-  if (value === undefined) {
-    return { connections: [], unreadable: [], problems: [], isWritable: true }
-  }
-  try {
-    const stored = readRecord(value)
-    const version = readNumber(stored, 'version')
-    if (version !== STORAGE_VERSION) {
-      return unwritable(`their format (version ${String(version)}) is not supported`)
-    }
-    return decodeEntries(readArray(stored, 'connections'))
-  } catch (error) {
-    if (!(error instanceof TypeError)) {
-      throw error
-    }
-    return unwritable(error.message)
-  }
-}
-
-function unwritable(reason: string): DecodedConnections {
-  const problem = `The saved connections cannot be read: ${reason}`
-  return { connections: [], unreadable: [], problems: [problem], isWritable: false }
-}
-
-function decodeEntries(entries: readonly unknown[]): DecodedConnections {
-  const decoded = entries.map(decodeEntry)
-  return {
-    connections: decoded.flatMap(({ connection }) =>
-      connection === undefined ? [] : [connection],
-    ),
-    unreadable: decoded.flatMap(({ entry, connection }) =>
-      connection === undefined ? [entry] : [],
-    ),
-    problems: decoded.flatMap(({ problem }) => (problem === undefined ? [] : [problem])),
-    isWritable: true,
-  }
-}
-
-function decodeEntry(entry: unknown, index: number): DecodedEntry {
-  try {
-    return { entry, connection: decodeConnection(entry), problem: undefined }
-  } catch (error) {
-    if (!(error instanceof TypeError)) {
-      throw error
-    }
-    const problem = `Saved connection #${String(index + 1)} cannot be read: ${error.message}`
-    return { entry, connection: undefined, problem }
-  }
+  const { items, ...rest } = decodeList(value, FORMAT)
+  return { connections: items, ...rest }
 }
 
 function decodeConnection(value: unknown): ConnectionConfig {
