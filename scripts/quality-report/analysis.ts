@@ -1,0 +1,20 @@
+export const Analysis = {
+  Eslint: 'eslint',
+  Prettier: 'prettier',
+  Tsc: 'tsc',
+  NpmAudit: 'npm-audit',
+  Knip: 'knip',
+  Vitest: 'vitest',
+  DependencyCruiser: 'dependency-cruiser',
+  Build: 'build',
+  Smoke: 'smoke',
+  Mutation: 'mutation',
+} as const
+
+export type Analysis = (typeof Analysis)[keyof typeof Analysis]
+
+const ANALYSES: ReadonlySet<string> = new Set(Object.values(Analysis))
+
+export function isAnalysis(value: string): value is Analysis {
+  return ANALYSES.has(value)
+}
