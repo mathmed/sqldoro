@@ -33,6 +33,11 @@ const AS_IS: ValueSql = { parameterType: '', comparedAs: '', collation: '' }
 // Text is compared byte for byte, so that a change of case or accents counts as a change.
 const EXACT_TEXT: ValueSql = { ...AS_IS, collation: 'utf8mb4_bin' }
 const UNSIGNED = 'unsigned'
+// MySQL types the parameter of CAST(? AS UNSIGNED) as a signed BIGINT when it prepares the
+// statement, which cuts values above 9223372036854775807: DECIMAL(20,0) holds every unsigned
+// integer exactly.
+const UNSIGNED_PARAMETER = 'DECIMAL(20,0)'
+const SIGNED_PARAMETER = 'SIGNED'
 const FIRST_YEAR = 1000
 const LAST_YEAR = 9999
 // TIMESTAMP holds 1970-01-01 00:00:01 to 2038-01-19 03:14:07 UTC.
@@ -130,7 +135,7 @@ function integerOf([min, max, maxUnsigned]: readonly [string, string, string]): 
       value: isUnsigned
         ? { type: ValueType.Integer, min: '0', max: maxUnsigned }
         : { type: ValueType.Integer, min, max },
-      sql: { ...AS_IS, parameterType: isUnsigned ? 'UNSIGNED' : 'SIGNED' },
+      sql: { ...AS_IS, parameterType: isUnsigned ? UNSIGNED_PARAMETER : SIGNED_PARAMETER },
     }
   }
 }
