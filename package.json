@@ -65,6 +65,12 @@
     "mutation": "node scripts/mutation.ts full",
     "mutation:changed": "node scripts/mutation.ts changed"
   },
+  "dependencies": {
+    "mysql2": "^3.24.5",
+    "pg": "^8.23.1",
+    "pg-cursor": "^2.22.1",
+    "ssh2": "^1.17.0"
+  },
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^10.0.1",
@@ -73,6 +79,9 @@
     "@stryker-mutator/typescript-checker": "^10.0.0",
     "@types/eslint-plugin-no-unsanitized": "^4.1.0",
     "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "@types/pg-cursor": "^2.7.2",
+    "@types/ssh2": "^1.15.6",
     "@types/vscode": "1.140.0",
     "@typescript/native": "npm:typescript@^7.0.2",
     "@vitest/coverage-v8": "^5.0.3",
