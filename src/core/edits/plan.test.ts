@@ -67,7 +67,11 @@ describe('planEdits', () => {
       ['INSERT', 'new row 1'],
     ])
     expect(reading).toMatchObject({
-      plan: { deletions: 1, summary: '2 updates, 1 insertion and 1 deletion on sales.orders' },
+      plan: {
+        table: 'sales.orders',
+        deletions: 1,
+        summary: '2 updates, 1 insertion and 1 deletion on sales.orders',
+      },
     })
   })
 

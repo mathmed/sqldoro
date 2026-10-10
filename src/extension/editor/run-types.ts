@@ -2,7 +2,7 @@ import type * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { ObjectScope } from '../../core/engine/catalog.ts'
-import type { Engine } from '../../core/engine/engine.ts'
+import type { Engine, EngineSession } from '../../core/engine/engine.ts'
 import type { Session } from '../../core/session/open-session.ts'
 import type { ResultsPanel } from '../results/results-panel.ts'
 import type { Approval } from '../safety/approval.ts'
@@ -19,6 +19,8 @@ export interface RunTarget {
 export interface RunParts {
   readonly target: RunTarget
   readonly session: Session
+  // The session of the connection the explorer reads the catalog on, apart from the editor's.
+  readonly catalog: EngineSession
   readonly panel: ResultsPanel
   readonly run: ActiveRun
   readonly approval: Approval

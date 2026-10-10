@@ -62,7 +62,8 @@ export async function runApprovedJob(
   return isSucceeded
 }
 
-function transactionScope({
+// The session of the editor, as its transaction knows it.
+export function transactionScope({
   target,
   session,
 }: Pick<RunParts, 'session' | 'target'>): TransactionScope {

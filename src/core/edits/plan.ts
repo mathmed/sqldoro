@@ -26,6 +26,8 @@ export interface PlanContext {
 }
 
 export interface EditPlan {
+  // The table, as people read it.
+  readonly table: string
   // Deletions first (they free unique values), then updates, then insertions.
   readonly statements: readonly EditStatement[]
   readonly deletions: number
@@ -113,6 +115,7 @@ function planOf(
     ...newRows.map((row, index) => insertStatement(target, { ...row, position: index + 1 })),
   ]
   return {
+    table: context.table.label,
     statements,
     deletions: deleted.length,
     summary: `${summaryOf(statements)} on ${context.table.label}`,

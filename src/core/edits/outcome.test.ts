@@ -26,6 +26,7 @@ const UPDATE = statement(EditVerb.Update)
 const DELETE = statement(EditVerb.Delete, 'id = 8')
 const INSERT = { ...statement(EditVerb.Insert, 'new row 1'), row: { isNew: true, id: 1 } } as const
 const PLAN: EditPlan = {
+  table: 'sales.orders',
   statements: [UPDATE, DELETE, INSERT],
   deletions: 1,
   summary: '1 update, 1 insertion and 1 deletion on sales.orders',

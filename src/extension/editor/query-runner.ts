@@ -42,10 +42,13 @@ export interface QueryRunnerDependencies {
   readonly clock: Clock
   readonly createId: () => string
   readonly pickBinding: (document: vscode.TextDocument) => Promise<EditorBinding | undefined>
+  // Finds out whether the rows of a tab that ran can be edited; it reports what it finds itself.
+  readonly checkEditing: (parts: RunParts, tab: ResultSet) => void
   readonly log: Logger
 }
 
 const BUSY = 'A query is already running in this editor: cancel it first.'
+const DROP_CHANGES = 'Drop the Changes and Run'
 
 // Runs the statements of SQL editors, one run per editor at a time, each on the editor's own
 // connection, into the editor's result panel. Nothing runs before the guards approve it.
@@ -64,6 +67,9 @@ export class QueryRunner implements vscode.Disposable {
   }
 
   async run(editor: vscode.TextEditor, scope: RunScope): Promise<void> {
+    if (!(await this.confirmDropChanges(editor.document.uri))) {
+      return
+    }
     await this.perform(editor.document, async (target) => {
       const statements = planRun(sourceOf(editor), scope, target.engine.dialect.lexical)
       if (statements.length === 0) {
@@ -128,14 +134,31 @@ export class QueryRunner implements vscode.Disposable {
     }
   }
 
-  // Shared with EXPLAIN, the server view and loading every row: an approved statement into a tab
-  // of the editor's panel.
+  // A new run replaces the tabs of the panel: changes not applied in them go, once the user says so.
+  async confirmDropChanges(uri: vscode.Uri): Promise<boolean> {
+    if (this.#dependencies.panels.get(uri)?.hasChanges() !== true) {
+      return true
+    }
+    const choice = await vscode.window.showWarningMessage(
+      'The results of this editor have changes that were not applied.',
+      { modal: true, detail: 'Running a query replaces the results, and drops their changes.' },
+      DROP_CHANGES,
+    )
+    return choice === DROP_CHANGES
+  }
+
+  // Shared with EXPLAIN, the server view, loading every row and the edits: an approved statement
+  // into a tab of the editor's panel. The rows of a tab that ran may then be edited.
   async runJob(parts: RunParts, job: JobRequest): Promise<boolean> {
     const tab = job.tab ?? this.#newTab(job.sql, job.kind)
     if (job.tab === undefined) {
       parts.panel.addTab(tab)
     }
-    return runApprovedJob({ ...this.#dependencies, parts }, { ...job, tab })
+    const isDone = await runApprovedJob({ ...this.#dependencies, parts }, { ...job, tab })
+    if (isDone && job.kind === TabKind.Rows) {
+      this.#dependencies.checkEditing(parts, tab)
+    }
+    return isDone
   }
 
   dispose(): void {
@@ -199,7 +222,7 @@ export class QueryRunner implements vscode.Disposable {
     { run, approval }: Pick<RunParts, 'approval' | 'run'>,
   ): Promise<RunParts> {
     const { connect, editorSessions, panels, settings } = this.#dependencies
-    await connect(target.connection)
+    const catalog = (await connect(target.connection)).engineSession
     const session = await editorSessions.acquire(
       target.document.uri.toString(),
       target.connection,
@@ -207,7 +230,7 @@ export class QueryRunner implements vscode.Disposable {
     )
     const panel = panels.show(target.document.uri)
     panel.showConnection(target.connection, settings().policy)
-    return { target, session, panel, run, approval }
+    return { target, session, catalog, panel, run, approval }
   }
 
   async #runAll(parts: RunParts, statements: readonly PlannedStatement[]): Promise<void> {

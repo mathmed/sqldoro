@@ -11,6 +11,7 @@ import {
   type ResultColumn,
   type Row,
 } from '../../src/core/engine/query.ts'
+import type { TableDescription } from '../../src/core/engine/table.ts'
 import { TransactionStatus } from '../../src/core/engine/transaction-status.ts'
 import { fakeSession } from '../fakes/engine.ts'
 
@@ -31,12 +32,21 @@ export class ScriptedEngine {
   answer: (request: QueryRequest) => Answer = () => ({})
   // What the server says of the transaction after each statement.
   status: TransactionStatus = TransactionStatus.Idle
+  // The tables of the catalog, by the key result columns name them with.
+  readonly tables = new Map<string, TableDescription>()
+  readonly describeTable = vi.fn(async (...[, table]: [string, readonly string[]]) =>
+    Promise.resolve(this.tables.get(JSON.stringify(table))),
+  )
+  // Why the server would change the values written, as MySQL outside strict mode.
+  writeProblem: string | undefined = undefined
 
   session(overrides: Partial<EngineSession> = {}): EngineSession {
     return fakeSession({
       execute: (request) => this.#execute(request),
       useScope: this.useScope,
       transactionStatus: async () => Promise.resolve(this.status),
+      describeTable: this.describeTable,
+      writeProblem: async () => Promise.resolve(this.writeProblem),
       ...overrides,
     })
   }

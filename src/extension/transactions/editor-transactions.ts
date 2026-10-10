@@ -44,6 +44,8 @@ export const CloseReason = {
   EditorClosed: 'editorClosed',
   ConnectionClosed: 'connectionClosed',
   ConnectionChanged: 'connectionChanged',
+  // The changes of the grid could not be rolled back: closing the session makes the server do it.
+  RollbackFailed: 'rollbackFailed',
   Shutdown: 'shutdown',
 } as const
 
@@ -53,6 +55,7 @@ const CLOSE_REASONS: ReadonlyMap<CloseReason, string> = new Map([
   [CloseReason.EditorClosed, 'its editor was closed'],
   [CloseReason.ConnectionClosed, 'its connection was closed'],
   [CloseReason.ConnectionChanged, 'its editor moved to another connection'],
+  [CloseReason.RollbackFailed, 'the changes of its results could not be rolled back otherwise'],
 ])
 
 // The transaction of an editor, and how messages name where it runs.

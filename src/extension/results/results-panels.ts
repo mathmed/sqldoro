@@ -80,7 +80,17 @@ export class ResultsPanels implements vscode.Disposable {
     webviewPanel.onDidDispose(() => {
       listening.dispose()
       this.#panels.delete(uri.toString())
+      warnOfDroppedChanges(panel, uri)
     })
     return panel
+  }
+}
+
+// VS Code cannot keep a view from closing: the user hears about the changes it took away.
+function warnOfDroppedChanges(panel: ResultsPanel, uri: vscode.Uri): void {
+  if (panel.hasChanges()) {
+    void vscode.window.showWarningMessage(
+      `The changes in the results of ${documentLabel(uri)} were not applied: their view was closed.`,
+    )
   }
 }

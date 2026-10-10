@@ -100,7 +100,7 @@ describe('previewOf', () => {
       row: { isNew: false, index: 0 },
       label: 'id = 7',
     } as const
-    const plan = { statements: [statement], deletions: 0, summary: '1 update on t' }
+    const plan = { table: 't', statements: [statement], deletions: 0, summary: '1 update on t' }
 
     expect(previewOf({ id: 3, plan, isInOpenTransaction: true })).toStrictEqual({
       id: 3,

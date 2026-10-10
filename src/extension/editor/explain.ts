@@ -17,6 +17,9 @@ export async function explain(
   editor: vscode.TextEditor,
   isAnalyze: boolean,
 ): Promise<void> {
+  if (!(await runner.confirmDropChanges(editor.document.uri))) {
+    return
+  }
   await runner.perform(editor.document, async (target) => {
     const statement = singleStatement(editor, target)
     if (statement === undefined || (isAnalyze && !(await confirmAnalyze(statement.sql, target)))) {

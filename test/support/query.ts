@@ -5,6 +5,7 @@ import type * as vscode from 'vscode'
 
 import { type ConnectionConfig, newConnection } from '../../src/core/connection/connection.ts'
 import type { EditorBinding } from '../../src/core/editor/binding.ts'
+import { BatchMode, batchMode } from '../../src/core/edits/batch.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { HistoryEntry } from '../../src/core/history/history.ts'
 import type { GuardPolicy } from '../../src/core/safety/guard.ts'
@@ -15,11 +16,16 @@ import { EditorSessions } from '../../src/extension/editor/editor-sessions.ts'
 import { loadAllRows } from '../../src/extension/editor/load-all.ts'
 import { QueryRunner } from '../../src/extension/editor/query-runner.ts'
 import { runServerView } from '../../src/extension/editor/server-view.ts'
+import { applyEdits } from '../../src/extension/edits/apply-edits.ts'
+import { checkEditing } from '../../src/extension/edits/edit-check.ts'
 import type { Clock } from '../../src/extension/platform/clock.ts'
 import { copyRows, exportRows } from '../../src/extension/results/results-actions.ts'
 import { ResultsPanels } from '../../src/extension/results/results-panels.ts'
 import { StatementGuard } from '../../src/extension/safety/statement-guard.ts'
-import { EditorTransactions } from '../../src/extension/transactions/editor-transactions.ts'
+import {
+  CloseReason,
+  EditorTransactions,
+} from '../../src/extension/transactions/editor-transactions.ts'
 import { fakeEngine } from '../fakes/engine.ts'
 import { FakeMemento } from '../fakes/extension-context.ts'
 import { type RecordingLogger, recordingLogger } from '../fakes/logger.ts'
@@ -174,6 +180,20 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
       loadAll: async (tab) => loadAllRows(runner, uri, tab),
       copy: copyRows,
       export: exportRows,
+      applyEdits: async (tab, plan) =>
+        applyEdits(
+          {
+            runner,
+            policy: () => policy,
+            transactions,
+            log,
+            closeSession: async (editor) =>
+              editorSessions.release(editor, CloseReason.RollbackFailed),
+          },
+          uri,
+          { tab, plan },
+        ),
+      isInOpenTransaction: () => batchMode(transactions.of(uri.toString())) === BatchMode.Joined,
     }),
   })
   const diagnostics = languages.createDiagnosticCollection(
@@ -198,6 +218,9 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     clock,
     createId: idMaker(),
     pickBinding,
+    checkEditing: (parts, tab) => {
+      void checkEditing(parts, tab, log)
+    },
     log,
   })
   return {
