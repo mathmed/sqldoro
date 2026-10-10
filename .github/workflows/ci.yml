@@ -5,6 +5,8 @@ on:
     branches: ["**"]
   push:
     branches: ["main"]
+  # The release workflow runs the same gates on a version tag before it drafts the release.
+  workflow_call:
 
 permissions:
   contents: read

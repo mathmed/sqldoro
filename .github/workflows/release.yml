@@ -1,0 +1,146 @@
+name: Release
+
+# A version tag (v1.2.3) checks the release (the tag names the version of package.json, and
+# CHANGELOG.md dates its section), runs every gate of ci.yml, then attaches the .vsix those gates
+# built and smoke-tested to a DRAFT GitHub release, with the CHANGELOG section as its notes. Nothing
+# is published: the owner reviews the draft and publishes it by hand (see docs/RELEASING.md).
+#
+# Publishing the GitHub release then publishes the same .vsix to the VS Code Marketplace and to Open
+# VSX, but only behind a manual switch that is off: the repository variable PUBLISH_EXTENSION must be
+# "true", and the secrets VSCE_PAT and OVSX_PAT must exist (none of them does yet). The publish jobs
+# run in the "publish" environment, where required reviewers can add a last approval.
+on:
+  push:
+    tags: ["v*.*.*"]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      # The release script only uses Node.js built-ins: no npm ci needed.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Check the tag, package.json and CHANGELOG.md
+        id: check
+        run: node scripts/release.ts check --tag "$GITHUB_REF_NAME" --notes release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  gates:
+    needs: check
+    uses: ./.github/workflows/ci.yml
+    # A called workflow gets no more than this. ci.yml's quality-report job asks to comment on pull
+    # requests; it does not run for a tag, but GitHub checks what it asks for anyway.
+    permissions:
+      contents: read
+      pull-requests: write
+
+  draft:
+    needs: [check, gates]
+    runs-on: ubuntu-latest
+    permissions:
+      # Creates the draft release and uploads the .vsix to it.
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      VSIX: sqldoro-${{ needs.check.outputs.version }}.vsix
+    steps:
+      # The .vsix the package job of the gates built, which the smoke job installed and tested.
+      - uses: actions/download-artifact@v8
+        with:
+          name: sqldoro-vsix
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+      - name: Draft the release
+        run: >-
+          gh release create "$TAG" "$VSIX" --repo "$GITHUB_REPOSITORY" --draft --verify-tag
+          --title "sqldoro ${{ needs.check.outputs.version }}" --notes-file release-notes.md
+      - name: Summary
+        run: |
+          {
+            echo "Drafted the release $TAG with $VSIX (sha256 $(sha256sum "$VSIX" | cut -d ' ' -f 1))."
+            echo "Review it on GitHub, then publish it by hand. Nothing was published to a marketplace."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # OFF until the owner sets the repository variable PUBLISH_EXTENSION to "true" and adds the
+  # VSCE_PAT secret (docs/RELEASING.md). Runs when the GitHub release is published, with its .vsix.
+  publish-marketplace:
+    if: github.event_name == 'release' && vars.PUBLISH_EXTENSION == 'true'
+    runs-on: ubuntu-latest
+    environment: publish
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - name: Check the tag, package.json and CHANGELOG.md
+        run: node scripts/release.ts check --tag "$TAG"
+      - name: Download the .vsix of the release
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "sqldoro-*.vsix"
+      - name: Publish to the VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::The VSCE_PAT secret is missing: see docs/RELEASING.md"
+            exit 1
+          fi
+          npx vsce publish --packagePath sqldoro-*.vsix
+
+  # OFF like publish-marketplace; needs the OVSX_PAT secret and the publisher's Open VSX namespace.
+  publish-open-vsx:
+    if: github.event_name == 'release' && vars.PUBLISH_EXTENSION == 'true'
+    runs-on: ubuntu-latest
+    environment: publish
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name }}
+      # ovsx is not a dependency of the project: this pinned version runs only to publish.
+      OVSX_VERSION: 1.2.0
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Check the tag, package.json and CHANGELOG.md
+        run: node scripts/release.ts check --tag "$TAG"
+      - name: Download the .vsix of the release
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "sqldoro-*.vsix"
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::error::The OVSX_PAT secret is missing: see docs/RELEASING.md"
+            exit 1
+          fi
+          npx --yes "ovsx@$OVSX_VERSION" publish sqldoro-*.vsix
