@@ -225,9 +225,11 @@ describe('the catalog nodes', () => {
   })
 
   it('should show why loading failed, log it, and try again next time', async () => {
+    const denied = new Error('permission denied for schema public')
     const listTables = vi
       .fn<EngineSession['listTables']>()
-      .mockRejectedValueOnce(new Error('permission denied for schema public'))
+      .mockRejectedValueOnce(denied)
+      .mockRejectedValueOnce(denied)
       .mockResolvedValue([{ name: 'orders' }])
     const { sut, log } = await connected({ ...CATALOG, listTables })
 

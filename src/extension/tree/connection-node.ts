@@ -3,12 +3,14 @@ import * as vscode from 'vscode'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { ENVIRONMENT_LABELS, labelOf, SSL_MODE_LABELS } from '../../core/connection/labels.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
+import { shortServerVersion } from '../../core/engine/server-version.ts'
 import { CommandId } from '../command-id.ts'
 import { environmentBadge, environmentColor } from '../labels.ts'
 import { type ConnectionState, ConnectionStatus } from '../sessions/session-manager.ts'
 import { databaseNode } from './catalog-nodes.ts'
 import {
   type ExplorerNode,
+  listWithStats,
   type Message,
   messageNode,
   MessageTone,
@@ -55,7 +57,7 @@ function connectionItem(
   const { state } = display
   const item = treeItem(node, {
     label: connection.name,
-    description: descriptionOf(connection),
+    description: descriptionOf(connection, state),
     tooltip: tooltipOf(connection, display),
     icon: statusIcon(connection, state.status),
     isExpandable: true,
@@ -64,10 +66,13 @@ function connectionItem(
   return item
 }
 
-// "PROD · read-only · db.example.com": what matters before writing comes first.
-function descriptionOf(connection: ConnectionConfig): string {
+// "PROD · read-only · 8.0.45 · db.example.com": what matters before writing comes first, then the
+// version of the server once connected.
+function descriptionOf(connection: ConnectionConfig, state: ConnectionState): string {
   const badge = environmentBadge(connection.environment)
-  return [badge, connection.isReadOnly ? 'read-only' : '', connection.host]
+  const version =
+    state.status === ConnectionStatus.Connected ? shortServerVersion(state.serverVersion) : ''
+  return [badge, connection.isReadOnly ? 'read-only' : '', version, connection.host]
     .filter((part) => part !== '')
     .join(' · ')
 }
@@ -124,8 +129,11 @@ async function connectionChildren(
     return [messageNode(node, statusMessage(connection.id, state))]
   }
   const { dialect } = engines.get(connection.engine)
-  const databases = await sessionOf(context, connection.id).listDatabases()
-  return databases.map((database) => databaseNode(connection.id, database.name, dialect))
+  const session = sessionOf(context, connection.id)
+  const databases = await listWithStats(context, node.id, async (detail) =>
+    session.listDatabases(detail),
+  )
+  return databases.map((database) => databaseNode(node, database, dialect))
 }
 
 function statusMessage(connectionId: string, state: ConnectionState): Message {

@@ -8,6 +8,7 @@ import {
   objectKey,
   scopeKey,
 } from '../../core/completion/catalog-needs.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { SchemaCache } from './schema-cache.ts'
 
@@ -59,6 +60,15 @@ describe('SchemaCache', () => {
     })
     expect(session.listSchemas).toHaveBeenCalledWith('shop')
     expect(session.listColumns).toHaveBeenCalledWith(ORDERS)
+  })
+
+  it('should only ask for the names of the databases and tables, not their statistics', async () => {
+    const sut = new SchemaCache(log)
+
+    await sut.load('shop', session, { needs: EVERYTHING, deadline: SOON })
+
+    expect(session.listDatabases).toHaveBeenCalledExactlyOnceWith(CatalogDetail.Names)
+    expect(session.listTables).toHaveBeenCalledExactlyOnceWith(SCOPE, CatalogDetail.Names)
   })
 
   it('should load each list once, per connection, until it is invalidated', async () => {

@@ -5,7 +5,12 @@ import {
   scopeKey,
   type ScopeObjects,
 } from '../../core/completion/catalog-needs.ts'
-import type { ColumnInfo, ObjectRef, ObjectScope } from '../../core/engine/catalog.ts'
+import {
+  CatalogDetail,
+  type ColumnInfo,
+  type ObjectRef,
+  type ObjectScope,
+} from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Logger } from '../../core/platform.ts'
 import { describeError } from '../../core/text/errors.ts'
@@ -100,7 +105,7 @@ function databaseTasks({ session, loaded, cached }: Source, needs: CatalogNeeds)
     return []
   }
   return [
-    cached(['databases'], session.listDatabases).then((list) => {
+    cached(['databases'], async () => session.listDatabases(CatalogDetail.Names)).then((list) => {
       loaded.setDatabases(list)
     }),
   ]
@@ -120,7 +125,9 @@ function schemaTasks({ session, loaded, cached }: Source, needs: CatalogNeeds): 
 
 async function loadObjects({ session, loaded, cached }: Source, scope: ObjectScope): Promise<void> {
   const [tables, views] = await Promise.all([
-    cached(['tables', scope.database, scope.schema], async () => session.listTables(scope)),
+    cached(['tables', scope.database, scope.schema], async () =>
+      session.listTables(scope, CatalogDetail.Names),
+    ),
     cached(['views', scope.database, scope.schema], async () => session.listViews(scope)),
   ])
   loaded.setObjects(scopeKey(scope), { tables: tables.map(nameOf), views: views.map(nameOf) })

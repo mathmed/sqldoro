@@ -27,6 +27,12 @@ All notable changes to sqldoro are documented in this file. The format is based 
   editor. The read goes through the guards with the automatic `LIMIT`, on a session of the panel's
   own, in auto-commit, and stays out of the query history; the rows of a table with a key can be
   edited, and **Refresh** reads them again in the same view.
+- **Sizes, counts and server version in the explorer**: a connected connection shows the version of
+  its server (`8.0.45`), each database its size (`2 GB`), the Tables and Views groups how many they
+  hold once open (`142`, or `3 of 142` under a filter), and each table its estimated rows and size
+  (`~27k rows · 32 MB`, the exact numbers in its tooltip). They come from the catalog statistics, in
+  the query that already lists the objects; when the server cannot give them, the objects are listed
+  without them. **Refresh** reads them again.
 
 ## [0.1.0] - Unreleased
 

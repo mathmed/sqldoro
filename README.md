@@ -35,7 +35,11 @@ built to make the dangerous queries hard and the everyday ones quick.
   panel of their own (**Open Table Data**, also an inline button and the first entry of its context
   menu), without writing a query: sqldoro reads `SELECT * FROM` the table through the guards, with the
   automatic `LIMIT`, on a session of the panel's own, and **Refresh** reads the rows again. These
-  reads are sqldoro's own: the query history does not keep them.
+  reads are sqldoro's own: the query history does not keep them. Beside the names: the server version
+  of a connected connection (`8.0.45`), the size of each database (`2 GB`), how many tables and views
+  a group holds once it is open (`Tables 142`, or `3 of 142` under a filter), and the estimated rows
+  and size of each table (`~27k rows · 32 MB`, exact numbers in its tooltip), read from the catalog
+  statistics in the same query that lists them. **Refresh** reads them again.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
@@ -245,6 +249,13 @@ The grid writes only what it can write exactly, to the row it read, and says so 
 - **Connections**: no SSH agent, jump hosts or passphrase-protected TLS client keys; passwords are
   saved, not asked every time. sqldoro is tested against MySQL 8.4 and PostgreSQL 18; MariaDB, other
   MySQL- or PostgreSQL-compatible servers and older versions should work but are not tested.
+- **Explorer statistics**: row counts are the server's estimates, as fresh as its last analysis
+  (MySQL caches them for a day by default, until `ANALYZE TABLE`; PostgreSQL updates them with
+  `ANALYZE` and autovacuum, and shows none for a table never analyzed). A database whose size the user
+  may not see (PostgreSQL without the `CONNECT` privilege) shows none; when the server cannot give
+  the statistics at all, the objects are listed without them and the output says why (debug level).
+  In PostgreSQL, reading a table's size waits for an `ACCESS EXCLUSIVE` lock on it (a long
+  `ALTER TABLE`, `VACUUM FULL`), so its schema's tables list once that lock is gone.
 - **Editors**: an untitled SQL editor restored after VS Code restarts asks for its connection again,
   on purpose; files keep theirs. Cancelling MySQL's `SELECT SLEEP(n)` returns a row (that is what an
   interrupted `SLEEP` does) instead of showing the query as cancelled.

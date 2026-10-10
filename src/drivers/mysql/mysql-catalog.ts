@@ -1,6 +1,7 @@
 import type { Connection, RowDataPacket } from 'mysql2'
 
 import {
+  CatalogDetail,
   type ColumnInfo,
   type DatabaseInfo,
   type ForeignKeyInfo,
@@ -9,6 +10,8 @@ import {
   type IndexInfo,
   type ObjectRef,
   type ObjectScope,
+  readDatabaseStats,
+  readTableStats,
   type TableInfo,
   type ViewInfo,
 } from '../../core/engine/catalog.ts'
@@ -22,10 +25,26 @@ import {
 // In MySQL a schema is a database: the scope's schema names it. Flags come back as 'YES'/'NO' text,
 // which does not depend on how the server types a comparison.
 const YES = 'YES'
+const BASE_TABLE = 'BASE TABLE'
 
 const DATABASES = 'SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME'
 
+// The size of a database is what its tables hold, data and indexes, as the statistics of
+// information_schema say; NULL when it has no table the user can see. Sizes travel as text: exact.
+const DATABASES_WITH_SIZES = `SELECT s.SCHEMA_NAME AS name,
+  CAST(SUM(t.DATA_LENGTH + t.INDEX_LENGTH) AS CHAR) AS sizeBytes
+FROM information_schema.SCHEMATA s
+LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = s.SCHEMA_NAME AND t.TABLE_TYPE = ?
+GROUP BY s.SCHEMA_NAME ORDER BY s.SCHEMA_NAME`
+
 const TABLES_OF_TYPE = `SELECT TABLE_NAME AS name FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = ? ORDER BY TABLE_NAME`
+
+// TABLE_ROWS is an estimate for InnoDB; the statistics are cached by the server
+// (information_schema_stats_expiry) until it analyzes the table again.
+const TABLES_WITH_STATS = `SELECT TABLE_NAME AS name, CAST(TABLE_ROWS AS CHAR) AS estimatedRows,
+  CAST(DATA_LENGTH + INDEX_LENGTH AS CHAR) AS sizeBytes
+FROM information_schema.TABLES
 WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = ? ORDER BY TABLE_NAME`
 
 const COLUMNS = `SELECT COLUMN_NAME AS name, COLUMN_TYPE AS dataType, IS_NULLABLE AS isNullable,
@@ -79,14 +98,29 @@ export async function queryRows(
   return result.map(readRecord)
 }
 
-export async function listDatabases(connection: Connection): Promise<DatabaseInfo[]> {
-  const rows = await queryRows(connection, DATABASES, [])
-  return rows.map((row) => ({ name: readString(row, 'name') }))
+export async function listDatabases(
+  connection: Connection,
+  detail: CatalogDetail,
+): Promise<DatabaseInfo[]> {
+  if (detail === CatalogDetail.Names) {
+    const rows = await queryRows(connection, DATABASES, [])
+    return rows.map((row) => ({ name: readString(row, 'name') }))
+  }
+  const rows = await queryRows(connection, DATABASES_WITH_SIZES, [BASE_TABLE])
+  return rows.map((row) => ({ name: readString(row, 'name'), stats: readDatabaseStats(row) }))
 }
 
-export async function listTables(connection: Connection, scope: ObjectScope): Promise<TableInfo[]> {
-  const rows = await queryRows(connection, TABLES_OF_TYPE, [scope.schema, 'BASE TABLE'])
-  return rows.map((row) => ({ name: readString(row, 'name') }))
+export async function listTables(
+  connection: Connection,
+  scope: ObjectScope,
+  detail: CatalogDetail,
+): Promise<TableInfo[]> {
+  if (detail === CatalogDetail.Names) {
+    const rows = await queryRows(connection, TABLES_OF_TYPE, [scope.schema, BASE_TABLE])
+    return rows.map((row) => ({ name: readString(row, 'name') }))
+  }
+  const rows = await queryRows(connection, TABLES_WITH_STATS, [scope.schema, BASE_TABLE])
+  return rows.map((row) => ({ name: readString(row, 'name'), stats: readTableStats(row) }))
 }
 
 export async function listViews(connection: Connection, scope: ObjectScope): Promise<ViewInfo[]> {

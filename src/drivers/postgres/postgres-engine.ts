@@ -187,9 +187,9 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
       watch.close()
       await clients.closeAll()
     },
-    listDatabases: async () => listDatabases(client),
+    listDatabases: async (detail) => listDatabases(client, detail),
     listSchemas: async (database) => listSchemas(await of(database)),
-    listTables: async (scope) => listTables(await of(scope.database), scope),
+    listTables: async (scope, detail) => listTables(await of(scope.database), scope, detail),
     listViews: async (scope) => listViews(await of(scope.database), scope),
     listColumns: async (object) => listColumns(await of(object.database), object),
     listIndexes: async (table) => listIndexes(await of(table.database), table),

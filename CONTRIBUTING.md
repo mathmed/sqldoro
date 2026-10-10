@@ -212,7 +212,11 @@ what adding a hypothetical engine **Acme** (client library `acme-client`) takes:
    - attach an `error` listener to every event emitter of the client library as soon as it exists,
      and call `onUnexpectedClose` once when the server or the network ends the session;
    - the catalog (`listDatabases`, `listSchemas`, `listTables`, `listViews`, `listColumns`,
-     `listIndexes`, `listForeignKeys`, `objectDdl`, `useScope`), with values bound as parameters;
+     `listIndexes`, `listForeignKeys`, `objectDdl`, `useScope`), with values bound as parameters.
+     Asked for `CatalogDetail.Statistics`, `listDatabases` and `listTables` read the size of each
+     database and the estimated rows and size of each table in the same query that lists them, as
+     text read with `readDatabaseStats` / `readTableStats` (exact), and `NULL` where the server does
+     not know or the user may not see: a missing privilege is never an error;
    - `execute`: stream rows in batches through `onRows`, stop at `maxRows` and flag truncation,
      report each column's `origin` (table and column) when the server says it, keep `DECIMAL`,
      `BIGINT` and dates as the server's text, and `cancel` from a second connection;

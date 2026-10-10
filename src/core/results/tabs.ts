@@ -14,7 +14,7 @@ export function tabTitle(sql: string): string {
 }
 
 // 1234567 is 1,234,567 whatever the locale of the machine.
-export function groupDigits(count: number): string {
+export function groupDigits(count: bigint | number): string {
   const digits = String(count)
   const groups: string[] = []
   for (let end = digits.length; end > 0; end -= GROUP_SIZE) {

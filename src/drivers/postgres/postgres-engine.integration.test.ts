@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { queryRequest } from '../../../test/fakes/query-request.ts'
 import { connectRequest, POSTGRES, waitUntilReady } from '../../../test/integration/servers.ts'
+import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession, TlsSettings } from '../../core/engine/engine.ts'
 import { QueryCancelledError, type Row } from '../../core/engine/query.ts'
 import { postgresEngine } from './postgres-engine.ts'
@@ -86,7 +87,7 @@ describe('postgresEngine against a real PostgreSQL server', () => {
 
   describe('catalog', () => {
     it('should list the databases and the schemas of any of them', async () => {
-      await expect(session.listDatabases()).resolves.toEqual(
+      await expect(session.listDatabases(CatalogDetail.Names)).resolves.toEqual(
         expect.arrayContaining([{ name: 'postgres' }, { name: POSTGRES.database }]),
       )
       await expect(session.listSchemas(POSTGRES.database)).resolves.toContainEqual({ name: SCHEMA })
@@ -100,7 +101,7 @@ describe('postgresEngine against a real PostgreSQL server', () => {
     })
 
     it('should list the tables, the views and the materialized views', async () => {
-      await expect(session.listTables(SCOPE)).resolves.toStrictEqual([
+      await expect(session.listTables(SCOPE, CatalogDetail.Names)).resolves.toStrictEqual([
         { name: 'customers' },
         { name: 'orders' },
       ])

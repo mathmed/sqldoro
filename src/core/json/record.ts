@@ -27,6 +27,14 @@ const COUNT: Kind<number> = {
   matches: (value): value is number => Number.isSafeInteger(value) && (value as number) >= 0,
 }
 
+const DIGITS = /^\d+$/
+
+// Exact whatever its size: a BIGINT the driver keeps as the server's text.
+const BIG_COUNT: Kind<string> = {
+  description: 'a whole number of 0 or more, as text',
+  matches: (value): value is string => typeof value === 'string' && DIGITS.test(value),
+}
+
 const LIST: Kind<readonly unknown[]> = {
   description: 'a list',
   matches: (value): value is readonly unknown[] => Array.isArray(value),
@@ -49,6 +57,10 @@ export function readNumber(record: JsonRecord, key: string): number {
 
 export function readCount(record: JsonRecord, key: string): number {
   return readField(record, key, COUNT)
+}
+
+export function readBigCount(record: JsonRecord, key: string): bigint {
+  return BigInt(readField(record, key, BIG_COUNT))
 }
 
 // A field that holds null when it has no value; anything else must pass `read`.

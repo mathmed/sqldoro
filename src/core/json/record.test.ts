@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   readArray,
+  readBigCount,
   readBoolean,
   readCount,
   readList,
@@ -93,6 +94,31 @@ describe('readCount', () => {
   it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', null])('should reject %j', (value) => {
     expect(() => readCount(readRecord({ n: value }), 'n')).toThrow(
       new TypeError('"n" must be a whole number of 0 or more'),
+    )
+  })
+})
+
+describe('readBigCount', () => {
+  it('should read the text of a whole number exactly, whatever its size', () => {
+    expect(readBigCount(readRecord({ n: '0' }), 'n')).toBe(0n)
+    expect(readBigCount(readRecord({ n: '42' }), 'n')).toBe(42n)
+    expect(readBigCount(readRecord({ n: '18446744073709551615' }), 'n')).toBe(
+      18_446_744_073_709_551_615n,
+    )
+  })
+
+  it.each([12, '', '-1', '1.5', ' 12', '12 ', '1e3', 'x12', '12x', null, undefined])(
+    'should reject %j',
+    (value) => {
+      expect(() => readBigCount(readRecord({ n: value }), 'n')).toThrow(
+        new TypeError('"n" must be a whole number of 0 or more, as text'),
+      )
+    },
+  )
+
+  it('should reject a value that is already a bigint: the drivers send text', () => {
+    expect(() => readBigCount(readRecord({ n: 12n }), 'n')).toThrow(
+      new TypeError('"n" must be a whole number of 0 or more, as text'),
     )
   })
 })
