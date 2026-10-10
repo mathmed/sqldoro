@@ -1,8 +1,10 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     include: ['{src,scripts,test}/**/*.test.ts'],
+    // Integration tests need real servers: vitest.integration.config.ts runs them.
+    exclude: [...configDefaults.exclude, '**/*.integration.test.ts'],
     setupFiles: ['test/setup.ts'],
     restoreMocks: true,
     unstubEnvs: true,

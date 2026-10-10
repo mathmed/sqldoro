@@ -59,6 +59,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint:arch": "depcruise src scripts test",
     "dead-code": "knip --treat-config-hints-as-errors",
     "smoke": "node scripts/smoke.ts",
