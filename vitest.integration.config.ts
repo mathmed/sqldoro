@@ -6,6 +6,8 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     include: ['{src,test}/**/*.integration.test.ts'],
+    // The extension host runs against the servers too, with the fake of the vscode module.
+    setupFiles: ['test/setup.ts'],
     testTimeout: 30_000,
     hookTimeout: 120_000,
     restoreMocks: true,

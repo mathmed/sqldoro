@@ -188,12 +188,15 @@ describe('postgresEngine against a real PostgreSQL server', () => {
          FROM ${SCHEMA}.orders ORDER BY id`,
       )
 
+      // Plain columns name the table they come from, by its object id; expressions do not.
+      const ids = await run(`SELECT '${SCHEMA}.orders'::regclass::oid::text`)
+      const table = [String(ids.rows[0]?.[0])]
       expect(result.columns).toStrictEqual([
-        { name: 'customer_id', dataType: 'INT8', kind: 'number' },
-        { name: 'total', dataType: 'NUMERIC', kind: 'number' },
+        { name: 'customer_id', dataType: 'INT8', kind: 'number', origin: { table, column: '2' } },
+        { name: 'total', dataType: 'NUMERIC', kind: 'number', origin: { table, column: '3' } },
         { name: 'created_at', dataType: 'TIMESTAMP', kind: 'temporal' },
-        { name: 'payload', dataType: 'JSONB', kind: 'json' },
-        { name: 'raw', dataType: 'BYTEA', kind: 'binary' },
+        { name: 'payload', dataType: 'JSONB', kind: 'json', origin: { table, column: '5' } },
+        { name: 'raw', dataType: 'BYTEA', kind: 'binary', origin: { table, column: '6' } },
         { name: 'missing', dataType: 'BOOL', kind: 'boolean' },
       ])
       expect(result.rows).toStrictEqual([
