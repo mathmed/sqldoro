@@ -3,7 +3,9 @@ import {
   type KeyboardEvent,
   type ReactElement,
   type RefObject,
+  useEffect,
   useRef,
+  useState,
   useSyncExternalStore,
 } from 'react'
 
@@ -17,14 +19,24 @@ import {
 import { ExportFormat } from '../core/results/export-format.ts'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
+import { canEditCell, gridRowCount, isEditing, rowEditAt } from './edit-overlay.ts'
 import { handleGridKey } from './grid-keys.ts'
 import { cellId, HEADER_HEIGHT, ROW_HEIGHT, scrollToShow } from './grid-model.ts'
 import { GridHeader } from './GridHeader.tsx'
-import { type CellEvents, GridRows, type RowLayout } from './GridRows.tsx'
+import { type CellEvents, GridRows, type RowLayout, type ShownEditor } from './GridRows.tsx'
 import type { VsCodeApi } from './host.ts'
 import type { RowStore } from './row-store.ts'
+import type { OpenEditor } from './use-cell-editor.ts'
 import { type GridTable, useGridTable } from './use-grid-table.ts'
 import { useRowWindow } from './use-row-window.ts'
+
+// What the grid does with the changes of its rows.
+export interface GridEdit {
+  readonly editor: OpenEditor | undefined
+  readonly start: (position: CellPosition, typed: string | undefined) => void
+  readonly deleteRows: () => void
+  readonly preview: () => void
+}
 
 export interface GridProps {
   readonly api: VsCodeApi
@@ -35,6 +47,7 @@ export interface GridProps {
   readonly onOpenDetail: (position: CellPosition) => void
   readonly onView: (view: ViewSpec) => void
   readonly onCopy: (format: ExportFormat) => void
+  readonly edit: GridEdit
 }
 
 type ScrollRef = RefObject<HTMLDivElement | null>
@@ -52,10 +65,12 @@ const OVERSCAN = 20
 const INITIAL_RECT = { width: 800, height: 600 }
 
 // A virtualized grid over the rows the extension host holds: a million rows scroll smoothly because
-// only those in view exist in the page, and only a few thousand are held here.
+// only those in view exist in the page, and only a few thousand are held here. The rows added in the
+// grid follow the rows of the view.
 export const Grid = (props: GridProps): ReactElement => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { table, virtualizer, widths, select } = useGrid(props, scrollRef)
+  useFocusAfterEditing(props.edit.editor !== undefined, scrollRef)
   const { tab, store } = props
   return (
     <div
@@ -74,8 +89,8 @@ export const Grid = (props: GridProps): ReactElement => {
       <GridRows
         items={virtualizer.getVirtualItems()}
         totalSize={virtualizer.getTotalSize() + HEADER_HEIGHT}
-        rowAt={(index) => store.row(index)}
-        layout={layoutOf(props, { widths, totalWidth: table.getTotalSize() })}
+        rowAt={(index) => (index < tab.rowCount ? store.row(index) : undefined)}
+        layout={layoutOf(props, { widths, totalWidth: table.getTotalSize(), select })}
         events={eventsOf(props, select)}
       />
     </div>
@@ -84,7 +99,7 @@ export const Grid = (props: GridProps): ReactElement => {
 
 function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
   const table = useGridTable(props.tab, props.onView)
-  const virtualizer = useGridVirtualizer(props.tab.rowCount, scrollRef)
+  const virtualizer = useGridVirtualizer(useShownRowCount(props.tab), scrollRef)
   useRowWindow(props.api, props.tab, { store: props.store, items: virtualizer.getVirtualItems() })
   useSyncExternalStore(props.store.subscribe, props.store.revision)
   const widths = table.getFlatHeaders().map((header) => header.getSize())
@@ -96,6 +111,29 @@ function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
     })
   }
   return { table, virtualizer, widths, select }
+}
+
+// While the rows are read again (after an apply, or to load them all) the grid keeps its height,
+// so that it stays where it was scrolled to.
+function useShownRowCount(tab: ResultTab): number {
+  const count = gridRowCount(tab)
+  const isRunning = tab.status === TabStatus.Running
+  const [kept, setKept] = useState(count)
+  if (!isRunning && kept !== count) {
+    setKept(count)
+  }
+  return isRunning ? Math.max(count, kept) : count
+}
+
+// The focus comes back to the grid when an editor closes, for the keyboard to go on.
+function useFocusAfterEditing(isEditorOpen: boolean, scrollRef: ScrollRef): void {
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    if (wasOpenRef.current && !isEditorOpen) {
+      scrollRef.current?.focus()
+    }
+    wasOpenRef.current = isEditorOpen
+  }, [isEditorOpen, scrollRef])
 }
 
 function useGridVirtualizer(rowCount: number, scrollRef: ScrollRef): GridVirtualizer {
@@ -115,9 +153,10 @@ function gridAttributes({ tab, selection }: GridProps): Record<string, unknown> 
     className: 'grid',
     role: 'grid',
     'aria-label': 'Rows of the result',
-    'aria-rowcount': tab.rowCount + 1,
+    'aria-rowcount': gridRowCount(tab) + 1,
     'aria-colcount': tab.columns.length,
     'aria-multiselectable': true,
+    'aria-readonly': !isEditing(tab),
     'aria-activedescendant':
       selection === undefined
         ? undefined
@@ -132,9 +171,10 @@ interface KeyContext {
 }
 
 function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext): void {
+  const { tab, edit } = props
   const bounds = {
-    rowCount: props.tab.rowCount,
-    columnCount: props.tab.columns.length,
+    rowCount: gridRowCount(tab),
+    columnCount: tab.columns.length,
     pageSize: context.pageSize,
   }
   handleGridKey(
@@ -146,6 +186,10 @@ function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext):
         props.onCopy(ExportFormat.Tsv)
       },
       openDetail: props.onOpenDetail,
+      canEdit: (position) => canEditCell(tab, position),
+      edit: edit.start,
+      deleteRows: edit.deleteRows,
+      preview: edit.preview,
     },
   )
 }
@@ -153,9 +197,11 @@ function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext):
 interface Widths {
   readonly widths: readonly number[]
   readonly totalWidth: number
+  readonly select: (selection: GridSelection) => void
 }
 
-function layoutOf({ tab, selection }: GridProps, { widths, totalWidth }: Widths): RowLayout {
+function layoutOf(props: GridProps, { widths, totalWidth, select }: Widths): RowLayout {
+  const { tab, selection } = props
   return {
     tabId: tab.id,
     columns: tab.columns,
@@ -163,11 +209,40 @@ function layoutOf({ tab, selection }: GridProps, { widths, totalWidth }: Widths)
     totalWidth,
     range: selection === undefined ? undefined : selectionRange(selection),
     focus: selection?.focus,
+    isEditing: isEditing(tab),
+    rowEdit: (index) => rowEditAt(tab, index),
+    canEdit: (position) => canEditCell(tab, position),
+    editor: shownEditor(props, select),
+  }
+}
+
+// Putting a value in moves on along its row with Tab, as in a spreadsheet.
+function shownEditor(
+  { edit, tab }: GridProps,
+  select: (selection: GridSelection) => void,
+): ShownEditor | undefined {
+  const { editor } = edit
+  if (editor === undefined) {
+    return undefined
+  }
+  const { row, column } = editor.view.position
+  return {
+    view: editor.view,
+    actions: {
+      change: editor.change,
+      cancel: editor.cancel,
+      commit: (exit) => {
+        if (editor.commit()) {
+          const next = Math.min(Math.max(column + exit, 0), tab.columns.length - 1)
+          select(selectCell({ row, column: next }))
+        }
+      },
+    },
   }
 }
 
 function eventsOf(
-  { selection, onOpenDetail }: GridProps,
+  { selection, onOpenDetail, edit, tab }: GridProps,
   select: (selection: GridSelection) => void,
 ): CellEvents {
   return {
@@ -178,7 +253,13 @@ function eventsOf(
           : selectCell(position),
       )
     },
-    onCellOpen: onOpenDetail,
+    onCellOpen: (position) => {
+      if (canEditCell(tab, position)) {
+        edit.start(position, undefined)
+        return
+      }
+      onOpenDetail(position)
+    },
   }
 }
 

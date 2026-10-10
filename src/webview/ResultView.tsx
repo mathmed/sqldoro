@@ -1,12 +1,6 @@
-import { type ReactElement, useState } from 'react'
+import type { ReactElement } from 'react'
 
-import type { CellValue } from '../core/engine/query.ts'
-import {
-  type CellPosition,
-  clampSelection,
-  type GridSelection,
-  selectionRange,
-} from '../core/grid/selection.ts'
+import { EditKind } from '../core/edits/edit-kind.ts'
 import type { ExportFormat } from '../core/results/export-format.ts'
 import {
   type CellMessage,
@@ -16,13 +10,20 @@ import {
   WebviewMessageType,
 } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
+import { requestCell, wholeValue } from './cell-values.ts'
 import { CellDetail } from './CellDetail.tsx'
-import { Grid } from './Grid.tsx'
+import { type EditActions, editActions } from './edit-messages.ts'
+import { isEditing } from './edit-overlay.ts'
+import { EditBar } from './EditBar.tsx'
+import { Grid, type GridEdit } from './Grid.tsx'
 import type { VsCodeApi } from './host.ts'
 import { PlanView } from './PlanView.tsx'
+import { PreviewDialog } from './PreviewDialog.tsx'
+import { type ResultChoices, toolbarActions, useChoices } from './result-choices.ts'
 import type { RowStore } from './row-store.ts'
 import { StatusLine } from './StatusLine.tsx'
-import { Toolbar, type ToolbarActions } from './Toolbar.tsx'
+import { Toolbar } from './Toolbar.tsx'
+import { type CellEditing, useCellEditor } from './use-cell-editor.ts'
 
 interface ResultViewProps {
   readonly tab: ResultTab
@@ -31,20 +32,13 @@ interface ResultViewProps {
   readonly cell: CellMessage | undefined
 }
 
-// What the user chose in the result: selected cells, the cell shown whole, where to sort and filter.
-interface ResultChoices {
-  readonly selection: GridSelection | undefined
-  readonly setSelection: (selection: GridSelection) => void
-  readonly detail: CellPosition | undefined
-  readonly setDetail: (detail: CellPosition | undefined) => void
-  readonly isServerSide: boolean
-  readonly setIsServerSide: (isServerSide: boolean) => void
-}
-
-// The result of one statement: its actions, what happened, and its rows or plan.
+// The result of one statement: its actions, what happened, its rows or plan, and the editing of
+// its rows with the preview of their changes.
 export const ResultView = ({ tab, store, api, cell }: ResultViewProps): ReactElement => {
   const choices = useChoices(tab)
   const actions = toolbarActions(api, tab, choices)
+  const edits = editActions(api, tab, choices.selection)
+  const edit = gridEdit(tab, { editing: useCellEditor(api, tab, { store, cell }), edits })
   return (
     <section
       role="tabpanel"
@@ -59,71 +53,66 @@ export const ResultView = ({ tab, store, api, cell }: ResultViewProps): ReactEle
         actions={actions}
       />
       <StatusLine tab={tab} />
+      <EditBar tab={tab} hasSelection={choices.selection !== undefined} actions={edits} />
       <div className="result-body">
-        <ResultContent tab={tab} store={store} api={api} choices={choices} onCopy={actions.copy} />
+        <ResultContent content={{ tab, store, api, choices, edit }} onCopy={actions.copy} />
         <DetailPanel tab={tab} store={store} cell={cell} choices={choices} />
       </div>
+      <ChangesPreview tab={tab} edits={edits} />
     </section>
   )
 }
 
-// The selection stays inside the rows when a view or new rows change them.
-function useChoices(tab: ResultTab): ResultChoices {
-  const [selection, setSelection] = useState<GridSelection>()
-  const [detail, setDetail] = useState<CellPosition>()
-  const [isServerSide, setIsServerSide] = useState(tab.isServerView)
-  const bounds = { rowCount: tab.rowCount, columnCount: tab.columns.length, pageSize: 1 }
-  const bounded =
-    selection === undefined || tab.rowCount === 0 ? undefined : clampSelection(selection, bounds)
-  return { selection: bounded, setSelection, detail, setDetail, isServerSide, setIsServerSide }
+const ChangesPreview = ({
+  tab,
+  edits,
+}: {
+  readonly tab: ResultTab
+  readonly edits: EditActions
+}): ReactElement | null => {
+  const { preview } = tab.editing
+  return preview === null ? null : (
+    <PreviewDialog preview={preview} onApply={edits.apply} onClose={edits.closePreview} />
+  )
 }
 
-function toolbarActions(api: VsCodeApi, tab: ResultTab, choices: ResultChoices): ToolbarActions {
+// The keyboard of the grid edits only while the rows can be edited.
+function gridEdit(
+  tab: ResultTab,
+  { editing, edits }: { readonly editing: CellEditing; readonly edits: EditActions },
+): GridEdit {
   return {
-    cancel: () => {
-      api.postMessage({ type: WebviewMessageType.Cancel })
+    editor: editing.editor,
+    start: editing.open,
+    deleteRows: () => {
+      if (isEditing(tab)) {
+        edits.onSelection(EditKind.Delete)
+      }
     },
-    loadAll: () => {
-      api.postMessage({ type: WebviewMessageType.LoadAll, tabId: tab.id })
+    preview: () => {
+      if (isEditing(tab)) {
+        edits.preview()
+      }
     },
-    copy: (format: ExportFormat) => {
-      copySelection(api, tab, { selection: choices.selection, format })
-    },
-    export: (format: ExportFormat) => {
-      api.postMessage({ type: WebviewMessageType.Export, tabId: tab.id, format })
-    },
-    setServerSide: choices.setIsServerSide,
   }
 }
 
-interface CopyRequest {
-  readonly selection: GridSelection | undefined
-  readonly format: ExportFormat
-}
-
-function copySelection(api: VsCodeApi, tab: ResultTab, { selection, format }: CopyRequest): void {
-  if (selection !== undefined) {
-    const range = selectionRange(selection)
-    const { id: tabId, viewVersion } = tab
-    api.postMessage({ type: WebviewMessageType.Copy, tabId, viewVersion, range, format })
-  }
-}
-
-interface ResultContentProps {
+interface Content {
   readonly tab: ResultTab
   readonly store: RowStore
   readonly api: VsCodeApi
   readonly choices: ResultChoices
-  readonly onCopy: (format: ExportFormat) => void
+  readonly edit: GridEdit
 }
 
 const ResultContent = ({
-  tab,
-  store,
-  api,
-  choices,
+  content,
   onCopy,
-}: ResultContentProps): ReactElement | null => {
+}: {
+  readonly content: Content
+  readonly onCopy: (format: ExportFormat) => void
+}): ReactElement | null => {
+  const { tab, store, api, choices, edit } = content
   if (tab.kind === TabKind.Plan) {
     return <PlanView lines={tab.plan} />
   }
@@ -142,6 +131,7 @@ const ResultContent = ({
         changeView(api, tab, { view, isServerSide: choices.isServerSide })
       }}
       onCopy={onCopy}
+      edit={edit}
     />
   )
 }
@@ -155,26 +145,6 @@ interface ViewChange {
 function changeView(api: VsCodeApi, tab: ResultTab, change: ViewChange): void {
   if (tab.status !== TabStatus.Running) {
     api.postMessage({ type: WebviewMessageType.SetView, tabId: tab.id, ...change })
-  }
-}
-
-interface CellPlace {
-  readonly store: RowStore
-  readonly position: CellPosition
-}
-
-// What the grid holds of a cell, unless it was cut (or is not here): then only the host has it.
-function heldValue({ store, position }: CellPlace): CellValue | undefined {
-  const row = store.row(position.row)
-  return row === undefined || row.truncated.includes(position.column)
-    ? undefined
-    : row.cells.at(position.column)
-}
-
-function requestCell(api: VsCodeApi, tab: ResultTab, place: CellPlace): void {
-  if (heldValue(place) === undefined) {
-    const { id: tabId, viewVersion } = tab
-    api.postMessage({ type: WebviewMessageType.FetchCell, tabId, viewVersion, ...place.position })
   }
 }
 
@@ -194,33 +164,10 @@ const DetailPanel = ({ tab, store, cell, choices }: DetailPanelProps): ReactElem
   return (
     <CellDetail
       column={column}
-      value={detailValue({ store, position }, cell, tab)}
+      value={wholeValue({ store, position }, { cell, tab })}
       onClose={() => {
         choices.setDetail(undefined)
       }}
     />
-  )
-}
-
-// The value held here, else the one the host sent for this cell, else nothing yet.
-function detailValue(
-  place: CellPlace,
-  cell: CellMessage | undefined,
-  tab: ResultTab,
-): CellValue | undefined {
-  const held = heldValue(place)
-  if (held !== undefined || cell === undefined) {
-    return held
-  }
-  return isAnswer(cell, tab, place.position) ? cell.value : undefined
-}
-
-// The value the host sent is for this cell of this view.
-function isAnswer(cell: CellMessage, tab: ResultTab, position: CellPosition): boolean {
-  return (
-    cell.tabId === tab.id &&
-    cell.viewVersion === tab.viewVersion &&
-    cell.row === position.row &&
-    cell.column === position.column
   )
 }

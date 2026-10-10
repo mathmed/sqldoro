@@ -1,7 +1,14 @@
 // Result tabs and columns for the tests of the protocol, the extension host and the webview.
 import { NOT_EDITING } from '../../src/core/edits/tab-editor.ts'
 import { ColumnKind, type ResultColumn } from '../../src/core/engine/query.ts'
-import { type ResultTab, TabKind, TabStatus } from '../../src/core/results/protocol.ts'
+import { ValueType } from '../../src/core/engine/table.ts'
+import {
+  EditingState,
+  type ResultTab,
+  type TabEditing,
+  TabKind,
+  TabStatus,
+} from '../../src/core/results/protocol.ts'
 import { IDENTITY_VIEW } from '../../src/core/results/view.ts'
 
 export const RESULT_COLUMNS: readonly ResultColumn[] = [
@@ -30,4 +37,27 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     editing: NOT_EDITING,
     ...changes,
   }
+}
+
+// A tab whose rows can be edited: id (a whole number) and name (text of at most 10 characters).
+export function editableTab(
+  editing: Partial<TabEditing> = {},
+  changes: Partial<ResultTab> = {},
+): ResultTab {
+  return resultTab({
+    rowCount: 4,
+    loadedRows: 4,
+    editing: {
+      ...NOT_EDITING,
+      state: EditingState.Editable,
+      table: 'sales.orders',
+      key: ['id'],
+      columns: [
+        { type: ValueType.Integer, min: '-2147483648', max: '2147483647' },
+        { type: ValueType.Text, maxLength: 10 },
+      ],
+      ...editing,
+    },
+    ...changes,
+  })
 }

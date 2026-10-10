@@ -1,11 +1,14 @@
 import type { VirtualItem } from '@tanstack/react-virtual'
 import type { MouseEvent, ReactElement } from 'react'
 
-import type { ColumnKind, ResultColumn } from '../core/engine/query.ts'
+import type { ResultColumn } from '../core/engine/query.ts'
 import { type CellPosition, isSelected } from '../core/grid/selection.ts'
 import type { CellRange, WireRow } from '../core/results/protocol.ts'
-import { displayCell } from './cell-display.ts'
+import { CellEditor, type CellEditorActions } from './CellEditor.tsx'
+import type { RowEdit } from './edit-overlay.ts'
+import { cellDisplay, cellNote, type CellState, rowClassName } from './grid-cells.ts'
 import { ariaRowIndex, cellId, HEADER_HEIGHT, ROW_HEIGHT } from './grid-model.ts'
+import type { CellEditorView } from './use-cell-editor.ts'
 
 export interface RowLayout {
   readonly tabId: string
@@ -14,6 +17,17 @@ export interface RowLayout {
   readonly totalWidth: number
   readonly range: CellRange | undefined
   readonly focus: CellPosition | undefined
+  // While the rows can be edited: the changes of a row, and whether a cell takes values.
+  readonly isEditing: boolean
+  readonly rowEdit: (index: number) => RowEdit | undefined
+  readonly canEdit: (position: CellPosition) => boolean
+  readonly editor: ShownEditor | undefined
+}
+
+// The editor of the cell being edited, and what its keys do in the grid.
+export interface ShownEditor {
+  readonly view: CellEditorView
+  readonly actions: CellEditorActions
 }
 
 export interface CellEvents {
@@ -63,99 +77,55 @@ interface GridRowProps {
   readonly events: CellEvents
 }
 
-const GridRow = ({ index, offset, row, layout, events }: GridRowProps): ReactElement => (
-  <div
-    className={row === undefined ? 'grid-row loading' : 'grid-row'}
-    role="row"
-    aria-rowindex={ariaRowIndex(index)}
-    style={{
-      transform: `translateY(${String(offset)}px)`,
-      height: ROW_HEIGHT,
-      width: layout.totalWidth,
-    }}
-  >
-    {layout.columns.map((column, columnIndex) => (
-      <GridCell
-        key={column.name + String(columnIndex)}
-        position={{ row: index, column: columnIndex }}
-        kind={column.kind}
-        row={row}
-        layout={layout}
-        events={events}
-      />
-    ))}
-  </div>
-)
+const GridRow = ({ index, offset, row, layout, events }: GridRowProps): ReactElement => {
+  const edit = layout.rowEdit(index)
+  return (
+    <div
+      className={rowClassName(row, edit)}
+      role="row"
+      aria-rowindex={ariaRowIndex(index)}
+      title={edit === undefined || edit.problem === '' ? undefined : edit.problem}
+      style={{
+        transform: `translateY(${String(offset)}px)`,
+        height: ROW_HEIGHT,
+        width: layout.totalWidth,
+      }}
+    >
+      {layout.columns.map((column, columnIndex) => (
+        <GridCell
+          key={column.name + String(columnIndex)}
+          cell={{ position: { row: index, column: columnIndex }, kind: column.kind, row, edit }}
+          name={column.name}
+          layout={layout}
+          events={events}
+        />
+      ))}
+    </div>
+  )
+}
 
 interface GridCellProps {
-  readonly position: CellPosition
-  readonly kind: ColumnKind
-  readonly row: WireRow | undefined
+  readonly cell: CellState
+  // The name of its column.
+  readonly name: string
   readonly layout: RowLayout
   readonly events: CellEvents
 }
 
-interface CellLook {
-  readonly className: string
-  readonly text: string
-  readonly isSelected: boolean
-}
-
-type CellState = Omit<GridCellProps, 'events'>
-
-const LOADING = { text: '', look: 'loading' }
-
-// How a cell looks: its value (NULL apart from empty, a mark when it was cut), the selection and
-// the focus.
-function cellLook(cell: CellState): CellLook {
-  const isInSelection = isCellSelected(cell)
-  const display = displayOf(cell)
-  return {
-    className: classNameOf(display.look, isInSelection, isFocus(cell)),
-    text: display.text,
-    isSelected: isInSelection,
-  }
-}
-
-function isCellSelected({ position, layout }: CellState): boolean {
-  return layout.range !== undefined && isSelected(layout.range, position)
-}
-
-function isFocus({ position, layout }: CellState): boolean {
-  return layout.focus?.row === position.row && layout.focus.column === position.column
-}
-
-function displayOf({ position, kind, row }: CellState): {
-  readonly text: string
-  readonly look: string
-} {
-  if (row === undefined) {
-    return LOADING
-  }
-  const display = displayCell(row.cells.at(position.column) ?? null, kind)
-  return row.truncated.includes(position.column)
-    ? { ...display, text: `${display.text}…` }
-    : display
-}
-
-function classNameOf(look: string, isInSelection: boolean, isFocused: boolean): string {
-  return [
-    'grid-cell',
-    `look-${look}`,
-    isInSelection ? 'selected' : '',
-    isFocused ? 'focused' : '',
-  ].join(' ')
-}
-
-const GridCell = ({ position, kind, row, layout, events }: GridCellProps): ReactElement => {
-  const look = cellLook({ position, kind, row, layout })
+const GridCell = ({ cell, name, layout, events }: GridCellProps): ReactElement => {
+  const { position } = cell
+  const isInSelection = layout.range !== undefined && isSelected(layout.range, position)
+  const isFocus = layout.focus?.row === position.row && layout.focus.column === position.column
+  const display = cellDisplay(cell, { isInSelection, isFocus })
   return (
     <div
       id={cellId(layout.tabId, position.row, position.column)}
-      className={look.className}
+      className={display.className}
       role="gridcell"
       aria-colindex={position.column + 1}
-      aria-selected={look.isSelected}
+      aria-selected={isInSelection}
+      aria-readonly={layout.isEditing ? !layout.canEdit(position) : undefined}
+      aria-description={cellNote(cell)}
       style={{ width: layout.widths.at(position.column) }}
       onMouseDown={(event: MouseEvent) => {
         events.onCellDown(position, event.shiftKey)
@@ -164,7 +134,26 @@ const GridCell = ({ position, kind, row, layout, events }: GridCellProps): React
         events.onCellOpen(position)
       }}
     >
-      {look.text}
+      <CellContent cell={cell} text={display.text} name={name} editor={layout.editor} />
     </div>
   )
+}
+
+interface CellContentProps {
+  readonly cell: CellState
+  readonly text: string
+  readonly name: string
+  readonly editor: ShownEditor | undefined
+}
+
+// The value of the cell, or the editor of the cell being edited.
+const CellContent = ({ cell, text, name, editor }: CellContentProps): ReactElement => {
+  if (editor === undefined || !isSameCell(editor.view.position, cell.position)) {
+    return <>{text}</>
+  }
+  return <CellEditor editor={editor.view} label={`New value of ${name}`} actions={editor.actions} />
+}
+
+function isSameCell(left: CellPosition, right: CellPosition): boolean {
+  return left.row === right.row && left.column === right.column
 }
