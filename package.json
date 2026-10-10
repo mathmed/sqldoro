@@ -46,8 +46,181 @@
         "command": "sqldoro.hello",
         "title": "Hello",
         "category": "sqldoro"
+      },
+      {
+        "command": "sqldoro.addConnection",
+        "title": "Add Connection",
+        "category": "sqldoro",
+        "icon": "$(add)"
+      },
+      {
+        "command": "sqldoro.importConnectionUrl",
+        "title": "Import Connection from URL",
+        "category": "sqldoro",
+        "icon": "$(link)"
+      },
+      {
+        "command": "sqldoro.editConnection",
+        "title": "Edit Connection",
+        "category": "sqldoro",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "sqldoro.duplicateConnection",
+        "title": "Duplicate Connection",
+        "category": "sqldoro",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "sqldoro.deleteConnection",
+        "title": "Delete Connection",
+        "category": "sqldoro",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "sqldoro.testConnection",
+        "title": "Test Connection",
+        "category": "sqldoro",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "sqldoro.connect",
+        "title": "Connect",
+        "category": "sqldoro",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "sqldoro.disconnect",
+        "title": "Disconnect",
+        "category": "sqldoro",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "sqldoro.refresh",
+        "title": "Refresh",
+        "category": "sqldoro",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sqldoro.filter",
+        "title": "Filter Tables and Views",
+        "category": "sqldoro",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "sqldoro.clearFilter",
+        "title": "Clear Filter",
+        "category": "sqldoro",
+        "icon": "$(clear-all)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sqldoro",
+          "title": "sqldoro",
+          "icon": "media/sqldoro.svg"
+        }
+      ]
+    },
+    "views": {
+      "sqldoro": [
+        {
+          "id": "sqldoro.connections",
+          "name": "Connections",
+          "icon": "media/sqldoro.svg",
+          "contextualTitle": "sqldoro"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "sqldoro.connections",
+        "contents": "No database connections yet.\n[Add Connection](command:sqldoro.addConnection)\n[Import from URL](command:sqldoro.importConnectionUrl)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "sqldoro.addConnection",
+          "when": "view == sqldoro.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqldoro.filter",
+          "when": "view == sqldoro.connections",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sqldoro.clearFilter",
+          "when": "view == sqldoro.connections && sqldoro.isFiltered",
+          "group": "navigation@3"
+        },
+        {
+          "command": "sqldoro.refresh",
+          "when": "view == sqldoro.connections",
+          "group": "navigation@4"
+        },
+        {
+          "command": "sqldoro.importConnectionUrl",
+          "when": "view == sqldoro.connections",
+          "group": "1_connections@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sqldoro.connect",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.disconnect",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqldoro.connect",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(disconnected|failed)$/",
+          "group": "1_session@1"
+        },
+        {
+          "command": "sqldoro.disconnect",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\.(connected|connecting)$/",
+          "group": "1_session@1"
+        },
+        {
+          "command": "sqldoro.testConnection",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
+          "group": "1_session@2"
+        },
+        {
+          "command": "sqldoro.editConnection",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
+          "group": "2_edit@1"
+        },
+        {
+          "command": "sqldoro.duplicateConnection",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
+          "group": "2_edit@2"
+        },
+        {
+          "command": "sqldoro.deleteConnection",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
+          "group": "3_delete@1"
+        },
+        {
+          "command": "sqldoro.refresh",
+          "when": "view == sqldoro.connections && viewItem =~ /^(connection\\.connected|database|schema|tables|views|table|view|columns|indexes|foreignKeys)$/",
+          "group": "4_refresh@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sqldoro.clearFilter",
+          "when": "sqldoro.isFiltered"
+        }
+      ]
+    }
   },
   "scripts": {
     "hooks": "lefthook install",
