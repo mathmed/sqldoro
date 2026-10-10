@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ColumnKind } from '../core/engine/query.ts'
-import { detailText, displayCell, hexDump } from './cell-display.ts'
+import { detailText, detailView, displayCell, hexDump, MAX_DETAIL_LENGTH } from './cell-display.ts'
 
 describe('displayCell', () => {
   it('should show NULL apart from the empty string', () => {
@@ -46,5 +46,37 @@ describe('hexDump', () => {
     )
     expect(hexDump('')).toBe('')
     expect(hexDump('a')).toBe('00000000  ')
+  })
+})
+
+describe('detailView', () => {
+  it('should show a value up to the limit whole and formatted', () => {
+    expect(detailView('{"a":1}', ColumnKind.Json)).toStrictEqual({
+      text: '{\n  "a": 1\n}',
+      wholeLength: null,
+    })
+    expect(detailView('a'.repeat(MAX_DETAIL_LENGTH), ColumnKind.Text)).toStrictEqual({
+      text: 'a'.repeat(MAX_DETAIL_LENGTH),
+      wholeLength: null,
+    })
+    expect(detailView(null, ColumnKind.Text)).toStrictEqual({ text: 'NULL', wholeLength: null })
+  })
+
+  it('should show only the start of a longer value, as it is, and its whole length', () => {
+    const json = `[${'1,'.repeat(MAX_DETAIL_LENGTH)}1]`
+
+    expect(detailView(json, ColumnKind.Json)).toStrictEqual({
+      text: json.slice(0, MAX_DETAIL_LENGTH),
+      wholeLength: json.length,
+    })
+  })
+
+  it('should dump the start of a long binary value', () => {
+    const view = detailView(`0x${'ab'.repeat(MAX_DETAIL_LENGTH)}`, ColumnKind.Binary)
+
+    expect(view.wholeLength).toBe(2 + 2 * MAX_DETAIL_LENGTH)
+    expect(view.text.startsWith('00000000  ab ab')).toBe(true)
+    // 99,999 whole bytes, 16 to a line
+    expect(view.text.split('\n')).toHaveLength(6250)
   })
 })

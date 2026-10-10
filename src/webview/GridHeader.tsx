@@ -3,11 +3,15 @@ import { type KeyboardEvent, type ReactElement, useEffect, useState } from 'reac
 import { filterText, withFilter } from '../core/grid/view-state.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
+import { ColumnSpacer } from './GridRows.tsx'
+import type { ColumnWindow } from './use-column-window.ts'
 import type { GridTable } from './use-grid-table.ts'
 
 interface GridHeaderProps {
   readonly table: GridTable
   readonly tab: ResultTab
+  // The columns in the page, as in the rows.
+  readonly shown: ColumnWindow
   readonly isDisabled: boolean
   readonly onView: (view: ViewSpec) => void
 }
@@ -23,20 +27,40 @@ const SORT_LABELS: ReadonlyMap<string, 'ascending' | 'descending'> = new Map([
 
 // The names of the columns (click to sort, Shift to sort by several, drag the edge to resize) and a
 // filter under each.
-export const GridHeader = ({ table, tab, isDisabled, onView }: GridHeaderProps): ReactElement => (
-  <div className="grid-header" role="rowgroup">
-    <div
-      className="grid-row header-row"
-      role="row"
-      aria-rowindex={1}
-      style={{ width: table.getTotalSize() }}
-    >
-      {table.getFlatHeaders().map((header) => (
-        <HeaderCell key={header.id} header={header} isDisabled={isDisabled} />
-      ))}
+export const GridHeader = (props: GridHeaderProps): ReactElement => {
+  const { table, shown } = props
+  const headers = table.getFlatHeaders().slice(shown.first, shown.last + 1)
+  return (
+    <div className="grid-header" role="rowgroup">
+      <div
+        className="grid-row header-row"
+        role="row"
+        aria-rowindex={1}
+        style={{ width: table.getTotalSize() }}
+      >
+        <ColumnSpacer width={shown.before} />
+        {headers.map((header) => (
+          <HeaderCell key={header.id} header={header} isDisabled={props.isDisabled} />
+        ))}
+      </div>
+      <FilterRow {...props} headers={headers} />
     </div>
-    <div className="grid-row filter-row" role="row" style={{ width: table.getTotalSize() }}>
-      {table.getFlatHeaders().map((header, index) => (
+  )
+}
+
+const FilterRow = ({
+  table,
+  tab,
+  shown,
+  isDisabled,
+  onView,
+  headers,
+}: GridHeaderProps & { readonly headers: readonly Header[] }): ReactElement => (
+  <div className="grid-row filter-row" role="row" style={{ width: table.getTotalSize() }}>
+    <ColumnSpacer width={shown.before} />
+    {headers.map((header, shift) => {
+      const index = shown.first + shift
+      return (
         <FilterCell
           key={`${header.id}:${filterText(tab.view, index)}`}
           name={String(header.column.columnDef.header)}
@@ -47,8 +71,8 @@ export const GridHeader = ({ table, tab, isDisabled, onView }: GridHeaderProps):
             onView(withFilter(tab.view, index, text))
           }}
         />
-      ))}
-    </div>
+      )
+    })}
   </div>
 )
 

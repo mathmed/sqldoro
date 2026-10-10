@@ -40,13 +40,37 @@ export function displayCell(value: CellValue, kind: ColumnKind): CellDisplay {
   return { text: singleLine(String(value)), look: isNumber ? CellLook.Number : CellLook.Text }
 }
 
+// The detail shows this many characters of a value at most: laying out more would freeze the view
+// for seconds. The whole value is copied (Ctrl+C) or exported.
+export const MAX_DETAIL_LENGTH = 200_000
+
+export interface DetailView {
+  readonly text: string
+  // The length of the whole value when the detail shows only its start; null when it shows it all.
+  readonly wholeLength: number | null
+}
+
+// What the cell detail shows: the value formatted, or the start of a value too long for it.
+export function detailView(value: CellValue, kind: ColumnKind): DetailView {
+  const text = String(value)
+  if (value === null || text.length <= MAX_DETAIL_LENGTH) {
+    return { text: detailText(value, kind), wholeLength: null }
+  }
+  const start = text.slice(0, MAX_DETAIL_LENGTH)
+  return { text: isHex(start, kind) ? detailText(start, kind) : start, wholeLength: text.length }
+}
+
+function isHex(text: string, kind: ColumnKind): boolean {
+  return kind === ColumnKind.Binary && text.startsWith(HEX_PREFIX)
+}
+
 // The whole value, for the cell detail: JSON indented, binary values as a hex dump.
 export function detailText(value: CellValue, kind: ColumnKind): string {
   if (value === null) {
     return 'NULL'
   }
   const text = String(value)
-  if (kind === ColumnKind.Binary && text.startsWith(HEX_PREFIX)) {
+  if (isHex(text, kind)) {
     return hexDump(text.slice(HEX_PREFIX.length))
   }
   return prettyJson(text) ?? text

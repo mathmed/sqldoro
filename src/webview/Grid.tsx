@@ -27,6 +27,7 @@ import { type CellEvents, GridRows, type RowLayout, type ShownEditor } from './G
 import type { ResultsApi } from './results-api.ts'
 import type { RowStore } from './row-store.ts'
 import type { OpenEditor } from './use-cell-editor.ts'
+import { type ColumnWindow, useColumnWindow } from './use-column-window.ts'
 import { type GridTable, useGridTable } from './use-grid-table.ts'
 import { useRowWindow } from './use-row-window.ts'
 
@@ -57,6 +58,7 @@ interface GridModel {
   readonly table: GridTable
   readonly virtualizer: GridVirtualizer
   readonly widths: readonly number[]
+  readonly shown: ColumnWindow
   readonly select: (selection: GridSelection) => void
 }
 
@@ -69,7 +71,7 @@ const INITIAL_RECT = { width: 800, height: 600 }
 // grid follow the rows of the view.
 export const Grid = (props: GridProps): ReactElement => {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { table, virtualizer, widths, select } = useGrid(props, scrollRef)
+  const { table, virtualizer, widths, shown, select } = useGrid(props, scrollRef)
   useFocusAfterEditing(props.edit.editor !== undefined, scrollRef)
   const { tab, store } = props
   return (
@@ -83,6 +85,7 @@ export const Grid = (props: GridProps): ReactElement => {
       <GridHeader
         table={table}
         tab={tab}
+        shown={shown}
         isDisabled={tab.status === TabStatus.Running}
         onView={props.onView}
       />
@@ -90,7 +93,7 @@ export const Grid = (props: GridProps): ReactElement => {
         items={virtualizer.getVirtualItems()}
         totalSize={virtualizer.getTotalSize() + HEADER_HEIGHT}
         rowAt={(index) => (index < tab.rowCount ? store.row(index) : undefined)}
-        layout={layoutOf(props, { widths, totalWidth: table.getTotalSize(), select })}
+        layout={layoutOf(props, { widths, shown, totalWidth: table.getTotalSize(), select })}
         events={eventsOf(props, select)}
       />
     </div>
@@ -103,6 +106,7 @@ function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
   useRowWindow(props.api, props.tab, { store: props.store, items: virtualizer.getVirtualItems() })
   useSyncExternalStore(props.store.subscribe, props.store.revision)
   const widths = table.getFlatHeaders().map((header) => header.getSize())
+  const shown = useColumnWindow(widths, scrollRef)
   const select = (selection: GridSelection): void => {
     props.onSelect(selection)
     virtualizer.scrollToIndex(selection.focus.row)
@@ -110,7 +114,7 @@ function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
       left: revealedScroll(scrollRef.current, widths, selection.focus.column),
     })
   }
-  return { table, virtualizer, widths, select }
+  return { table, virtualizer, widths, shown, select }
 }
 
 // While the rows are read again (after an apply, or to load them all) the grid keeps its height,
@@ -196,16 +200,18 @@ function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext):
 
 interface Widths {
   readonly widths: readonly number[]
+  readonly shown: ColumnWindow
   readonly totalWidth: number
   readonly select: (selection: GridSelection) => void
 }
 
-function layoutOf(props: GridProps, { widths, totalWidth, select }: Widths): RowLayout {
+function layoutOf(props: GridProps, { widths, shown, totalWidth, select }: Widths): RowLayout {
   const { tab, selection } = props
   return {
     tabId: tab.id,
     columns: tab.columns,
     widths,
+    shown,
     totalWidth,
     range: selection === undefined ? undefined : selectionRange(selection),
     focus: selection?.focus,

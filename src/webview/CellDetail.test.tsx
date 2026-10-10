@@ -20,6 +20,16 @@ describe('CellDetail', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('should show the start of a value too long for it and say how to get all of it', () => {
+    const value = 'x'.repeat(250_000)
+    render(<CellDetail column={DOC} value={value} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('note').textContent).toBe(
+      'Showing the first 200,000 of 250,000 characters: copy the cell (Ctrl+C) or export the result to get all of it.',
+    )
+    expect(screen.getByText(/^x+$/).textContent).toHaveLength(200_000)
+  })
+
   it('should wait for a value on its way', () => {
     render(<CellDetail column={DOC} value={undefined} onClose={vi.fn()} />)
 
