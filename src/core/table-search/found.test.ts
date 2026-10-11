@@ -31,7 +31,8 @@ const CRM: IndexedConnection = {
 const FRAME_MS = 16
 const LARGE_SCOPES = 30
 const TABLES_PER_SCOPE = 100
-const RUNS = 5
+// The fastest of many attempts is measured: a busy machine pauses some of them, not the code.
+const RUNS = 20
 
 function outline(branches: readonly FoundBranch[], depth = 0): string[] {
   return branches.flatMap((branch) => [

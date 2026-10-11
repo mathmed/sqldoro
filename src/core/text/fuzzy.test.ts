@@ -32,6 +32,10 @@ describe('matchName', () => {
         [4, 6],
       ],
     })
+    expect(matchName('xaxa', 'aa')?.highlights).toStrictEqual([
+      [1, 2],
+      [3, 4],
+    ])
     expect(matchName('TransactionStatus', 'tnu')?.highlights).toStrictEqual([
       [0, 1],
       [3, 4],
@@ -62,7 +66,7 @@ describe('matchName', () => {
       rank: MatchRank.WordStarts,
       start: 3,
     })
-    expect(matchName('total$Amount', 'tam')).toMatchObject({ rank: MatchRank.WordStarts })
+    expect(matchName('total$amount', 'tam')).toMatchObject({ rank: MatchRank.WordStarts })
     expect(matchName('customer orders', 'cor')).toMatchObject({
       rank: MatchRank.WordStarts,
       highlights: [
@@ -106,6 +110,7 @@ describe('matchName', () => {
     expect(matchName('orders', 'ox')).toBeUndefined()
     expect(matchName('orders', 'so')).toBeUndefined()
     expect(matchName('', 'o')).toBeUndefined()
+    expect(matchName('xa', 'aa')).toBeUndefined()
   })
 })
 
