@@ -17,8 +17,13 @@ pre-commit:
             run: npm run lint
           - name: typecheck
             run: npm run typecheck
+          # Git exports the repository being committed to its hooks (GIT_DIR, GIT_INDEX_FILE...): a
+          # git command started by a test would act on it instead of its own temporary repository.
           - name: test
-            run: npm run test:coverage
+            run: >-
+              env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX -u GIT_COMMON_DIR
+              -u GIT_OBJECT_DIRECTORY -u GIT_ALTERNATE_OBJECT_DIRECTORIES
+              npm run test:coverage
           - name: dead-code
             run: npm run dead-code
           - name: architecture
