@@ -13,6 +13,14 @@ export type ForwardingClient = Pick<Client, 'forwardOut'>
 const LOOPBACK = '127.0.0.1'
 const ANY_PORT = 0
 
+// A client may write before it hears from the server (PostgreSQL sends its startup message first):
+// a socket destroyed with those bytes unread makes the system reset the connection, and the client
+// reports ECONNRESET instead of a closed connection. Reading and discarding them closes it cleanly.
+function refuse(socket: Socket): void {
+  socket.resume()
+  socket.end()
+}
+
 // Listens on a local port and forwards every connection it accepts through the SSH client.
 export class LocalForwarder {
   readonly #server: Server
@@ -69,7 +77,7 @@ export class LocalForwarder {
     socket.on('error', this.#logged('local connection error'))
     const client = this.#client
     if (client === undefined) {
-      socket.destroy()
+      refuse(socket)
       return
     }
     const { host, port } = this.#target
@@ -83,7 +91,7 @@ export class LocalForwarder {
       this.#forwardingError = error
       const reason = describeError(error)
       this.#log.warn(`SSH tunnel: the server could not open the forwarded connection: ${reason}`)
-      socket.destroy()
+      refuse(socket)
       return
     }
     if (socket.destroyed) {

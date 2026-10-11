@@ -104,7 +104,10 @@ meet the code. Relaxing a threshold, a rule or a contract needs the owner's expl
 | Report             | `scripts/quality-report.ts`                                                                                        | One Quality Report comment per pull request, built from every job.                                                       | `quality-report` job           |
 
 Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the staged files and runs
-`make quality`'s checks in parallel; commit-msg enforces Conventional Commits. Dependabot proposes
+`make quality`'s checks in parallel (the tests without the `GIT_DIR`, `GIT_INDEX_FILE`... git exports
+to hooks, so that no test reaches the repository being committed); commit-msg enforces Conventional
+Commits. Tests that need a git repository create a throwaway one with `test/support/git.ts`, which
+also clears the inherited `GIT_*` variables and the user's git configuration for the test. Dependabot proposes
 grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5).
 
 ### Integration tests (`make integration`)
