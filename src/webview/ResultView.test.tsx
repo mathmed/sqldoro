@@ -6,8 +6,11 @@ import { resultTab } from '../../test/fixtures/results.ts'
 import { cellAt, GRID_ROWS, LONG_TEXT, pickFromMenu, theGrid } from '../../test/webview/grid.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { CellMessage, ResultTab } from '../core/results/protocol.ts'
+import { NO_ANSWERS } from './host-answers.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStore } from './row-store.ts'
+
+const CONTEXT = { connection: null, sql: null, step: null, scrolls: new Map<number, number>() }
 
 let api: FakeVsCodeApi
 let store: RowStore
@@ -18,8 +21,8 @@ function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.El
       tab={resultTab({ rowCount: 4, loadedRows: 4, ...changes })}
       store={store}
       api={api}
-      cell={answer}
-      connection={null}
+      answers={{ ...NO_ANSWERS, cell: answer }}
+      context={CONTEXT}
       hasTabs={false}
     />
   )
@@ -79,10 +82,10 @@ describe('ResultView', () => {
     fireEvent.keyDown(theGrid(), { key: 'c', ctrlKey: true })
     pickFromMenu('Copy the selection', 'Copy as JSON')
 
-    const range = { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 1 }
+    const block = { firstRow: 0, lastRow: 1, columns: [0, 1] }
     expect(sent('copy')).toStrictEqual([
-      { type: 'copy', tabId: 'tab-1', viewVersion: 0, range, format: 'tsv' },
-      { type: 'copy', tabId: 'tab-1', viewVersion: 0, range, format: 'json' },
+      { type: 'copy', tabId: 'tab-1', viewVersion: 0, block, format: 'tsv' },
+      { type: 'copy', tabId: 'tab-1', viewVersion: 0, block, format: 'json' },
     ])
   })
 
@@ -202,7 +205,7 @@ describe('ResultView', () => {
     rerender(element({ status: 'running', summary: null }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Rows whose name contains' }), {
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value of name' }), {
       key: 'Enter',
     })
 

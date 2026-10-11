@@ -15,6 +15,7 @@ const ROWS = [
 
 function rows(): ResultSet {
   const result = new ResultSet({
+    values: [],
     id: 't',
     sql: 'SELECT * FROM sales.orders',
     kind: 'rows',
@@ -37,8 +38,8 @@ function setCellOf(
   source: ResultSet,
   [row, column, input]: readonly [number, number, string],
 ): boolean {
-  const range = { firstRow: row, lastRow: row, firstColumn: column, lastColumn: column }
-  return sut.act({ kind: EditKind.Set, range, input }, source)
+  const block = { firstRow: row, lastRow: row, columns: [column] }
+  return sut.act({ kind: EditKind.Set, block, input }, source)
 }
 
 function setNote(sut: TabEditor, source: ResultSet, input = 'x'): boolean {
@@ -160,7 +161,7 @@ describe('TabEditor', () => {
     sut.act(
       {
         kind: EditKind.Delete,
-        range: { firstRow: 0, lastRow: 1000, firstColumn: 0, lastColumn: 0 },
+        block: { firstRow: 0, lastRow: 1000, columns: [0] },
         input: '',
       },
       source,
@@ -203,7 +204,7 @@ describe('TabEditor', () => {
     const { sut, source } = editable()
     setNote(sut, source)
     sut.preview(source, SETTING)
-    sut.act({ kind: EditKind.RevertAll, range: null, input: '' }, source)
+    sut.act({ kind: EditKind.RevertAll, block: null, input: '' }, source)
 
     expect(sut.preview(source, SETTING)).toBe(true)
     expect(sut.toWire(source)).toMatchObject({
@@ -268,7 +269,7 @@ describe('TabEditor', () => {
   it('should keep the changes and mark the rows an apply could not take', () => {
     const { sut, source } = editable()
     setNote(sut, source)
-    sut.act({ kind: EditKind.Insert, range: null, input: '' }, source)
+    sut.act({ kind: EditKind.Insert, block: null, input: '' }, source)
     setCellOf(sut, source, [2, 0, '3'])
     setCellOf(sut, source, [2, 1, 'A-3'])
     sut.preview(source, SETTING)
@@ -303,13 +304,13 @@ describe('TabEditor', () => {
 
   it('should drop the changes of rows that are read again, never reusing new row ids', () => {
     const { sut, source } = editable()
-    sut.act({ kind: EditKind.Insert, range: null, input: '' }, source)
+    sut.act({ kind: EditKind.Insert, block: null, input: '' }, source)
     sut.notify('Applied.', true)
 
     sut.reset()
     sut.finishCheck(sut.startCheck(), { table: POSTGRES_ORDERS })
     expect(sut.toWire(source)).toMatchObject({ notice: '', isNoticeError: false, newRows: [] })
-    sut.act({ kind: EditKind.Insert, range: null, input: '' }, source)
+    sut.act({ kind: EditKind.Insert, block: null, input: '' }, source)
 
     expect(sut.toWire(source)).toMatchObject({ newRows: [{ id: 2 }], notice: '' })
   })
@@ -318,7 +319,7 @@ describe('TabEditor', () => {
     const { sut, source } = editable()
     setNote(sut, source)
 
-    source.applyView({ sort: [], filters: [{ column: 1, text: 'A-1' }] })
+    source.applyView({ sort: [], filters: [{ column: 1, operator: 'contains', values: ['A-1'] }] })
 
     expect(sut.toWire(source)).toMatchObject({ rows: [], hiddenRows: 1 })
   })

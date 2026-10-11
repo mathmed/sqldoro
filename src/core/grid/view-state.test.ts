@@ -1,85 +1,75 @@
 import { describe, expect, it } from 'vitest'
 
+import { FilterOperator } from '../results/conditions.ts'
 import {
-  filtersOf,
-  filterText,
+  columnFilters,
   sortedBy,
   sortingOf,
-  viewOf,
-  withFilter,
+  sortOf,
+  withColumnFilters,
   withoutSort,
 } from './view-state.ts'
 
+const AB = { column: 1, operator: FilterOperator.Contains, values: ['ab'] }
 const VIEW = {
   sort: [
     { column: 2, isDescending: true },
     { column: 0, isDescending: false },
   ],
-  filters: [{ column: 1, text: 'ab' }],
+  filters: [AB],
 }
 
 describe('view state', () => {
-  it('should write a view as column ids', () => {
+  it('should write a sort as column ids', () => {
     expect(sortingOf(VIEW)).toStrictEqual([
       { id: '2', isDescending: true },
       { id: '0', isDescending: false },
     ])
-    expect(filtersOf(VIEW)).toStrictEqual([{ id: '1', value: 'ab' }])
   })
 
-  it('should read the view back', () => {
-    expect(viewOf(sortingOf(VIEW), filtersOf(VIEW))).toStrictEqual(VIEW)
+  it('should read the sort back', () => {
+    expect(sortOf(sortingOf(VIEW))).toStrictEqual(VIEW.sort)
   })
 
-  it('should leave out what is not a column position or a text filter', () => {
+  it('should leave out what is not a column position', () => {
     expect(
-      viewOf(
-        [
-          { id: 'x', isDescending: true },
-          { id: '1a', isDescending: false },
-          { id: 'a1', isDescending: false },
-          { id: '3', isDescending: false },
-          { id: '12', isDescending: true },
-        ],
-        [
-          { id: '1', value: 5 },
-          { id: 'y', value: 'a' },
-          { id: '4', value: '' },
-        ],
-      ),
-    ).toStrictEqual({
-      sort: [
-        { column: 3, isDescending: false },
-        { column: 12, isDescending: true },
-      ],
-      filters: [{ column: 4, text: '' }],
-    })
+      sortOf([
+        { id: 'x', isDescending: true },
+        { id: '1a', isDescending: false },
+        { id: 'a1', isDescending: false },
+        { id: '3', isDescending: false },
+        { id: '12', isDescending: true },
+      ]),
+    ).toStrictEqual([
+      { column: 3, isDescending: false },
+      { column: 12, isDescending: true },
+    ])
   })
 })
 
-describe('withFilter and filterText', () => {
-  it('should set, replace and remove the filter of a column, keeping the sort', () => {
-    const added = withFilter(VIEW, 3, 'x')
-    const replaced = withFilter(added, 1, 'cd')
-    const removed = withFilter(replaced, 3, '')
+describe('withColumnFilters and columnFilters', () => {
+  it('should set, replace and remove the filters of a column, keeping the sort', () => {
+    const greater = { operator: FilterOperator.Greater, values: ['1'] }
+    const less = { operator: FilterOperator.Less, values: ['9'] }
+    const added = withColumnFilters(VIEW, 3, [greater, less])
+    const replaced = withColumnFilters(added, 1, [less])
+    const removed = withColumnFilters(replaced, 3, [])
 
     expect(added).toStrictEqual({
       sort: VIEW.sort,
-      filters: [
-        { column: 1, text: 'ab' },
-        { column: 3, text: 'x' },
-      ],
+      filters: [AB, { ...greater, column: 3 }, { ...less, column: 3 }],
     })
     expect(replaced.filters).toStrictEqual([
-      { column: 3, text: 'x' },
-      { column: 1, text: 'cd' },
+      { ...greater, column: 3 },
+      { ...less, column: 3 },
+      { ...less, column: 1 },
     ])
-    expect(removed).toStrictEqual({ sort: VIEW.sort, filters: [{ column: 1, text: 'cd' }] })
+    expect(removed).toStrictEqual({ sort: VIEW.sort, filters: [{ ...less, column: 1 }] })
   })
 
-  it('should read the filter of a column, empty without one', () => {
-    expect(filterText(VIEW, 1)).toBe('ab')
-    expect(filterText(VIEW, 0)).toBe('')
+  it('should read the filters of a column, none without them', () => {
+    expect(columnFilters(VIEW, 1)).toStrictEqual([AB])
+    expect(columnFilters(VIEW, 0)).toStrictEqual([])
   })
 })
 

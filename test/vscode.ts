@@ -11,6 +11,7 @@ import {
 import { type Disposable, resetWorkbench } from './vscode/workbench.ts'
 
 export * from './vscode/languages.ts'
+export * from './vscode/pickers.ts'
 export * from './vscode/tabs.ts'
 export * from './vscode/text.ts'
 export * from './vscode/uri.ts'
@@ -78,8 +79,14 @@ export class ThemeIcon {
   }
 }
 
-export class TreeItem {
+// A label with parts of it highlighted (the matches of a filter), as start and end offsets.
+export interface TreeItemLabel {
   readonly label: string
+  readonly highlights?: readonly (readonly [number, number])[]
+}
+
+export class TreeItem {
+  label: string | TreeItemLabel
   collapsibleState: number
   id?: string
   description?: string
@@ -88,7 +95,7 @@ export class TreeItem {
   contextValue?: string
   command?: { command: string; title: string; arguments?: unknown[] }
 
-  constructor(label: string, collapsibleState = TreeItemCollapsibleState.None) {
+  constructor(label: string | TreeItemLabel, collapsibleState = TreeItemCollapsibleState.None) {
     this.label = label
     this.collapsibleState = collapsibleState
   }

@@ -4,6 +4,8 @@ import { buildGreeting } from '../core/greeting.ts'
 import { CommandId, ViewId } from './command-id.ts'
 import { registerConnectionCommands } from './commands/connection-commands.ts'
 import { registerExplorerCommands } from './commands/explorer-commands.ts'
+import { registerFindCommands } from './commands/find-commands.ts'
+import { registerFolderCommands } from './commands/folder-commands.ts'
 import { registerWriteAccessCommands } from './commands/write-access-commands.ts'
 import { listServerDatabases, pingServer } from './connections/server-test.ts'
 import type { EditorSessions } from './editor/editor-sessions.ts'
@@ -73,6 +75,8 @@ function registerConnections(
     ...disposablesOf(services),
     ...registerConnectionCommands(commandContext),
     ...registerExplorerCommands(commandContext),
+    ...registerFolderCommands(commandContext),
+    ...registerFindCommands(commandContext),
     ...registerWriteAccessCommands({
       service: services.service,
       policy: () => readSettings().policy,

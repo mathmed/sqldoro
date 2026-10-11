@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TimeoutError, withTimeout } from './timeout.ts'
+import { delay, TimeoutError, withTimeout } from './timeout.ts'
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -32,5 +32,21 @@ describe('withTimeout', () => {
     vi.advanceTimersByTime(1)
     await expect(outcome).rejects.toThrow(new TimeoutError('The keyring did not answer'))
     await expect(outcome).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+})
+
+describe('delay', () => {
+  it('should resolve once the time went by, not before', async () => {
+    let isDone = false
+    const sut = delay(150).then(() => {
+      isDone = true
+    })
+
+    await vi.advanceTimersByTimeAsync(149)
+    expect(isDone).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await sut
+
+    expect(isDone).toBe(true)
   })
 })

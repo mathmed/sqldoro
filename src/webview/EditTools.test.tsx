@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { editableTab, resultTab } from '../../test/fixtures/results.ts'
 import { buttonIn } from '../../test/webview/grid.ts'
-import type { PendingRow, TabEditing } from '../core/results/protocol.ts'
+import type { PendingRow, TabEditing } from '../core/results/tab-editing.ts'
 import type { EditActions } from './edit-messages.ts'
 import { EditTools } from './EditTools.tsx'
 
@@ -50,7 +50,6 @@ describe('EditTools', () => {
   it.each([
     ['nothing to edit', resultTab().editing],
     ['rows being checked', { ...resultTab().editing, state: 'checking' }],
-    ['read-only rows', { ...resultTab().editing, state: 'readOnly' }],
   ] as const)('should not show for %s', (...[, editing]) => {
     render(<EditTools tab={resultTab({ editing })} hasSelection actions={editActions()} />)
 
@@ -104,5 +103,20 @@ describe('EditTools', () => {
     renderTools({ state: 'applying', rows: [CHANGED_ROW] }, { hasSelection: true })
 
     expect(enabledButtons()).toStrictEqual([])
+  })
+
+  it('should show the tools off for read-only rows, saying why', () => {
+    render(
+      <EditTools
+        tab={editableTab({ state: 'readOnly', problem: 'The result has no key.' })}
+        hasSelection
+        actions={editActions()}
+      />,
+    )
+
+    expect(enabledButtons()).toStrictEqual([])
+    expect(buttonIn('Rows', 'Add Row').title).toBe('Read-only: The result has no key.')
+    expect(buttonIn('Changes', 'Preview Changes…').title).toBe('Read-only: The result has no key.')
+    expect(buttonIn('Changes', 'Revert All').title).toBe('Read-only: The result has no key.')
   })
 })

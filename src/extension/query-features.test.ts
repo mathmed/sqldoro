@@ -10,6 +10,7 @@ import {
   diagnosticCollections,
   type FakeTextDocument,
   type FakeWebviewPanel,
+  fileDecorationProviders,
   outputChannels,
   Position,
   Range,
@@ -49,9 +50,9 @@ const SHOP = {
 const subscriptions: vscode.Disposable[] = []
 let workspaceState: FakeMemento
 
-async function activated(): Promise<void> {
+async function activated(connection: object = SHOP): Promise<void> {
   const globalState = new FakeMemento()
-  await globalState.update('sqldoro.connections', { version: 1, connections: [SHOP] })
+  await globalState.update('sqldoro.connections', { version: 1, connections: [connection] })
   activate({
     extensionMode: vscode.ExtensionMode.Production,
     subscriptions,
@@ -248,6 +249,38 @@ describe('the SQL editor features', () => {
     expect(panel.isDisposed).toBe(true)
     await vi.waitFor(() => {
       expect(tableClient?.isEnded).toBe(true)
+    })
+  })
+
+  it('should badge the editors of a tagged connection with its environment', async () => {
+    await activated({ ...SHOP, environment: 'staging' })
+    const document = await newQueryEditor()
+
+    const decoration = fileDecorationProviders.at(-1)?.provideFileDecoration(document.uri)
+
+    expect(decoration).toMatchObject({ badge: 'S', tooltip: 'Runs on "Shop" (Staging)' })
+  })
+
+  it('should ask to allow writes from the results of an editor and of a table', async () => {
+    await activated()
+    await newQueryEditor()
+    const showing = vscode.commands.executeCommand(CommandId.ShowResults)
+    webviewPanels[0]?.webview.send({ type: 'ready' })
+    await showing
+    const opening = vscode.commands.executeCommand(CommandId.OpenTableData, {
+      kind: 'table',
+      connectionId: 'shop',
+      place: { database: 'shop', schema: 'public', name: 'orders' },
+    })
+    const [results, table] = webviewPanels
+    table?.webview.send({ type: 'ready' })
+    await opening
+
+    results?.webview.send({ type: 'allowWrites' })
+    table?.webview.send({ type: 'allowWrites' })
+
+    await vi.waitFor(() => {
+      expect(window.showWarningMessage).toHaveBeenCalledTimes(2)
     })
   })
 

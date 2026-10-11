@@ -7,6 +7,7 @@ import { describeError } from '../../core/text/errors.ts'
 import type { ConnectionState } from '../sessions/session-manager.ts'
 
 export const NodeKind = {
+  Folder: 'folder',
   Connection: 'connection',
   Database: 'database',
   Schema: 'schema',
@@ -30,6 +31,8 @@ export interface NodeContext {
   readonly state: (connectionId: string) => ConnectionState
   readonly session: (connectionId: string) => EngineSession | undefined
   readonly filter: string
+  // Whether an environment tag counts as production, as the settings say.
+  readonly isProduction: (environment: string) => boolean
   readonly log: Logger
   // What a node said of its children when they loaded (how many tables), until the next refresh.
   readonly summaryOf: (node: Pick<ExplorerNode, 'connectionId' | 'id'>) => string | undefined
@@ -79,6 +82,13 @@ export function isObjectNode(value: unknown): value is ExplorerNode {
     value !== null &&
     'kind' in value &&
     (value.kind === NodeKind.Table || value.kind === NodeKind.View)
+  )
+}
+
+// What the commands of folders (Rename Folder, Delete Folder) are run on.
+export function isFolderNode(value: unknown): value is ExplorerNode {
+  return (
+    typeof value === 'object' && value !== null && 'kind' in value && value.kind === NodeKind.Folder
   )
 }
 

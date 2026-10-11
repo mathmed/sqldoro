@@ -8,9 +8,11 @@ import {
   readNested,
   readOneOf,
   readString,
+  readStrings,
 } from '../json/record.ts'
-import type { CellRange } from './protocol.ts'
-import type { ColumnFilter, SortKey, ViewSpec } from './view.ts'
+import { type ColumnFilter, isFilterOperator } from './conditions.ts'
+import type { CellBlock } from './protocol.ts'
+import type { SortKey, ViewSpec } from './view.ts'
 
 const CELL_TYPES: ReadonlySet<string> = new Set(['boolean', 'number', 'string'])
 
@@ -61,17 +63,19 @@ function readSortKey(key: JsonRecord): SortKey {
 }
 
 function readFilter(filter: JsonRecord): ColumnFilter {
-  return { column: readCount(filter, 'column'), text: readString(filter, 'text') }
+  return {
+    column: readCount(filter, 'column'),
+    operator: readOneOf(filter, 'operator', isFilterOperator),
+    values: readStrings(filter, 'values'),
+  }
 }
 
-export function readRange(record: JsonRecord, key: string): CellRange {
-  const range = readNested(record, key)
-  const firstRow = readCount(range, 'firstRow')
-  const lastRow = readCount(range, 'lastRow')
-  const firstColumn = readCount(range, 'firstColumn')
-  const lastColumn = readCount(range, 'lastColumn')
-  if (firstRow > lastRow || firstColumn > lastColumn) {
+export function readBlock(record: JsonRecord, key: string): CellBlock {
+  const block = readNested(record, key)
+  const firstRow = readCount(block, 'firstRow')
+  const lastRow = readCount(block, 'lastRow')
+  if (firstRow > lastRow) {
     throw new TypeError(`"${key}" must start before it ends`)
   }
-  return { firstRow, lastRow, firstColumn, lastColumn }
+  return { firstRow, lastRow, columns: readCounts(block, 'columns') }
 }

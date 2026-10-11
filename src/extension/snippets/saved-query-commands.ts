@@ -6,10 +6,10 @@ import {
   folderPaths,
   freeName,
   importQueries,
-  normalizeFolder,
   queryNameProblem,
   type SavedQuery,
 } from '../../core/snippets/saved-queries.ts'
+import { normalizeFolder } from '../../core/text/folder-paths.ts'
 import { CommandId, SQL_LANGUAGE } from '../command-id.ts'
 import { registerAll } from '../commands/command-context.ts'
 import type { EditorBindings } from '../editor/bindings.ts'

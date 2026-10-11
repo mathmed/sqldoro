@@ -206,21 +206,24 @@ describe('the failures of a table panel', () => {
 })
 
 describe('the rows of a table panel', () => {
-  it('should read the rows again in the same view on Refresh, with the automatic limit', async () => {
+  it('should sort on the server, then read the rows again in the same view on Refresh', async () => {
     harness.dispose()
     harness = await tableHarness({ autoLimit: 1 })
     answerOrders(harness)
     const { panel, tab } = await openTable(harness)
     const view = { sort: [{ column: 0, isDescending: true }], filters: [] }
+    const sorted = `${ORDERS_SQL}\nORDER BY "id" DESC LIMIT 2`
     panel.webview.send({ type: 'setView', tabId: tab.id, view, isServerSide: false })
+    await vi.waitFor(() => {
+      expect(tab.toTab()).toMatchObject({ status: 'succeeded', view, isServerView: true })
+    })
 
     panel.webview.send({ type: 'refresh', tabId: tab.id })
 
     await vi.waitFor(() => {
-      expect(sent()).toStrictEqual([`${ORDERS_SQL} LIMIT 2`, `${ORDERS_SQL} LIMIT 2`])
+      expect(sent()).toStrictEqual([`${ORDERS_SQL} LIMIT 2`, sorted, sorted])
       expect(tab.toTab()).toMatchObject({ status: 'succeeded', view })
     })
-    expect(tab.rows(0, 1)[0]?.[0]).toBe(2)
     expect(harness.records).toStrictEqual([])
   })
 
@@ -245,7 +248,7 @@ describe('the rows of a table panel', () => {
     await vi.waitFor(() => {
       expect(editingOf(result.tab).state).toBe('editable')
     })
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'birthday' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'birthday' })
 
     await previewAndApply(result)
 
@@ -279,7 +282,7 @@ describe('the rows of a table panel', () => {
     await vi.waitFor(() => {
       expect(editingOf(result.tab).state).toBe('editable')
     })
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'birthday' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'birthday' })
 
     result.panel.webview.send({ type: 'refresh', tabId: result.tab.id })
 

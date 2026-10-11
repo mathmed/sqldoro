@@ -122,6 +122,7 @@ describe('firstIssue', () => {
       ConnectionField.User,
       ConnectionField.Port,
       ConnectionField.Host,
+      ConnectionField.Folder,
       ConnectionField.Name,
       ConnectionField.Engine,
     ]

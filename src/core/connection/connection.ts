@@ -11,6 +11,20 @@ export const EnvironmentTag = {
 
 export type EnvironmentTag = (typeof EnvironmentTag)[keyof typeof EnvironmentTag]
 
+// A color the user gives a connection to tell it apart: its icon in the explorer and the badge of
+// its editors and panels take it. Production stays red whatever the color.
+export const ConnectionColor = {
+  None: '',
+  Red: 'red',
+  Orange: 'orange',
+  Yellow: 'yellow',
+  Green: 'green',
+  Blue: 'blue',
+  Purple: 'purple',
+} as const
+
+export type ConnectionColor = (typeof ConnectionColor)[keyof typeof ConnectionColor]
+
 export const SslMode = {
   Disable: 'disable',
   Require: 'require',
@@ -60,6 +74,9 @@ export interface ConnectionConfig {
   readonly ssh: SshTunnelOptions | undefined
   readonly environment: EnvironmentTag
   readonly isReadOnly: boolean
+  readonly color: ConnectionColor
+  // The folder of the Connections view it shows in ("clients/acme"); empty for none.
+  readonly folder: string
 }
 
 const DEFAULT_HOST = 'localhost'
@@ -82,11 +99,16 @@ export const DEFAULT_SSH_TUNNEL: SshTunnelOptions = {
 }
 
 const ENVIRONMENT_TAGS: ReadonlySet<string> = new Set(Object.values(EnvironmentTag))
+const CONNECTION_COLORS: ReadonlySet<string> = new Set(Object.values(ConnectionColor))
 const SSL_MODES: ReadonlySet<string> = new Set(Object.values(SslMode))
 const SSH_AUTH_METHODS: ReadonlySet<string> = new Set(Object.values(SshAuthMethod))
 
 export function isEnvironmentTag(value: unknown): value is EnvironmentTag {
   return typeof value === 'string' && ENVIRONMENT_TAGS.has(value)
+}
+
+export function isConnectionColor(value: unknown): value is ConnectionColor {
+  return typeof value === 'string' && CONNECTION_COLORS.has(value)
 }
 
 export function isSslMode(value: unknown): value is SslMode {
@@ -111,6 +133,8 @@ export function newConnection(id: string, engine: EngineDescriptor): ConnectionC
     ssh: undefined,
     environment: EnvironmentTag.None,
     isReadOnly: true,
+    color: ConnectionColor.None,
+    folder: '',
   }
 }
 
@@ -123,8 +147,8 @@ export function duplicateConnection(
 }
 
 // Whether an edit changes the sessions of the connection: how it reaches the database, and whether
-// the server refuses writes (read-only sessions). The name and the tag do not: an open session can
-// stay open.
+// the server refuses writes (read-only sessions). The name, the tag, the color and the folder do not:
+// an open session can stay open.
 export function changesSession(previous: ConnectionConfig, next: ConnectionConfig): boolean {
   return JSON.stringify(sessionFields(previous)) !== JSON.stringify(sessionFields(next))
 }

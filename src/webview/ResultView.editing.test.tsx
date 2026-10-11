@@ -154,4 +154,21 @@ describe('ResultView, editing a cell', () => {
     expect(hasEditor()).toBe(false)
     expect(sent('edit')).toStrictEqual([])
   })
+
+  it('should put the value of an enum picked from its list in at once', () => {
+    const { sent } = editingView({
+      editing: {
+        columns: [
+          { type: 'integer', min: '0', max: '9' },
+          { type: 'choice', options: ['ann', 'bob'], isMultiple: false },
+        ],
+      },
+    })
+    fireEvent.doubleClick(cellAt(0, 1))
+
+    fireEvent.click(screen.getByRole('option', { name: 'bob' }))
+
+    expect(sent('edit')).toStrictEqual([setEdit(0, 1, 'bob')])
+    expect(focused()).toBe('cell-tab-1-0-1')
+  })
 })

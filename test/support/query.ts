@@ -5,34 +5,28 @@ import type * as vscode from 'vscode'
 
 import { type ConnectionConfig, newConnection } from '../../src/core/connection/connection.ts'
 import type { EditorBinding } from '../../src/core/editor/binding.ts'
-import { BatchMode, batchMode } from '../../src/core/edits/batch.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { HistoryEntry } from '../../src/core/history/history.ts'
 import type { GuardPolicy } from '../../src/core/safety/guard.ts'
 import { TransactionMode } from '../../src/core/safety/transaction.ts'
 import type { SessionRequest } from '../../src/core/session/open-session.ts'
+import { SchemaCache } from '../../src/extension/completion/schema-cache.ts'
 import { EditorBindings } from '../../src/extension/editor/bindings.ts'
 import { EditorSessions } from '../../src/extension/editor/editor-sessions.ts'
-import { loadAllRows } from '../../src/extension/editor/load-all.ts'
 import { QueryRunner } from '../../src/extension/editor/query-runner.ts'
-import { refreshTab } from '../../src/extension/editor/refresh-rows.ts'
-import { runServerView } from '../../src/extension/editor/server-view.ts'
-import { applyEdits } from '../../src/extension/edits/apply-edits.ts'
 import { checkEditing } from '../../src/extension/edits/edit-check.ts'
+import { describeResult } from '../../src/extension/metadata/describe-result.ts'
+import { TableMetadata } from '../../src/extension/metadata/table-metadata.ts'
+import { PeekCache } from '../../src/extension/navigation/peek.ts'
 import type { Clock } from '../../src/extension/platform/clock.ts'
-import {
-  copyColumnName,
-  copyRows,
-  exportRows,
-} from '../../src/extension/results/results-actions.ts'
+import { actionsOf, type PanelWiring } from '../../src/extension/results/panel-wiring.ts'
 import { ResultsPanels } from '../../src/extension/results/results-panels.ts'
 import { sourceTitle } from '../../src/extension/results/source-title.ts'
 import { StatementGuard } from '../../src/extension/safety/statement-guard.ts'
-import { filterTable } from '../../src/extension/tables/table-filter.ts'
-import {
-  CloseReason,
-  EditorTransactions,
-} from '../../src/extension/transactions/editor-transactions.ts'
+import { ColumnLayouts } from '../../src/extension/tables/column-layouts.ts'
+import { TableNavigations } from '../../src/extension/tables/table-navigations.ts'
+import { tableTargetOf } from '../../src/extension/tables/table-uri.ts'
+import { EditorTransactions } from '../../src/extension/transactions/editor-transactions.ts'
 import { fakeEngine } from '../fakes/engine.ts'
 import { FakeMemento } from '../fakes/extension-context.ts'
 import { type RecordingLogger, recordingLogger } from '../fakes/logger.ts'
@@ -98,6 +92,9 @@ export interface QueryHarness {
   readonly log: RecordingLogger
   readonly clock: Clock
   readonly connections: Map<string, ConnectionConfig>
+  // The table panels, their trails and the catalog they read; the ids of the tabs they opened.
+  readonly tables: PanelWiring['tables']
+  readonly tabIds: string[]
 }
 
 export interface HarnessOptions {
@@ -177,36 +174,19 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
   )
   const clock = steppingClock()
   const engines = new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE])
+  const navigations = new TableNavigations()
+  const metadata = new TableMetadata(new SchemaCache(log))
   const panels = new ResultsPanels({
     extensionUri: Uri.file('/extension') as unknown as vscode.Uri,
     now: clock.now,
     log,
-    actionsFor: (uri) => ({
-      cancel: () => void runner.cancel(uri),
-      serverView: async (tab, view) =>
-        runServerView(runner, uri, { tab, view, shouldAutoLimit: true }),
-      loadAll: async (tab) => loadAllRows(runner, uri, tab),
-      refresh: async (tab) => refreshTab(runner, uri, tab),
-      filterTable: async (tab, condition) => filterTable(runner, uri, { tab, condition }),
-      copy: copyRows,
-      export: exportRows,
-      copyColumnName,
-      applyEdits: async (tab, plan) =>
-        applyEdits(
-          {
-            runner,
-            policy: () => policy,
-            transactions,
-            log,
-            closeSession: async (editor) =>
-              editorSessions.release(editor, CloseReason.RollbackFailed),
-          },
-          uri,
-          { tab, plan },
-        ),
-      isInOpenTransaction: () => batchMode(transactions.of(uri.toString())) === BatchMode.Joined,
-    }),
-    titleOf: (uri) => sourceTitle(uri, { connections: (id) => connections.get(id), engines }),
+    actionsFor: (uri) => actionsOf(uri, wiring),
+    titleOf: (uri) =>
+      sourceTitle(uri, {
+        connections: (id) => connections.get(id),
+        engines,
+        tableOf: (source) => navigations.current(source)?.table,
+      }),
   })
   const diagnostics = languages.createDiagnosticCollection(
     'sqldoro',
@@ -232,10 +212,39 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     pickBinding,
     checkEditing: (parts, tab) => {
       void checkEditing(parts, tab, log)
+      void describeResult(parts, tab, { metadata, log })
     },
     log,
   })
+  const tabIds: string[] = []
+  const tables: PanelWiring['tables'] = {
+    runner,
+    panels,
+    navigations,
+    layouts: new ColumnLayouts(new FakeMemento(), log),
+    metadata,
+    peeks: new PeekCache(),
+    bindings,
+    connections: (id) => connections.get(id),
+    engines,
+    catalogOf: async () => Promise.resolve(engine.session()),
+    connectionOf: (uri) => tableTargetOf(uri)?.connectionId ?? bindings.get(uri)?.connectionId,
+    createId: () => {
+      tabIds.push(`table-${String(tabIds.length + 1)}`)
+      return tabIds.at(-1) ?? ''
+    },
+    log,
+  }
+  const wiring: PanelWiring = {
+    runner,
+    transactions,
+    editorSessions,
+    tables,
+    policy: () => policy,
+  }
   return {
+    tables,
+    tabIds,
     runner,
     engine,
     bindings,

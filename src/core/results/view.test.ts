@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { ColumnKind, type ResultColumn, type Row } from '../engine/query.ts'
-import {
-  activeFilters,
-  applyView,
-  IDENTITY_VIEW,
-  isIdentityView,
-  matchesCell,
-  searchRows,
-} from './view.ts'
+import { type ColumnFilter, FilterOperator } from './conditions.ts'
+import { activeFilters, applyView, IDENTITY_VIEW, isIdentityView, searchRows } from './view.ts'
 
 const COLUMNS: readonly ResultColumn[] = [
   { name: 'id', dataType: 'INT8', kind: ColumnKind.Number },
@@ -23,37 +17,25 @@ const ROWS: readonly Row[] = [
   ['9', 'apple 2', true],
 ]
 
+function contains(column: number, text: string): ColumnFilter {
+  return { column, operator: FilterOperator.Contains, values: [text] }
+}
+
 describe('isIdentityView and activeFilters', () => {
-  it('should see a view without sort and with empty filters as the identity', () => {
+  it('should see a view without sort and with incomplete filters as the identity', () => {
     expect(isIdentityView(IDENTITY_VIEW)).toBe(true)
-    expect(isIdentityView({ sort: [], filters: [{ column: 0, text: '' }] })).toBe(true)
+    expect(isIdentityView({ sort: [], filters: [contains(0, '')] })).toBe(true)
     expect(isIdentityView({ sort: [{ column: 0, isDescending: false }], filters: [] })).toBe(false)
-    expect(isIdentityView({ sort: [], filters: [{ column: 0, text: 'a' }] })).toBe(false)
+    expect(isIdentityView({ sort: [], filters: [contains(0, 'a')] })).toBe(false)
   })
 
-  it('should keep the filters that have text', () => {
+  it('should keep the filters that have their values', () => {
     expect(
       activeFilters({
         sort: [],
-        filters: [
-          { column: 0, text: '' },
-          { column: 1, text: 'x' },
-        ],
+        filters: [contains(0, ''), contains(1, 'x')],
       }),
-    ).toStrictEqual([{ column: 1, text: 'x' }])
-  })
-})
-
-describe('matchesCell', () => {
-  it('should match part of the text without case', () => {
-    expect(matchesCell('Banana', 'NAN')).toBe(true)
-    expect(matchesCell(123, '23')).toBe(true)
-    expect(matchesCell(true, 'ru')).toBe(true)
-    expect(matchesCell('Banana', 'x')).toBe(false)
-  })
-
-  it('should never match NULL, even with its name', () => {
-    expect(matchesCell(null, 'null')).toBe(false)
+    ).toStrictEqual([contains(1, 'x')])
   })
 })
 
@@ -66,18 +48,28 @@ describe('applyView', () => {
     const view = {
       sort: [],
       filters: [
-        { column: 1, text: 'APP' },
-        { column: 2, text: 'true' },
+        contains(1, 'APP'),
+        { column: 2, operator: FilterOperator.Equals, values: ['true'] },
       ],
     }
 
     expect(applyView(ROWS, COLUMNS, view)).toStrictEqual([4])
   })
 
+  it('should keep the rows that meet every filter of the same column', () => {
+    const view = {
+      sort: [],
+      filters: [
+        { column: 0, operator: FilterOperator.GreaterOrEqual, values: ['9'] },
+        { column: 0, operator: FilterOperator.Less, values: ['100'] },
+      ],
+    }
+
+    expect(applyView(ROWS, COLUMNS, view)).toStrictEqual([0, 1, 4])
+  })
+
   it('should match nothing for a filter on a column that does not exist', () => {
-    expect(
-      applyView(ROWS, COLUMNS, { sort: [], filters: [{ column: 9, text: 'a' }] }),
-    ).toStrictEqual([])
+    expect(applyView(ROWS, COLUMNS, { sort: [], filters: [contains(9, 'a')] })).toStrictEqual([])
   })
 
   it('should sort exact numbers by value, NULLs last, equal rows in their order', () => {

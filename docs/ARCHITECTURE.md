@@ -164,8 +164,30 @@ are views of the rows the host holds (`ResultSet`): the webview sends the view o
 host computes the order with pure functions of the core (`applyView`, `searchRows`) and bumps the
 view version, and the webview asks for the windows of the new order. The search keeps applying over a
 view sorted and filtered on the server, and again once a run brings new rows. The host handles the
-messages of the view in `src/extension/results/panel-requests.ts`; the panel itself
-(`results-panel.ts`) keeps the tabs of the run and what it posts.
+messages of the view in `src/extension/results/panel-requests.ts` (the navigation, layout and
+catalog requests in `panel-navigation-requests.ts`); the panel itself (`results-panel.ts`) keeps the
+tabs of the run and what it posts. The protocol is split by what it describes: the messages in
+`protocol.ts`, the editing of a tab in `tab-editing.ts`, what the catalog says of its columns and
+rows in `tab-meta.ts`.
+
+The filter of a column is a list of conditions (`src/core/results/conditions.ts`: an operator and its
+values, which operators each kind of column takes), all of which a row meets. In the host they match
+the rows held with exact comparisons (`filter-match.ts`: numbers compared as decimal text, never as
+floating point); on the server they become conditions with bound values (`filter-sql.ts`), each cast
+to the type the catalog says the column is compared as (`binders.ts`), with `LIKE` patterns escaped.
+The values of a column offered by its filter come from the rows held (`ResultSet.distinct`), at most 500.
+
+The grid shows the columns of the tab's layout (`src/core/grid/column-layout.ts`: the order and the
+hidden columns, by column key, so that a layout still fits after a column is added or dropped). The
+webview projects the tab, its rows, its view and its editing onto the columns shown and works in them
+only (`src/core/grid/column-projection.ts`, `src/webview/projection.ts`); every message it sends is
+translated back to the columns of the result before it leaves. Copy and export take the columns
+shown, in their order. A table panel keeps its layout per table in the workspace state
+(`src/extension/tables/column-layouts.ts`).
+
+While a statement runs, the tab says where it is (`TabProgress`: connecting, running, fetching): the
+view shows a card after 150 ms with the time it has taken and Cancel, and keeps the rows of the view
+before (dimmed) until the first rows of the new one come (`RowStore`).
 
 ## The explorer and the catalog statistics
 
@@ -184,7 +206,15 @@ why at debug level, so a missing statistic never breaks a node. The core writes 
 How many tables or views a group holds comes from the list it already loads: the node summarizes its
 children while they load, the provider keeps that summary beside the cached children and tells VS Code
 to draw the node again. A table or database node knows the node whose list it comes from
-(`listedBy`), so refreshing it reads that list again, with its statistics.
+(`listedBy`), so refreshing it reads that list again, with its statistics. A list that takes more than
+150 ms shows a node that says what loads.
+
+Connections can sit in folders (`clients/acme`, `src/core/connection/folders.ts`): the view shows the
+folders as nodes, and renaming or deleting a folder only moves the connections in it. A connection
+has a color, which tints its node, the badge of its editors and the chip of its panels (production
+is red whatever it is). Finding a table (`TableIndex`, `find-nodes.ts`) lists the tables and views of
+the connected connections through the schema cache and shows the matches as a tree of its own,
+opened down to them, under ids of their own so that VS Code gives the tree back as it was.
 
 ## Table data
 
@@ -204,12 +234,43 @@ line break, then `)`, so that a `--` comment at its end cannot hide the parenthe
 before anything runs, a condition whose strings or comments do not end, one that holds only comments,
 one whose parentheses close outside it, and anything that makes the statement more than one (read
 with the statement splitter of the guards, so a `;` inside a MySQL executable comment counts). The
-statement then goes through `QueryRunner.perform` (`src/extension/tables/table-filter.ts`): the
+statement then goes through `QueryRunner.perform` (`src/extension/tables/table-read.ts`): the
 classifier sees the condition with the rest, so a function with effects makes it a write that a
 read-only connection refuses. The tab keeps its view (a view on the server wraps the new statement),
 gets the automatic limit again, and its Refresh, Load All Rows and server view all read with the
 condition; the editability analysis already accepts a `WHERE` after the table, and still fails
 closed for anything else. These reads stay out of the query history.
+
+A table panel reads the step of its trail it shows (`src/extension/tables/table-read.ts`): the core
+writes the statement (`src/core/results/table-query.ts`) with the key of the step and the filters of
+its view as bound values and the WHERE as typed, and it runs through `QueryRunner.perform` like any
+run; a change the guards refuse leaves the step as it was. Its sort and filters always run on the
+server. **Open in SQL Editor** writes the same statement with the values written in
+(`literalBinder`) and the columns shown, in a new editor on the panel's connection, where it runs
+through the guards like anything typed. The WHERE colors its SQL and completes it with pure functions
+of the core (`src/core/sql/highlight.ts`, `src/core/completion/where-completion.ts`); the host tells
+the view how the SQL of the connection is written (the `sql` message: its quote, lexical rules and
+keywords).
+
+## Navigation between rows
+
+What a result links to comes from the catalog, never from the text of the query: the drivers trace
+each result column back to its table, `EngineSession.listForeignKeys` and `listReferences` give the
+foreign keys of a table and those that point at it, and `describeTableAt` describes a table by where
+it is. `TableMetadata` (`src/extension/metadata/`) reads them on the session of the explorer and keeps
+them with the schema cache, so a refresh of the explorer reads them again. The core turns them into
+the links of a result (`src/core/navigation/links.ts`: a foreign key whose columns the result holds
+whole, composite ones too; a `NULL` points nowhere) and into the key a navigation reads
+(`keys.ts`: one condition per column, every value bound with the cast of its column).
+
+A navigation from a row opens the rows it leads to in a panel of their own, or, in a table panel, in
+place: each table panel keeps a trail of steps (`src/core/navigation/history.ts`, held by
+`TableNavigations`), each with its WHERE, its view and the row it was left from, which the view shows
+as breadcrumbs and goes along with back and forward; a panel that shows the same rows already is
+shown again. A peek at the row a link points at and the counts of the rows that reference a row are
+reads whose rows stay in the host: they go through the guards (`readThroughGuards`,
+`runApprovedRead`, which refuses anything the classifier does not call a read) on the session of the
+panel, and a peek is kept per panel.
 
 ## The connection form
 

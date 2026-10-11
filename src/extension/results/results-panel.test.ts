@@ -1,37 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type * as vscode from 'vscode'
 
 import { recordingLogger } from '../../../test/fakes/logger.ts'
+import { type FakePanelActions, fakePanelActions } from '../../../test/fakes/panel-actions.ts'
 import { POSTGRES_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { RESULT_COLUMNS } from '../../../test/fixtures/results.ts'
-import { SHOP } from '../../../test/support/query.ts'
 import { createWebviewPanel, type FakeWebviewPanel } from '../../../test/vscode.ts'
-import { EnvironmentTag } from '../../core/connection/connection.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import type { PanelActions } from './panel-actions.ts'
 import { ResultsPanel } from './results-panel.ts'
 
 let webviewPanel: FakeWebviewPanel
-let actions: { [K in keyof PanelActions]: ReturnType<typeof vi.fn> }
+let actions: FakePanelActions
 let log: ReturnType<typeof recordingLogger>
 let now: number
 let title: string
 
 function panel(): ResultsPanel {
   webviewPanel = createWebviewPanel('sqldoro.results', 'Results', {}, {})
-  return new ResultsPanel(
-    webviewPanel as unknown as vscode.WebviewPanel,
-    actions as unknown as PanelActions,
-    {
-      now: () => now,
-      log,
-      title: () => title,
-    },
-  )
+  return new ResultsPanel(webviewPanel as unknown as vscode.WebviewPanel, actions, {
+    now: () => now,
+    log,
+    title: () => title,
+  })
 }
 
 function tab(id = 't1'): ResultSet {
   const result = new ResultSet({
+    values: [],
     id,
     sql: 'SELECT id, name FROM orders',
     kind: 'rows',
@@ -52,97 +47,10 @@ function posted(): Record<string, unknown>[] {
 }
 
 beforeEach(() => {
-  actions = {
-    cancel: vi.fn(),
-    serverView: vi.fn(),
-    loadAll: vi.fn(),
-    refresh: vi.fn(),
-    filterTable: vi.fn(),
-    copy: vi.fn(),
-    export: vi.fn(),
-    copyColumnName: vi.fn(),
-    applyEdits: vi.fn(),
-    isInOpenTransaction: vi.fn(() => false),
-  }
+  actions = fakePanelActions()
   log = recordingLogger()
   now = 1000
   title = 'Results'
-})
-
-describe('ResultsPanel and its connection', () => {
-  const POLICY = { productionEnvironments: new Set(['prod']) }
-  const PROD = { ...SHOP, environment: EnvironmentTag.Production }
-
-  it('should show the connection of its editor, and spell production out in its title', async () => {
-    const sut = panel()
-
-    sut.showConnection(PROD, POLICY)
-    await sut.receive({ type: 'ready' })
-
-    expect(webviewPanel.title).toBe('Results · PROD')
-    expect(posted()[0]).toStrictEqual({
-      type: 'connection',
-      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
-    })
-    sut.showConnection(SHOP, POLICY)
-    expect(webviewPanel.title).toBe('Results')
-    expect(posted().at(-1)).toMatchObject({ connection: { environment: '', isProduction: false } })
-  })
-
-  it('should show its connection again when it changes, and ignore the others', async () => {
-    const sut = panel()
-    sut.showConnection(SHOP, POLICY)
-    await sut.receive({ type: 'ready' })
-
-    sut.followConnection([{ ...SHOP, id: 'other', isReadOnly: true }], POLICY)
-    expect(posted()).toHaveLength(2)
-    sut.followConnection([{ ...PROD, isReadOnly: true }], POLICY)
-
-    expect(webviewPanel.title).toBe('Results · PROD')
-    expect(posted().at(-1)).toStrictEqual({
-      type: 'connection',
-      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: true },
-    })
-  })
-
-  it('should name itself as its source is named now', () => {
-    const sut = panel()
-    sut.showConnection(PROD, POLICY)
-
-    title = 'Store/shop/sales.orders'
-    sut.followConnection([{ ...PROD, name: 'Store' }], POLICY)
-
-    expect(webviewPanel.title).toBe('Store/shop/sales.orders · PROD')
-  })
-
-  it('should show no connection before its editor runs', () => {
-    const sut = panel()
-
-    sut.followConnection([SHOP], POLICY)
-
-    expect(webviewPanel.title).toBe('Results')
-  })
-
-  it('should load every row of a finished tab when asked', async () => {
-    const sut = panel()
-    sut.startRun(POSTGRES_DIALECT)
-    const finished = tab()
-    const running = new ResultSet({
-      id: 't2',
-      sql: 'SELECT 1',
-      kind: 'rows',
-      canServerView: false,
-      canRefresh: false,
-    })
-    sut.addTab(finished)
-    sut.addTab(running)
-
-    await sut.receive({ type: 'loadAll', tabId: 't1' })
-    await sut.receive({ type: 'loadAll', tabId: 't2' })
-    await sut.receive({ type: 'loadAll', tabId: 'gone' })
-
-    expect(actions.loadAll.mock.calls).toStrictEqual([[finished]])
-  })
 })
 
 describe('ResultsPanel', () => {
@@ -156,7 +64,30 @@ describe('ResultsPanel', () => {
     await expect(sut.whenReady).resolves.toBeUndefined()
 
     expect(posted()).toMatchObject([
+      {
+        type: 'sql',
+        identifierQuote: '"',
+        lexical: POSTGRES_DIALECT.lexical,
+        keywords: POSTGRES_DIALECT.keywords,
+      },
+      { type: 'trail', crumbs: [] },
       { type: 'tabs', tabs: [{ id: 't1', rowCount: 2 }], activeTabId: 't1' },
+    ])
+  })
+
+  it('should show the trail of a table panel, and again once the view reloads', async () => {
+    const sut = panel()
+    const crumbs = [{ id: 0, label: 'orders #1', isCurrent: true }]
+
+    sut.showTrail(crumbs)
+    expect(posted()).toStrictEqual([])
+    await sut.receive({ type: 'ready' })
+    sut.showTrail([])
+
+    expect(posted()).toStrictEqual([
+      { type: 'trail', crumbs },
+      { type: 'tabs', tabs: [], activeTabId: null },
+      { type: 'trail', crumbs: [] },
     ])
   })
 
@@ -168,7 +99,15 @@ describe('ResultsPanel', () => {
 
     sut.startRun(POSTGRES_DIALECT)
 
-    expect(posted().at(-1)).toStrictEqual({ type: 'tabs', tabs: [], activeTabId: null })
+    expect(posted().slice(-2)).toStrictEqual([
+      {
+        type: 'sql',
+        identifierQuote: '"',
+        lexical: POSTGRES_DIALECT.lexical,
+        keywords: POSTGRES_DIALECT.keywords,
+      },
+      { type: 'tabs', tabs: [], activeTabId: null },
+    ])
     expect(sut.tab('t1')).toBeUndefined()
   })
 
@@ -246,6 +185,7 @@ describe('ResultsPanel', () => {
   it('should not change the view of a statement that still runs', async () => {
     const sut = panel()
     const running = new ResultSet({
+      values: [],
       id: 't2',
       sql: 'SELECT 1',
       kind: 'rows',
@@ -268,18 +208,18 @@ describe('ResultsPanel', () => {
   it('should copy the cells of the current view with the dialect of the run', async () => {
     const sut = panel()
     const result = tab()
-    const range = { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 0 }
+    const block = { firstRow: 0, lastRow: 1, columns: [1, 0] }
     sut.addTab(result)
 
-    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 0, range, format: 'csv' })
+    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 0, block, format: 'csv' })
     sut.startRun(POSTGRES_DIALECT)
     sut.addTab(result)
-    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 5, range, format: 'csv' })
-    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 0, range, format: 'csv' })
+    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 5, block, format: 'csv' })
+    await sut.receive({ type: 'copy', tabId: 't1', viewVersion: 0, block, format: 'csv' })
 
     expect(actions.copy).toHaveBeenCalledExactlyOnceWith(
       result,
-      { range, format: 'csv' },
+      { block, format: 'csv' },
       POSTGRES_DIALECT,
     )
   })

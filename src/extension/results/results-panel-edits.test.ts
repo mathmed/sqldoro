@@ -40,7 +40,7 @@ describe('ResultsPanel, editing', () => {
       type: 'edit',
       tabId: result.tab.id,
       viewVersion: 0,
-      edit: { kind: EditKind.SetNull, range: cell(0, 2), input: '' },
+      edit: { kind: EditKind.SetNull, block: cell(0, 2), input: '' },
     })
     await new Promise((resolve) => setImmediate(resolve))
 
@@ -52,7 +52,7 @@ describe('ResultsPanel, editing', () => {
 
   it('should close the preview, and apply nothing of a preview that is gone', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
     result.panel.webview.send({ type: 'previewEdits', tabId: result.tab.id })
 
     result.panel.webview.send({ type: 'closePreview', tabId: result.tab.id })
@@ -67,7 +67,7 @@ describe('ResultsPanel, editing', () => {
 
   it('should not read the rows again while they have changes', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
 
     result.panel.webview.send({ type: 'loadAll', tabId: result.tab.id })
     result.panel.webview.send({
@@ -85,7 +85,7 @@ describe('ResultsPanel, editing', () => {
 
   it('should ask before a new run drops the changes, and run once the user agrees', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
     window.showWarningMessage
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
@@ -105,7 +105,7 @@ describe('ResultsPanel, editing', () => {
 
   it('should warn that closing the view took its changes away', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
 
     result.panel.dispose()
 

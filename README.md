@@ -27,7 +27,13 @@ built to make the dangerous queries hard and the everyday ones quick.
   and never reach the form. **Import connection string** in the form (or **Import Connection from
   URL**) reads a `mysql://`, `postgres://` or `postgresql://` URL into the fields, keeping the name you
   typed, the environment, the read-only switch and the tunnel. Tag each connection with its
-  environment (`local`, `dev`, `staging`, `prod`): it shows everywhere, production in red.
+  environment (`local`, `dev`, `staging`, `prod`): it shows everywhere, production in red. Give a
+  connection a color (its icon in the explorer, the badge of its editors and the chip of its result
+  panels take it; production is red whatever it is) and a folder (`clients/acme` nests folders):
+  folders show as collapsible nodes, **Move to Folder…** moves a connection, and renaming or deleting a
+  folder only moves the connections inside it. The explorer shows the environment, a lock for a
+  read-only connection and the server version beside each connection; the host, user and database
+  are in its tooltip.
 - **Read-only by default**: a new connection refuses anything that may write, in sqldoro and in the
   database session, until you allow writes on it.
 - **Schema explorer**: databases, schemas, tables and views, columns, indexes and foreign keys,
@@ -38,28 +44,55 @@ built to make the dangerous queries hard and the everyday ones quick.
   automatic `LIMIT`, on a session of the panel's own, and **Refresh** reads the rows again. Type a
   condition in its **WHERE** box (`status = 'active'`) and press `Enter` to read only the rows that
   meet it: it is your own SQL, run through the guards like a query in an editor, kept one condition
-  of one statement, and the rows stay editable. These reads are sqldoro's own: the query history does
+  of one statement, and the rows stay editable. The **WHERE** colors the SQL as you type and suggests
+  the columns of the table, the operators after a column and the values of an enum after
+  `status =` (`Ctrl+Space` asks for them); its expand button (or `Ctrl+Shift+E`, `Cmd+Shift+E`) opens
+  the whole query of the panel in an SQL editor, with its condition, its sort and the columns shown. These reads are sqldoro's own: the query history does
   not keep them. Beside the names: the server version of a connected connection (`8.0.45`), the size
   of each database (`2 GB`), how many tables and views a group holds once it is open (`Tables 142`,
   or `3 of 142` under a filter), and the estimated rows and size of each table (`~27k rows · 32 MB`,
   exact numbers in its tooltip), read from the catalog statistics in the same query that lists them.
-  **Refresh** reads them again.
+  **Refresh** reads them again. A node that takes a moment to load says so (`Loading tables…`).
+  **Find Table in Explorer** filters the explorer as you type, across every connected connection:
+  the tables and views whose name holds the text show opened down to them, the match highlighted;
+  `Enter` keeps the filter, `Escape` gives the tree back. **Go to Table…** (`Ctrl+Alt+T`) lists the
+  tables and views of the connected connections in a quick pick and opens the one you choose.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
 - **A result grid that stays fast**, beside each SQL editor and for each table opened from the
   explorer: virtualized in rows and columns, so a million rows or a thousand columns scroll smoothly.
   Row numbers stay on the left (click one to select its row). Each header shows the kind of its
-  column (`#` numbers, `abc` text, dates, booleans, `{}` JSON, binary), a filter button that lights
-  up while the column is filtered, and a menu to sort, filter and copy the column name. Sort and
-  filter (on the rows already fetched, or on the server), and **Quick Search** for a text in any
-  column. Compact icon buttons with tooltips refresh, cancel, apply and revert changes, add, duplicate
+  column (`#` numbers, `abc` text, dates, booleans, `{}` JSON, binary), with the values of an enum and
+  what a foreign key points at in its tooltip, a filter button that lights up while the column is
+  filtered, and a menu to sort, filter, copy the column name and hide the column. The filter of a
+  column offers the operators of its kind (`=`, `≠`, `is null`, `is not null` for all; `contains`,
+  `does not contain`, `starts with`, `ends with` for text; `<`, `≤`, `>`, `≥`, `between` for numbers
+  and dates; `in` a list picked from the values of the column or of its enum), and several
+  conditions that all apply; values are compared exactly, and on the server they are bound as
+  parameters. Sort and filter (on the rows already fetched, or on the server; always on the server for
+  the rows of a table), and **Quick Search** for a text in any column. The **Columns** panel (also the
+  `N columns hidden` note under the grid) searches, shows and hides, inverts and reorders the columns
+  (drag, or `Alt+Up`/`Alt+Down`); a table panel remembers them for its table, and copying and
+  exporting take the columns shown, in their order. While a statement runs, a card says what it waits
+  for (connecting, running, fetching rows), how long it has taken, and cancels it; the rows of before
+  stay, dimmed, until the new ones come. Compact icon buttons with tooltips refresh, cancel, apply and revert changes, add, duplicate
   and delete rows, copy the selection as CSV, JSON or `INSERT` statements (TSV with `Ctrl+C`), and
   export the result to CSV, JSON or SQL. `NULL` and the empty string look different, `BIGINT`,
   `DECIMAL` and dates are shown exactly as the server sent them, and long text, JSON and binary
   values open in a detail pane.
+- **Foreign key navigation**: a cell whose column is in a foreign key is a link (underlined on hover,
+  with an arrow). `Ctrl+click` (`Cmd+click`), its arrow or `Ctrl+Enter` opens the row it points at in
+  a panel of its own; `Alt+click` opens it in place in a table panel, which keeps a trail of the steps
+  (`Condominium #1 → CondominiumBankAccount (condominiumId = 1)`) with back and forward (`Alt+Left`,
+  `Alt+Right`), each step keeping its scroll and filters. Resting the pointer on the arrow, or
+  `Alt+Enter`, peeks at the row without leaving the grid. **References** (in the toolbar and the menu
+  of a cell) lists the tables whose foreign keys point at the selected row, counts their rows on
+  demand and opens them. Composite keys and PostgreSQL keys across schemas work; a `NULL` points
+  nowhere and is no link.
 - **Inline editing with an SQL preview**: change the rows of a table in the grid, add, duplicate and
   delete rows, then preview the exact statements and their bound values before anything is written.
+  An enum is picked from its values, a set from checkboxes.
   The changes apply in one transaction, all or nothing, and a row someone changed meanwhile is
   reported as a conflict, never overwritten.
 - **Safety guards** on every statement: an `UPDATE` or `DELETE` that reaches every row waits for its
@@ -109,6 +142,11 @@ editor where it applies.
 | **Make Read-Only**                     |                                                | Makes a connection read-only again.                                                                |
 | **Refresh**                            |                                                | Reloads a node of the explorer, or all of it.                                                      |
 | **Filter Tables and Views**            |                                                | Shows only the tables and views whose name contains some text.                                     |
+| **Find Table in Explorer**             |                                                | Filters the explorer as you type across the connected connections; `Escape` gives the tree back.   |
+| **Go to Table…**                       | `Ctrl+Alt+T` (`Cmd+Alt+T`)                     | Lists the tables and views of the connected connections; the one picked opens its rows.            |
+| **Move to Folder…**                    |                                                | Puts a connection in a folder (`clients/acme` nests folders), or takes it out of one.              |
+| **Rename Folder…**                     |                                                | Renames a folder; its connections move with it.                                                    |
+| **Delete Folder**                      |                                                | Removes a folder; its connections stay, out of it.                                                 |
 | **Clear Filter**                       |                                                | Shows every table and view again.                                                                  |
 | **Open Table Data**                    |                                                | Opens the rows of a table or view (a click on it in the explorer) in a result panel of their own.  |
 | **Show DDL**                           |                                                | Opens the `CREATE` statement of a table or view (from the explorer).                               |
@@ -156,12 +194,21 @@ editor where it applies.
 | `Enter`, `Escape`                           | In the filter of a column: apply it, close it; the focus goes back to the header. |
 | `Enter`, `Escape`                           | In **Quick Search**: search at once (it also searches as you pause), clear it.    |
 | `Enter`                                     | In the **WHERE** of a table: read the rows that meet the condition.               |
+| `Ctrl+Space`, `Tab`                         | In the **WHERE** of a table: suggest columns, operators and values; take one.     |
+| `Ctrl+Shift+E` (`Cmd+Shift+E`)              | In a table panel: open its query in an SQL editor.                                |
+| `Ctrl+click`, `Ctrl+Enter` (`Cmd`)          | On a link: open the row it points at in a panel of its own.                       |
+| `Alt+click`                                 | On a link in a table panel: open the row it points at in place.                   |
+| `Alt+Enter`                                 | On a link: peek at the row it points at.                                          |
+| `Alt+Left`, `Alt+Right`                     | In a table panel: go back and forward along its trail.                            |
+| Menu key, `Shift+F10`, right click          | Open the menu of a cell: its link, the rows that reference its row, copy.         |
 
-The filter of a column keeps the rows whose value contains its text, without case. **Quick Search**
-keeps the rows with its text in any column, with the filters of the columns, and counts them. Both
-run in the extension host over the rows sqldoro fetched: on a result cut by the automatic limit,
-**Load All Rows** first to search every row (the filters of the columns can also run on the server).
-Copying and exporting take the rows as the grid shows them.
+The filter of a column keeps the rows that meet all of its conditions (text searches ignore case).
+**Quick Search** keeps the rows with its text in any column, with the filters of the columns, and
+counts them. Both run in the extension host over the rows sqldoro fetched: on a result cut by the
+automatic limit, **Load All Rows** first to search every row (the filters of the columns can also
+run on the server, and always do for the rows of a table). Copying and exporting take the rows as
+the grid shows them, in the columns shown and their order; **Copy Rows as INSERT** takes every
+column, to write the rows whole.
 
 ## Settings
 
@@ -210,7 +257,7 @@ for.
 | Read-only connections            | Refuse every statement that is not a read or transaction control (`SET`, `CALL`, unknown statements and `BEGIN READ WRITE` included), with a message and an **Allow Writes…** button. Allowing writes is a setting of the connection, confirmed on its own (typed on production); it never re-runs the statement.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Read-only sessions               | The second layer: sessions of a read-only connection are opened read-only by the database (`SET default_transaction_read_only = on` in PostgreSQL, on every database the session opens; `SET SESSION TRANSACTION READ ONLY` in MySQL), so a write the classifier misses (a function that writes, a procedure) fails on the server. A statement could switch this off again (`SET`, `set_config`), which is why the classifier blocks those on read-only connections; server permissions remain the real guarantee. MySQL still lets a read-only transaction change `TEMPORARY` tables.                                                                                                                                                                                                               |
 | `UPDATE` / `DELETE` of every row | An `UPDATE` or `DELETE` (also inside a `WITH` query or under `EXPLAIN ANALYZE`) without its own `WHERE`, or whose `WHERE` is always true (`1 = 1`, `true`, a constant, `id = id`, an `OR` with such a branch), is held until the table name is typed, once, for that run; the override is logged. A `WHERE` inside a subquery does not count. A `JOIN ... ON` or `LIMIT` without `WHERE` is still held.                                                                                                                                                                                                                                                                                                                                                                                              |
-| Production                       | Connections tagged with an environment of `sqldoro.safety.productionEnvironments` (`prod` always) ask for the connection name to be typed before any write, DDL, session or unknown statement, once per run; reads and transaction control run at once. Tagging a connection as production makes it read-only; the status bar turns red, the editor tab shows the badge and the result view a banner.                                                                                                                                                                                                                                                                                                                                                                                                |
+| Production                       | Connections tagged with an environment of `sqldoro.safety.productionEnvironments` (`prod` always) ask for the connection name to be typed before any write, DDL, session or unknown statement, once per run; reads and transaction control run at once. Tagging a connection as production makes it read-only; the status bar turns red, the editor tab shows the badge and the result view a red chip above the results.                                                                                                                                                                                                                                                                                                                                                                            |
 | Manual transactions              | **Switch Transaction Mode** (status bar) per editor; `sqldoro.transactions.defaultMode` sets the mode of new editors. In manual mode the first statement opens a transaction (read-only on read-only connections) that stays open until **Commit Transaction** or **Roll Back Transaction**. After each statement sqldoro asks the server whether a transaction is open, so a transaction you open with `BEGIN`, one that DDL committed in MySQL, one a deadlock rolled back or one PostgreSQL aborted after an error all show as they are. Before DDL runs in a MySQL transaction, sqldoro warns that it commits. Closing the last tab of an editor with an open transaction asks to commit or roll back; closing the document, disconnecting or changing the connection rolls it back and says so. |
 | Automatic `LIMIT`                | A `SELECT`, `WITH` or `TABLE` query that only reads and has no `LIMIT`, `FETCH` or `TOP` of its own gets `LIMIT n + 1` after its last token, and the result says **limited to n rows** with **Load All Rows**, which runs it again without the automatic limit. Where appending is not safe (an `OFFSET`, MySQL executable comments) the driver stops reading after n rows instead. Statements that write, `EXPLAIN`, `SHOW` and queries already limited at their top level run as written.                                                                                                                                                                                                                                                                                                          |
 
@@ -276,6 +323,11 @@ The grid writes only what it can write exactly, to the row it read, and says so 
   the statistics at all, the objects are listed without them and the output says why (debug level).
   In PostgreSQL, reading a table's size waits for an `ACCESS EXCLUSIVE` lock on it (a long
   `ALTER TABLE`, `VACUUM FULL`), so its schema's tables list once that lock is gone.
+- **Navigation and finding tables**: links follow the foreign keys the catalog declares, on result
+  columns the server traces back to their table (not on expressions); a key the result does not hold
+  whole is no link. MySQL foreign keys across databases are followed but not covered by the
+  integration tests. **Find Table in Explorer** and **Go to Table…** list, in PostgreSQL, the
+  database of the connection (or, without one, its first 10 databases).
 - **Editors**: an untitled SQL editor restored after VS Code restarts asks for its connection again,
   on purpose; files keep theirs. Cancelling MySQL's `SELECT SLEEP(n)` returns a row (that is what an
   interrupted `SLEEP` does) instead of showing the query as cancelled.

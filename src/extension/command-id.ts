@@ -43,6 +43,11 @@ export const CommandId = {
   MakeReadOnly: 'sqldoro.makeReadOnly',
   GettingStarted: 'sqldoro.gettingStarted',
   About: 'sqldoro.about',
+  MoveToFolder: 'sqldoro.moveToFolder',
+  RenameFolder: 'sqldoro.renameFolder',
+  DeleteFolder: 'sqldoro.deleteFolder',
+  FindTable: 'sqldoro.findTable',
+  GoToTable: 'sqldoro.goToTable',
 } as const
 
 export type CommandId = (typeof CommandId)[keyof typeof CommandId]

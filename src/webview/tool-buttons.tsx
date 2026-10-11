@@ -60,3 +60,18 @@ export const ToolGroup = ({
     {children}
   </span>
 )
+
+// A small button that reads as a link: the actions of a popup.
+export const TextButton = ({
+  label,
+  title,
+  onClick,
+}: {
+  readonly label: string
+  readonly title?: string
+  readonly onClick: () => void
+}): ReactElement => (
+  <button type="button" className="link-button" title={title} onClick={onClick}>
+    {label}
+  </button>
+)

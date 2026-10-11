@@ -353,6 +353,41 @@
   border-color: transparent;
 }
 
+/* The colors of a connection, as round swatches; "none" is a hollow one with a slash. */
+.swatches {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-self: flex-start;
+}
+
+.swatch {
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  outline-offset: 2px;
+}
+
+.swatch-none {
+  background: linear-gradient(
+    135deg,
+    transparent 45%,
+    var(--vscode-descriptionForeground) 45% 55%,
+    transparent 55%
+  );
+  border-color: var(--vscode-descriptionForeground);
+}
+
+.swatch[aria-checked='true'] {
+  box-shadow:
+    0 0 0 2px var(--vscode-editor-background),
+    0 0 0 4px var(--vscode-focusBorder);
+}
+
 /* A switch: a checkbox drawn as a sliding toggle. */
 .switch {
   position: relative;

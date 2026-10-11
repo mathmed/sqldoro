@@ -101,3 +101,46 @@ describe('the statistics of the MySQL catalog', () => {
     )
   })
 })
+
+describe('the references to a MySQL table', () => {
+  it('should describe the foreign keys of other tables that point at the table', async () => {
+    const column = (table: string, columns: readonly [string, string]): Record<string, string> => ({
+      tableSchema: 'shop',
+      tableName: table,
+      constraintName: 'fk_order',
+      columnName: columns[0],
+      referencedColumn: columns[1],
+    })
+    answerBy([
+      [
+        'SELECT k.TABLE_SCHEMA',
+        {
+          result: [
+            column('lines', ['order_id', 'id']),
+            column('lines', ['order_region', 'region']),
+            { ...column('returns', ['order_id', 'id']), tableSchema: 'archive' },
+          ],
+        },
+      ],
+    ])
+    const sut = await connected()
+
+    await expect(sut.listReferences({ ...SCOPE, name: 'orders' })).resolves.toStrictEqual([
+      {
+        name: 'fk_order',
+        schema: 'shop',
+        table: 'lines',
+        columns: ['order_id', 'order_region'],
+        referencedColumns: ['id', 'region'],
+      },
+      {
+        name: 'fk_order',
+        schema: 'archive',
+        table: 'returns',
+        columns: ['order_id'],
+        referencedColumns: ['id'],
+      },
+    ])
+    expect(mysql.connections[0]?.queries.at(-1)?.values).toStrictEqual(['shop', 'orders'])
+  })
+})

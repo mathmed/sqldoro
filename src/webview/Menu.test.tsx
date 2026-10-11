@@ -9,6 +9,7 @@ function menu(items: readonly MenuItem[], { hasChevron = true } = {}): HTMLButto
     <>
       <MenuButton
         label="Copy"
+        tooltip="Copy the selection"
         icon={IconName.Copy}
         items={items}
         isDisabled={false}
@@ -31,7 +32,7 @@ function focused(): string | null | undefined {
 describe('MenuButton', () => {
   it('should open its menu under it, the focus on the first item that can be picked', () => {
     const sut = menu([item('CSV', true), item('JSON'), item('SQL')])
-    expect(sut).toMatchObject({ title: 'Copy', className: 'tool-button has-chevron' })
+    expect(sut).toMatchObject({ title: 'Copy the selection', className: 'tool-button has-chevron' })
     expect(sut.getAttribute('aria-haspopup')).toBe('menu')
 
     fireEvent.click(sut)

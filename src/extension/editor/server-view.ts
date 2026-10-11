@@ -51,8 +51,9 @@ function serverViewWork(
   target: RunTarget,
   { tab, view, shouldAutoLimit }: ServerViewRequest,
 ): RunWork | undefined {
-  const dialect = target.engine.dialect
-  const query = serverViewQuery(tab.sql, view, { columns: tab.columns, dialect })
+  const { dialect } = target.engine
+  const { columns, parameterTypes } = tab
+  const query = serverViewQuery(tab.sql, view, { columns, dialect, parameterTypes })
   if (query === undefined) {
     void vscode.window.showWarningMessage(serverViewProblem(tab.sql, dialect) ?? DUPLICATE_COLUMNS)
     return undefined

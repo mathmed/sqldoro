@@ -4,11 +4,13 @@ import {
   type CellPosition,
   clampSelection,
   type GridSelection,
+  rangeBlock,
   selectionRange,
 } from '../core/grid/selection.ts'
 import { ExportFormat } from '../core/results/export-format.ts'
 import { type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import { gridRowCount } from './edit-overlay.ts'
+import type { Projection } from './projection.ts'
 import type { ResultsApi } from './results-api.ts'
 import type { ToolbarActions } from './Toolbar.tsx'
 
@@ -34,22 +36,19 @@ export function useChoices(tab: ResultTab): ResultChoices {
   return { selection: bounded, setSelection, detail, setDetail, isServerSide, setIsServerSide }
 }
 
-export function toolbarActions(
-  api: ResultsApi,
-  tab: ResultTab,
-  choices: ResultChoices,
-): ToolbarActions {
+// What the toolbar does, in the columns the grid shows: copying and exporting take them in their
+// order. Copying rows as INSERT takes every column of the result, to write the rows whole.
+export function toolbarActions(projection: Projection, choices: ResultChoices): ToolbarActions {
+  const { api, tab } = projection
+  const { selection } = choices
   return {
     ...runActions(api, tab),
     copy: (format: ExportFormat) => {
-      copySelection(api, tab, { selection: choices.selection, format, isWholeRows: false })
+      copySelection(api, tab, { selection, format, isWholeRows: false })
     },
     copyRows: () => {
-      copySelection(api, tab, {
-        selection: choices.selection,
-        format: ExportFormat.Sql,
-        isWholeRows: true,
-      })
+      const request = { selection, format: ExportFormat.Sql, isWholeRows: true }
+      copySelection(projection.source.api, projection.source.tab, request)
     },
     export: (format: ExportFormat) => {
       api.postMessage({ type: WebviewMessageType.Export, tabId: tab.id, format })
@@ -60,6 +59,9 @@ export function toolbarActions(
     },
     filterTable: (condition: string) => {
       api.postMessage({ type: WebviewMessageType.FilterTable, tabId: tab.id, condition })
+    },
+    openInEditor: () => {
+      api.postMessage({ type: WebviewMessageType.OpenInEditor, tabId: tab.id })
     },
   }
 }
@@ -100,7 +102,7 @@ function copySelection(api: ResultsApi, tab: ResultTab, request: CopyRequest): v
       type: WebviewMessageType.Copy,
       tabId,
       viewVersion,
-      range,
+      block: rangeBlock(range),
       format: request.format,
     })
   }

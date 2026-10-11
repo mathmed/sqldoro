@@ -1,10 +1,12 @@
 import * as vscode from 'vscode'
 
+import type { QueryResult, QueryValue } from '../../core/engine/query.ts'
 import { RunOutcome } from '../../core/history/history.ts'
 import type { HistoryEntry } from '../../core/history/history.ts'
 import type { Logger } from '../../core/platform.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import { planLimit } from '../../core/safety/auto-limit.ts'
+import { StatementCategory } from '../../core/safety/statement-class.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { Settings } from '../settings.ts'
@@ -60,6 +62,28 @@ export async function runApprovedJob(
     void vscode.window.showWarningMessage(notice)
   }
   return isSucceeded
+}
+
+// A read the guards approved whose rows go to the host itself, not to a tab: the row a link of a
+// cell points at, the count of the rows that reference one. It runs as it is, on the session of
+// the source, and can be cancelled like any run.
+export interface ApprovedRead {
+  readonly sql: string
+  readonly values: readonly QueryValue[]
+  readonly maxRows: number
+}
+
+export async function runApprovedRead(parts: RunParts, read: ApprovedRead): Promise<QueryResult> {
+  if (parts.approval.classOf(read.sql).category !== StatementCategory.Read) {
+    throw new Error('sqldoro only reads rows this way: the statement was not run')
+  }
+  const execution = parts.session.engineSession.execute({
+    ...read,
+    onColumns: () => undefined,
+    onRows: () => undefined,
+  })
+  parts.run.track(execution)
+  return execution.result
 }
 
 // The session of the editor (or table panel), as its transaction knows it.

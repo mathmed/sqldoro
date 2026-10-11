@@ -7,6 +7,7 @@ import type {
   ObjectKind,
   ObjectRef,
   ObjectScope,
+  ReferenceInfo,
   SchemaInfo,
   TableInfo,
   ViewInfo,
@@ -77,6 +78,8 @@ export interface EngineSession {
   readonly listColumns: (object: ObjectRef) => Promise<readonly ColumnInfo[]>
   readonly listIndexes: (table: ObjectRef) => Promise<readonly IndexInfo[]>
   readonly listForeignKeys: (table: ObjectRef) => Promise<readonly ForeignKeyInfo[]>
+  // The foreign keys of other tables (of any schema of its database) that point at the table.
+  readonly listReferences: (table: ObjectRef) => Promise<readonly ReferenceInfo[]>
   // The CREATE statement of a table or a view, as the server shows it or rebuilt from the catalog.
   readonly objectDdl: (object: ObjectRef, kind: ObjectKind) => Promise<string>
   // Makes later statements run in this database and schema (USE, search_path): unqualified names
@@ -91,6 +94,9 @@ export interface EngineSession {
     database: string,
     table: readonly string[],
   ) => Promise<TableDescription | undefined>
+  // The same, for a table named by where it is (a table a navigation leads to before any of its
+  // rows were read); undefined when there is no such table.
+  readonly describeTableAt: (table: ObjectRef) => Promise<TableDescription | undefined>
   // Why the server could change the values sqldoro writes instead of refusing them (MySQL outside
   // strict mode), for people; undefined when it refuses them.
   readonly writeProblem: () => Promise<string | undefined>

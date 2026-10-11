@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { EnvironmentTag, SshAuthMethod, SslMode } from './connection.ts'
+import { ConnectionColor, EnvironmentTag, SshAuthMethod, SslMode } from './connection.ts'
 import {
+  CONNECTION_COLOR_LABELS,
+  CONNECTION_COLORS,
+  connectionTint,
   ENVIRONMENT_COLORS,
   ENVIRONMENT_LABELS,
   ENVIRONMENT_SHORT_LABELS,
@@ -39,6 +42,36 @@ describe('labelOf', () => {
     ])
   })
 
+  it('should name each connection color and give it a theme color, none to no color', () => {
+    const colors = Object.values(ConnectionColor)
+
+    expect(colors.map((color) => labelOf(CONNECTION_COLOR_LABELS, color))).toStrictEqual([
+      'No color',
+      'Red',
+      'Orange',
+      'Yellow',
+      'Green',
+      'Blue',
+      'Purple',
+    ])
+    expect(colors.map((color) => CONNECTION_COLORS.get(color))).toStrictEqual([
+      undefined,
+      'charts.red',
+      'charts.orange',
+      'charts.yellow',
+      'charts.green',
+      'charts.blue',
+      'charts.purple',
+    ])
+  })
+
+  it('should tint a connection red on production, then with its color or its environment', () => {
+    expect(connectionTint({ color: 'blue', environment: 'local' }, true)).toBe('charts.red')
+    expect(connectionTint({ color: 'blue', environment: 'local' }, false)).toBe('charts.blue')
+    expect(connectionTint({ color: '', environment: 'local' }, false)).toBe('charts.green')
+    expect(connectionTint({ color: '', environment: 'none' }, false)).toBe('')
+  })
+
   it('should name and describe each SSL mode', () => {
     const modes = Object.values(SslMode)
 
@@ -72,6 +105,7 @@ describe('labelOf', () => {
       'Port',
       'Username',
       'Database',
+      'Folder',
       'SSL mode',
       'CA certificate',
       'Client certificate',

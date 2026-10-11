@@ -1,8 +1,6 @@
 // The extension host wired as in VS Code (createServices, createQueryServices) on a real server: a
 // SQL editor runs a query, its result panel edits the rows, and the user previews and applies the
 // changes there.
-import { randomUUID } from 'node:crypto'
-
 import { expect } from 'vitest'
 import type * as vscode from 'vscode'
 
@@ -11,7 +9,7 @@ import { SecretKind } from '../../src/core/connection/secrets.ts'
 import { RunScope } from '../../src/core/editor/run-plan.ts'
 import type { EditKind } from '../../src/core/edits/edit-kind.ts'
 import type { ObjectRef } from '../../src/core/engine/catalog.ts'
-import type { CellRange } from '../../src/core/results/protocol.ts'
+import type { CellBlock } from '../../src/core/results/protocol.ts'
 import type { ResultSet } from '../../src/core/results/result-set.ts'
 import { CommandId } from '../../src/extension/command-id.ts'
 import { createQueryServices, type QueryServices } from '../../src/extension/query-services.ts'
@@ -127,14 +125,7 @@ export async function openGrid(
 // can be edited.
 export async function openTableGrid(target: EditorTarget, table: ObjectRef): Promise<GridEditor> {
   const { base, query } = await wired(target, {})
-  registerTableDataCommands({
-    runner: query.runner,
-    panels: query.panels,
-    connections: (id) => base.store.find(id),
-    engines: base.engines,
-    createId: randomUUID,
-    log: recordingLogger(),
-  })
+  registerTableDataCommands(query.tables)
   const node = { kind: 'table', connectionId: 'it', place: table }
   const opening = commands.executeCommand(CommandId.OpenTableData, node)
   const panel = webviewPanels.at(-1)
@@ -144,20 +135,20 @@ export async function openTableGrid(target: EditorTarget, table: ObjectRef): Pro
   panel.webview.send({ type: 'ready' })
   await opening
   const [tabId = ''] = postedTabs(panel).keys()
-  const uri = tableUri({ connectionId: 'it', table })
+  const uri = tableUri({ connectionId: 'it', table, instance: '' })
   const editor = { base, query, uri, panel, tabId }
   await expect.poll(() => editingOf(editor).state).toMatch(/^(editable|readOnly)$/)
   return editor
 }
 
-export function cell(row: number, column: number): CellRange {
-  return { firstRow: row, lastRow: row, firstColumn: column, lastColumn: column }
+export function cell(row: number, column: number): CellBlock {
+  return { firstRow: row, lastRow: row, columns: [column] }
 }
 
 // What the result view sends when the user edits the rows.
 export function edit(
   editor: GridEditor,
-  change: { readonly kind: EditKind; readonly range: CellRange | null; readonly input?: string },
+  change: { readonly kind: EditKind; readonly block: CellBlock | null; readonly input?: string },
 ): void {
   editor.panel.webview.send({
     type: 'edit',

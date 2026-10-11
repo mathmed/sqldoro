@@ -2,7 +2,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { editableTab, resultTab } from '../../test/fixtures/results.ts'
-import type { PendingRow, ResultTab, TabEditing } from '../core/results/protocol.ts'
+import type { ResultTab } from '../core/results/protocol.ts'
+import type { PendingRow, TabEditing } from '../core/results/tab-editing.ts'
 import { EditBar } from './EditBar.tsx'
 
 const CHANGED_ROW: PendingRow = {
@@ -13,7 +14,7 @@ const CHANGED_ROW: PendingRow = {
 }
 
 function renderBar(editing: Partial<TabEditing>, changes: Partial<ResultTab> = {}): void {
-  render(<EditBar tab={editableTab(editing, changes)} />)
+  render(<EditBar tab={editableTab(editing, changes)} isConnectionReadOnly={false} />)
 }
 
 function status(): string | null {
@@ -22,7 +23,7 @@ function status(): string | null {
 
 describe('EditBar', () => {
   it('should not show while there is nothing to edit', () => {
-    render(<EditBar tab={resultTab()} />)
+    render(<EditBar tab={resultTab()} isConnectionReadOnly={false} />)
 
     expect(screen.queryByRole('region', { name: 'Editing' })).toBeNull()
   })
@@ -69,12 +70,24 @@ describe('EditBar', () => {
   })
 
   it('should say what the last edit or apply said, an error as such', () => {
-    const { unmount } = render(<EditBar tab={editableTab({ notice: 'Applied 1 change.' })} />)
+    const { unmount } = render(
+      <EditBar tab={editableTab({ notice: 'Applied 1 change.' })} isConnectionReadOnly={false} />,
+    )
     expect(screen.getByRole('status').textContent).toBe('Applied 1 change.')
     expect(screen.getByRole('status').className).toBe('edit-notice')
     unmount()
 
     renderBar({ notice: 'Nothing was applied.', isNoticeError: true })
     expect(screen.getByRole('status').className).toBe('edit-notice error')
+  })
+
+  it('should leave a read-only connection to the lock above the results', () => {
+    const tab = editableTab({ state: 'readOnly', problem: '"Shop" is read-only.' })
+    const { unmount } = render(<EditBar tab={tab} isConnectionReadOnly />)
+    expect(screen.queryByRole('region', { name: 'Editing' })).toBeNull()
+    unmount()
+
+    render(<EditBar tab={tab} isConnectionReadOnly={false} />)
+    expect(status()).toBe('Read-only: "Shop" is read-only.')
   })
 })

@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ValueType } from '../core/engine/table.ts'
-import { CellEditor, type CellEditorActions, EditorExit } from './CellEditor.tsx'
+import { CellEditor } from './CellEditor.tsx'
+import { type CellEditorActions, EditorExit } from './editor-keys.ts'
 import type { CellEditorView } from './use-cell-editor.ts'
 
 const EDITOR: CellEditorView = {
@@ -13,7 +14,7 @@ const EDITOR: CellEditorView = {
 }
 
 function editorActions(): CellEditorActions {
-  return { change: vi.fn(), commit: vi.fn(), cancel: vi.fn() }
+  return { change: vi.fn(), commit: vi.fn(), put: vi.fn(), cancel: vi.fn() }
 }
 
 function renderEditor(

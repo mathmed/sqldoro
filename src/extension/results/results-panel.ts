@@ -2,6 +2,7 @@ import type * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
+import type { Crumb } from '../../core/navigation/history.ts'
 import type { Logger } from '../../core/platform.ts'
 import { panelConnection, panelTitle } from '../../core/results/panel-connection.ts'
 import { parseWebviewMessage } from '../../core/results/parse-webview-message.ts'
@@ -14,7 +15,8 @@ import {
 import type { ResultSet } from '../../core/results/result-set.ts'
 import type { GuardPolicy } from '../../core/safety/guard.ts'
 import type { PanelActions } from './panel-actions.ts'
-import { handleRequest, type PanelRequests } from './panel-requests.ts'
+import type { PanelRequests } from './panel-request-context.ts'
+import { handleRequest } from './panel-requests.ts'
 
 export interface PanelEnvironment {
   readonly now: () => number
@@ -36,6 +38,7 @@ export class ResultsPanel {
   #dialect: Dialect | undefined
   #connectionId: string | undefined
   #connection: PanelConnection | undefined
+  #crumbs: readonly Crumb[] = []
   #activeTabId: string | null = null
   #isReady = false
   readonly #readiness = Promise.withResolvers<undefined>()
@@ -105,7 +108,14 @@ export class ResultsPanel {
     this.#tabs.clear()
     this.#postedAt.clear()
     this.#activeTabId = null
+    this.#postSql()
     this.#post({ type: HostMessageType.Tabs, tabs: [], activeTabId: null })
+  }
+
+  // The trail of a table panel reached by navigation: the view shows it above the rows.
+  showTrail(crumbs: readonly Crumb[]): void {
+    this.#crumbs = crumbs
+    this.#post({ type: HostMessageType.Trail, crumbs })
   }
 
   addTab(tab: ResultSet): void {
@@ -152,6 +162,14 @@ export class ResultsPanel {
     await handleRequest(this.#requests, message)
   }
 
+  // How the SQL of the connection is written, for the WHERE of a table to color and complete it.
+  #postSql(): void {
+    if (this.#dialect !== undefined) {
+      const { identifierQuote, lexical, keywords } = this.#dialect
+      this.#post({ type: HostMessageType.Sql, identifierQuote, lexical, keywords })
+    }
+  }
+
   #post(message: HostMessage): void {
     if (this.#isReady) {
       void this.#panel.webview.postMessage(message)
@@ -165,6 +183,8 @@ export class ResultsPanel {
     if (this.#connection !== undefined) {
       this.#post({ type: HostMessageType.Connection, connection: this.#connection })
     }
+    this.#postSql()
+    this.#post({ type: HostMessageType.Trail, crumbs: this.#crumbs })
     const tabs = [...this.#tabs.values()].map((tab) => tab.toTab())
     this.#post({ type: HostMessageType.Tabs, tabs, activeTabId: this.#activeTabId })
   }

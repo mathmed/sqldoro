@@ -1,7 +1,9 @@
-import { type Dialect, parameterPlaceholder, quoteIdentifier } from '../engine/dialect.ts'
+import { type Dialect, quoteIdentifier } from '../engine/dialect.ts'
 import type { QueryValue, ResultColumn } from '../engine/query.ts'
 import { isReadOnlyQuery } from '../sql/statement-kind.ts'
-import { activeFilters, type ColumnFilter, type SortKey, type ViewSpec } from './view.ts'
+import { parameterBinder } from './binders.ts'
+import { filterConditions, type NamedFilter } from './filter-sql.ts'
+import { activeFilters, type SortKey, type ViewSpec } from './view.ts'
 
 export type ServerViewDialect = Pick<
   Dialect,
@@ -14,7 +16,6 @@ export interface ServerQuery {
 }
 
 const VIEW_ALIAS = 'sqldoro_view'
-const LIKE_SPECIALS = /[\\%_]/g
 
 // Why a view cannot run on the server, for people; undefined when it can.
 export function serverViewProblem(
@@ -26,81 +27,101 @@ export function serverViewProblem(
     : 'Only a single query that reads (SELECT, WITH, TABLE or VALUES) can be sorted and filtered by the server'
 }
 
-interface ServerViewTarget {
+export interface ServerViewTarget {
   readonly columns: readonly ResultColumn[]
   readonly dialect: ServerViewDialect
+  // The type each column's values are cast to, by column name, where the catalog says.
+  readonly parameterTypes: ReadonlyMap<string, string>
 }
 
-interface Named<T> {
-  readonly part: T
+export interface NamedSort {
+  readonly key: SortKey
   readonly name: string
 }
 
+// The filters and the sort of a view, by the names of the columns they are on; undefined when one
+// is on a column that is not there or whose name is not unique.
+export interface NamedView {
+  readonly filters: readonly NamedFilter[]
+  readonly sort: readonly NamedSort[]
+}
+
 // Runs the query again inside SELECT * FROM (...) with the filters and the sort of the view: the
-// filter texts are bound values, the columns quoted names. Undefined when the view is not safe to
-// run on the server or names a column that is not unique.
+// values are bound, the columns quoted names. Undefined when the view is not safe to run on the
+// server or names a column that is not unique.
 export function serverViewQuery(
   statement: string,
   spec: ViewSpec,
-  { columns, dialect }: ServerViewTarget,
+  target: ServerViewTarget,
 ): ServerQuery | undefined {
-  const filters = named(activeFilters(spec), columns)
-  const sort = named(spec.sort, columns)
-  if (
-    filters === undefined ||
-    sort === undefined ||
-    serverViewProblem(statement, dialect) !== undefined
-  ) {
+  const view = namedView(spec, target)
+  if (view === undefined || serverViewProblem(statement, target.dialect) !== undefined) {
     return undefined
   }
+  const binder = parameterBinder(target.dialect, 0)
+  const conditions = filterConditions(view.filters, { dialect: target.dialect, binder })
   return {
-    sql: wrapped(statement, { filters, sort, dialect }),
-    values: filters.map(({ part }) => likePattern(part.text)),
+    sql: [
+      `SELECT * FROM (\n${statement}\n) AS ${VIEW_ALIAS}`,
+      ...(conditions.length === 0 ? [] : [`WHERE ${conditions.join(' AND ')}`]),
+      ...orderBy(view.sort, target.dialect),
+    ].join('\n'),
+    values: binder.values(),
   }
 }
 
-interface WrapParts {
-  readonly filters: readonly Named<ColumnFilter>[]
-  readonly sort: readonly Named<SortKey>[]
-  readonly dialect: ServerViewDialect
-}
-
-function wrapped(statement: string, { filters, sort, dialect }: WrapParts): string {
-  const conditions = filters.map(
-    ({ name }, index) =>
-      `LOWER(CAST(${quoteIdentifier(dialect, name)} AS ${dialect.textType})) LIKE ${parameterPlaceholder(dialect, index)}`,
-  )
+// ORDER BY the columns of the sort, in order; nothing without one.
+export function orderBy(
+  sort: readonly NamedSort[],
+  dialect: Pick<Dialect, 'identifierQuote'>,
+): string[] {
   const order = sort.map(
-    ({ part, name }) => `${quoteIdentifier(dialect, name)} ${part.isDescending ? 'DESC' : 'ASC'}`,
+    ({ key, name }) => `${quoteIdentifier(dialect, name)} ${key.isDescending ? 'DESC' : 'ASC'}`,
   )
-  return [
-    `SELECT * FROM (\n${statement}\n) AS ${VIEW_ALIAS}`,
-    ...(conditions.length === 0 ? [] : [`WHERE ${conditions.join(' AND ')}`]),
-    ...(order.length === 0 ? [] : [`ORDER BY ${order.join(', ')}`]),
-  ].join('\n')
+  return order.length === 0 ? [] : [`ORDER BY ${order.join(', ')}`]
 }
 
-// Contains, without case: % and _ in the text are searched for, not wildcards.
-function likePattern(text: string): string {
-  return `%${text.toLowerCase().replaceAll(LIKE_SPECIALS, '\\$&')}%`
-}
-
-function named<T extends { readonly column: number }>(
-  parts: readonly T[],
-  columns: readonly ResultColumn[],
-): Named<T>[] | undefined {
-  const result: Named<T>[] = []
-  for (const part of parts) {
-    const name = uniqueName(columns, part.column)
+export function namedView(
+  spec: ViewSpec,
+  {
+    columns,
+    parameterTypes,
+  }: {
+    readonly columns: readonly Pick<ResultColumn, 'name'>[]
+    readonly parameterTypes: ReadonlyMap<string, string>
+  },
+): NamedView | undefined {
+  const filters: NamedFilter[] = []
+  for (const filter of activeFilters(spec)) {
+    const name = uniqueName(columns, filter.column)
     if (name === undefined) {
       return undefined
     }
-    result.push({ part, name })
+    filters.push({ filter, name, parameterType: parameterTypes.get(name) ?? '' })
   }
-  return result
+  const sort = namedSort(spec.sort, columns)
+  return sort === undefined ? undefined : { filters, sort }
 }
 
-function uniqueName(columns: readonly ResultColumn[], column: number): string | undefined {
+function namedSort(
+  keys: readonly SortKey[],
+  columns: readonly Pick<ResultColumn, 'name'>[],
+): NamedSort[] | undefined {
+  const sort: NamedSort[] = []
+  for (const key of keys) {
+    const name = uniqueName(columns, key.column)
+    if (name === undefined) {
+      return undefined
+    }
+    sort.push({ key, name })
+  }
+  return sort
+}
+
+function uniqueName(
+  columns: readonly Pick<ResultColumn, 'name'>[],
+  column: number,
+): string | undefined {
   const name = columns.at(column)?.name
   return columns.filter((candidate) => candidate.name === name).length === 1 ? name : undefined
 }

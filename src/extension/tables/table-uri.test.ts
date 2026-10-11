@@ -7,6 +7,7 @@ import { isTableKey, TABLE_SCHEME, tableBinding, tableTargetOf, tableUri } from 
 const TARGET = {
   connectionId: 'shop',
   table: { database: 'shop', schema: 'sales', name: 'orders' },
+  instance: '',
 }
 const EDITOR = Uri.parse('untitled:Untitled-1') as unknown as vscode.Uri
 
@@ -26,6 +27,7 @@ describe('tableUri and tableTargetOf', () => {
       { ...TARGET, table: { ...TARGET.table, database: 'archive' } },
       { ...TARGET, table: { ...TARGET.table, schema: 'public' } },
       { ...TARGET, table: { ...TARGET.table, name: 'customers' } },
+      { ...TARGET, instance: 'navigated' },
     ]
 
     expect(tableUri({ ...TARGET, table: { ...TARGET.table } }).toString()).toBe(key)

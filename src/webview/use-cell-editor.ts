@@ -9,7 +9,7 @@ import { type CellMessage, type ResultTab, WebviewMessageType } from '../core/re
 import { requestCell, wholeValue } from './cell-values.ts'
 import { cellSpec, pendingDraft, rowEditAt } from './edit-overlay.ts'
 import type { ResultsApi } from './results-api.ts'
-import type { RowStore } from './row-store.ts'
+import type { RowView } from './row-store.ts'
 
 // The cell being edited: where, on which view of the rows, and what was typed (undefined until
 // something is: the editor then shows the value of the cell).
@@ -34,6 +34,8 @@ export interface OpenEditor {
   readonly change: (text: string) => void
   // True when the editor closes: the value went, or nothing was typed.
   readonly commit: () => boolean
+  // Puts this value in at once, as a pick of a list does: true when the editor closes.
+  readonly put: (text: string) => boolean
   readonly cancel: () => void
 }
 
@@ -44,7 +46,7 @@ export interface CellEditing {
 }
 
 export interface EditorSource {
-  readonly store: RowStore
+  readonly store: RowView
   readonly cell: CellMessage | undefined
 }
 
@@ -85,15 +87,22 @@ function editorOf(opened: Opened, context: EditorContext): OpenEditor | undefine
     change: (text) => {
       context.setOpened({ ...opened, draft: text })
     },
-    commit: () => {
-      const isClosing = send(context, { opened, view })
-      if (isClosing) {
-        close()
-      }
-      return isClosing
-    },
+    commit: () => closeIfSent(context, { opened, view }),
+    put: (text) =>
+      closeIfSent(context, {
+        opened: { ...opened, draft: text },
+        view: { ...view, problem: problemOf(text, view.spec) },
+      }),
     cancel: close,
   }
+}
+
+function closeIfSent(context: EditorContext, sending: Sending): boolean {
+  const isClosing = send(context, sending)
+  if (isClosing) {
+    context.setOpened(undefined)
+  }
+  return isClosing
 }
 
 function viewOf(opened: Opened, context: EditorContext): CellEditorView | undefined {
@@ -136,7 +145,7 @@ function textOf(value: CellValue): string {
 function askWholeValue(
   api: ResultsApi,
   tab: ResultTab,
-  place: { readonly store: RowStore; readonly position: CellPosition },
+  place: { readonly store: RowView; readonly position: CellPosition },
 ): void {
   const isPending = rowEditAt(tab, place.position.row)?.cells.has(place.position.column) === true
   if (!isPending && place.position.row < tab.rowCount) {
@@ -164,7 +173,7 @@ function send({ api, tab }: EditorContext, { opened, view }: Sending): boolean {
     viewVersion: opened.viewVersion,
     edit: {
       kind: EditKind.Set,
-      range: { firstRow: row, lastRow: row, firstColumn: column, lastColumn: column },
+      block: { firstRow: row, lastRow: row, columns: [column] },
       input: opened.draft,
     },
   })

@@ -49,7 +49,8 @@ describe('checkEditing', () => {
       state: 'readOnly',
       problem: '"Shop" is read-only: allow writes on it to edit rows.',
     })
-    expect(harness.engine.describeTable).not.toHaveBeenCalled()
+    // Once, for the links of the result: the editing reads nothing.
+    await expect.poll(() => harness.engine.describeTable.mock.calls.length).toBe(1)
   })
 
   it('should say why the text of the query keeps its rows read-only', async () => {
@@ -100,7 +101,8 @@ describe('checkEditing', () => {
     const uri = fake.document.uri as unknown as vscode.Uri
     const panel = readyPanel(harness, fake)
     await harness.runner.run(fake as unknown as vscode.TextEditor, RunScope.All)
-    await expect.poll(() => harness.engine.describeTable.mock.calls.length).toBe(1)
+    // The check of the editing, then the links of the result.
+    await expect.poll(() => harness.engine.describeTable.mock.calls.length).toBe(2)
     const tab = harness.panels.get(uri)?.tab('id-1')
     tab?.restart(IDENTITY_VIEW)
     const postedBefore = panel.webview.posted.length

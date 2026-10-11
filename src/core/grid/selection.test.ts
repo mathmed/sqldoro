@@ -9,6 +9,7 @@ import {
   type Move,
   Moves,
   moveSelection,
+  rangeBlock,
   selectAll,
   selectCell,
   selectionRange,
@@ -114,5 +115,19 @@ describe('selectionRange and isSelected', () => {
     expect(isSelected(range, { row: 9, column: 2 })).toBe(false)
     expect(isSelected(range, { row: 5, column: 0 })).toBe(false)
     expect(isSelected(range, { row: 5, column: 4 })).toBe(false)
+  })
+})
+
+describe('rangeBlock', () => {
+  it('should list every column of the range, in order', () => {
+    const sut = rangeBlock({ firstRow: 2, lastRow: 8, firstColumn: 1, lastColumn: 3 })
+
+    expect(sut).toStrictEqual({ firstRow: 2, lastRow: 8, columns: [1, 2, 3] })
+  })
+
+  it('should hold the one column of a single cell', () => {
+    const sut = rangeBlock({ firstRow: 4, lastRow: 4, firstColumn: 0, lastColumn: 0 })
+
+    expect(sut).toStrictEqual({ firstRow: 4, lastRow: 4, columns: [0] })
   })
 })

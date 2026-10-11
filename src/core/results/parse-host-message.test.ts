@@ -31,7 +31,10 @@ describe('parseHostMessage', () => {
       summary: { durationMs: 3, affectedRows: 7, isTruncated: true, autoLimit: 500 },
       error: { message: 'bad', line: 1, column: 4 },
       notice: '1 statement not run',
-      view: { sort: [{ column: 0, isDescending: false }], filters: [{ column: 1, text: 'a' }] },
+      view: {
+        sort: [{ column: 0, isDescending: false }],
+        filters: [{ column: 1, operator: 'contains', values: ['a'] }],
+      },
       canRefresh: true,
       tableFilter: "status = 'open'",
       search: 'ann',
@@ -84,7 +87,13 @@ describe('parseHostMessage', () => {
   })
 
   it('should read the connection of the editor', () => {
-    const connection = { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: true }
+    const connection = {
+      name: 'Shop',
+      environment: 'prod',
+      isProduction: true,
+      isReadOnly: true,
+      color: 'charts.red',
+    }
 
     expect(parseHostMessage({ type: 'connection', connection })).toStrictEqual({
       type: 'connection',

@@ -1,6 +1,6 @@
 import type { EditKind } from '../core/edits/edit-kind.ts'
-import { type GridSelection, selectionRange } from '../core/grid/selection.ts'
-import { type CellRange, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
+import { type GridSelection, rangeBlock, selectionRange } from '../core/grid/selection.ts'
+import { type CellBlock, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ResultsApi } from './results-api.ts'
 
 // The edits of the toolbar and the keyboard, on the selection or on the whole result.
@@ -20,11 +20,11 @@ export function editActions(
   return {
     onSelection: (kind) => {
       if (selection !== undefined) {
-        sendEdit(api, tab, { kind, range: selectionRange(selection) })
+        sendEdit(api, tab, { kind, block: rangeBlock(selectionRange(selection)) })
       }
     },
     onResult: (kind) => {
-      sendEdit(api, tab, { kind, range: null })
+      sendEdit(api, tab, { kind, block: null })
     },
     preview: () => {
       api.postMessage({ type: WebviewMessageType.PreviewEdits, tabId: tab.id })
@@ -42,7 +42,7 @@ export function editActions(
 function sendEdit(
   api: ResultsApi,
   tab: ResultTab,
-  edit: { readonly kind: EditKind; readonly range: CellRange | null },
+  edit: { readonly kind: EditKind; readonly block: CellBlock | null },
 ): void {
   const { id: tabId, viewVersion } = tab
   api.postMessage({

@@ -2,16 +2,18 @@ import * as vscode from 'vscode'
 
 import { soleTable } from '../../core/completion/references.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
+import type { ResultColumn } from '../../core/engine/query.ts'
 import {
   ExportFormat,
   formatRows,
   type FormatTarget,
   rowFormatter,
 } from '../../core/results/export-format.ts'
+import { projectRows } from '../../core/results/result-rows.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import { plural } from '../../core/results/tabs.ts'
 import { significantTokens } from '../../core/sql/statement-kind.ts'
-import { writeExport } from './export-file.ts'
+import { type RowSource, writeExport } from './export-file.ts'
 import type { CopyRequest } from './panel-actions.ts'
 
 // Past this many rows, the clipboard is the wrong place: the result goes to a file.
@@ -37,15 +39,15 @@ export async function copyRows(
   request: CopyRequest,
   dialect: Dialect,
 ): Promise<void> {
-  const { range, format } = request
-  const count = range.lastRow - range.firstRow + 1
+  const { block, format } = request
+  const count = block.lastRow - block.firstRow + 1
   if (count > MAX_COPY_ROWS) {
     void vscode.window.showWarningMessage(
       `Copy at most ${plural(MAX_COPY_ROWS, 'row', 'rows')} at a time: export larger results to a file.`,
     )
     return
   }
-  const { columns, rows } = tab.project(range)
+  const { columns, rows } = tab.project(block)
   const text = formatRows(rows, rowFormatter(format, target(tab, columns, dialect)))
   await vscode.env.clipboard.writeText(text)
   vscode.window.setStatusBarMessage(
@@ -78,7 +80,8 @@ async function askExportFile(format: ExportFormat): Promise<vscode.Uri | undefin
   return undefined
 }
 
-// The rows of the view, as shown (filtered and sorted), streamed to the file the user picks.
+// The rows of the view as shown (filtered, sorted, in the columns the grid shows and their order),
+// streamed to the file the user picks.
 export async function exportRows(
   tab: ResultSet,
   format: ExportFormat,
@@ -88,7 +91,8 @@ export async function exportRows(
   if (uri === undefined) {
     return
   }
-  const formatter = rowFormatter(format, target(tab, tab.columns, dialect))
+  const shown = shownRows(tab)
+  const formatter = rowFormatter(format, target(tab, shown.columns, dialect))
   const outcome = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -96,11 +100,29 @@ export async function exportRows(
       cancellable: true,
     },
     async (...[, token]) =>
-      writeExport(uri.fsPath, tab, { formatter, isCancelled: () => token.isCancellationRequested }),
+      writeExport(uri.fsPath, shown, {
+        formatter,
+        isCancelled: () => token.isCancellationRequested,
+      }),
   )
   if (!outcome.isCancelled) {
     void vscode.window.showInformationMessage(
       `Exported ${plural(outcome.rows, 'row', 'rows')} to ${uri.fsPath}`,
     )
+  }
+}
+
+interface ShownRows extends RowSource {
+  readonly columns: readonly ResultColumn[]
+}
+
+// The rows of the view in the columns the grid shows, in its order.
+function shownRows(tab: ResultSet): ShownRows {
+  const positions = tab.shownColumns
+  return {
+    columns: projectRows(tab.columns, { rows: [], positions }).columns,
+    rowCount: tab.rowCount,
+    rows: (start, count) =>
+      projectRows(tab.columns, { rows: tab.rows(start, count), positions }).rows,
   }
 }

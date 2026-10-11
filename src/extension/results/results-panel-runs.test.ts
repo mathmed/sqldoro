@@ -1,28 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type * as vscode from 'vscode'
 
 import { recordingLogger } from '../../../test/fakes/logger.ts'
+import { type FakePanelActions, fakePanelActions } from '../../../test/fakes/panel-actions.ts'
 import { POSTGRES_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { createWebviewPanel, type FakeWebviewPanel } from '../../../test/vscode.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import type { PanelActions } from './panel-actions.ts'
 import { ResultsPanel } from './results-panel.ts'
 
 let webviewPanel: FakeWebviewPanel
-let actions: { [K in keyof PanelActions]: ReturnType<typeof vi.fn> }
+let actions: FakePanelActions
 
 function panel(): ResultsPanel {
   webviewPanel = createWebviewPanel('sqldoro.results', 'orders — sales', {}, {})
-  return new ResultsPanel(
-    webviewPanel as unknown as vscode.WebviewPanel,
-    actions as unknown as PanelActions,
-    { now: () => 0, log: recordingLogger(), title: () => 'orders — sales' },
-  )
+  return new ResultsPanel(webviewPanel as unknown as vscode.WebviewPanel, actions, {
+    now: () => 0,
+    log: recordingLogger(),
+    title: () => 'orders — sales',
+  })
 }
 
 // A tab of the rows of a table (which can be read again) or of a query, finished or still running.
 function tab(id: string, { canRefresh = false, isRunning = false } = {}): ResultSet {
   const result = new ResultSet({
+    values: [],
     id,
     sql: 'SELECT * FROM "sales"."orders"',
     kind: 'rows',
@@ -36,18 +37,7 @@ function tab(id: string, { canRefresh = false, isRunning = false } = {}): Result
 }
 
 beforeEach(() => {
-  actions = {
-    cancel: vi.fn(),
-    serverView: vi.fn(),
-    loadAll: vi.fn(),
-    refresh: vi.fn(),
-    filterTable: vi.fn(),
-    copy: vi.fn(),
-    export: vi.fn(),
-    copyColumnName: vi.fn(),
-    applyEdits: vi.fn(),
-    isInOpenTransaction: vi.fn(() => false),
-  }
+  actions = fakePanelActions()
 })
 
 describe('ResultsPanel and the runs of its tabs', () => {
@@ -92,6 +82,7 @@ describe('ResultsPanel and the runs of its tabs', () => {
     ])
     result.succeed({ durationMs: 1, affectedRows: null, isTruncated: false, autoLimit: null })
     const running = new ResultSet({
+      values: [],
       id: 't2',
       sql: 'SELECT 1',
       kind: 'rows',

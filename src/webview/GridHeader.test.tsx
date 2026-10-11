@@ -1,18 +1,20 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { gridView, type GridView } from '../../test/webview/grid-view.ts'
+import { type GridOptions, gridView, type GridView } from '../../test/webview/grid-view.ts'
 import { cellAt, pickFromMenu } from '../../test/webview/grid.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 
 let view: GridView
 
-function grid(changes: Partial<ResultTab> = {}): void {
-  view = gridView(changes)
+function grid(changes: Partial<ResultTab> = {}, options: GridOptions = {}): void {
+  view = gridView(changes, options)
 }
 
 function filterBox(name: string): HTMLInputElement {
-  return within(screen.getByRole('dialog', { name: `Filter ${name}` })).getByRole('searchbox')
+  return within(screen.getByRole('dialog', { name: `Filter ${name}` })).getByRole('textbox', {
+    name: `Value of ${name}`,
+  })
 }
 
 describe('GridHeader', () => {
@@ -23,8 +25,33 @@ describe('GridHeader', () => {
     expect(id?.querySelector('svg.kind-icon')?.getAttribute('class')).toBe('kind-icon kind-number')
     expect(name?.querySelector('svg.kind-icon')?.getAttribute('class')).toBe('kind-icon kind-text')
     expect(screen.getByRole('button', { name: 'id' }).title).toBe(
-      'id: INT8 (number). Click to sort, Shift+click to sort by it too.',
+      'id: INT8 (number)\nClick to sort, Shift+click to sort by it too.',
     )
+  })
+
+  it('should list the values of an enum and what a foreign key points at in the tooltip', () => {
+    const choices = Array.from({ length: 22 }, (...[, index]) => `v${String(index)}`)
+    grid({
+      meta: [
+        { choices: [], reference: 'customers (id)' },
+        { choices, reference: '' },
+      ],
+    })
+
+    expect(screen.getByRole('button', { name: 'id' }).title).toBe(
+      'id: INT8 (number)\nReferences customers (id)\nClick to sort, Shift+click to sort by it too.',
+    )
+    expect(screen.getByRole('button', { name: 'name' }).title).toContain(
+      `Values: ${choices.slice(0, 20).join(', ')}, …`,
+    )
+  })
+
+  it('should hide a column from the menu of its header', () => {
+    grid()
+
+    pickFromMenu('Actions of name', 'Hide column')
+
+    expect(view.asks.onHide).toHaveBeenCalledWith(1)
   })
 
   it('should sort by a column, ascending first, and turn a sort around', () => {
@@ -115,11 +142,11 @@ describe('GridHeader', () => {
   })
 
   it('should filter a column from the popover under its header, Enter applying it', () => {
-    grid({ view: { sort: [], filters: [{ column: 1, text: 'b' }] } })
+    grid({ view: { sort: [], filters: [{ column: 1, operator: 'contains', values: ['b'] }] } })
     const filter = screen.getByRole('button', { name: 'Filter name' })
     expect(filter).toMatchObject({
       className: 'header-action is-active',
-      title: 'Filtered: name contains "b"',
+      title: "Filtered: name contains 'b'",
     })
     expect(screen.getByRole('button', { name: 'Filter id' }).className).toBe('header-action')
 
@@ -129,7 +156,9 @@ describe('GridHeader', () => {
     fireEvent.change(filterBox('name'), { target: { value: 'an' } })
     fireEvent.keyDown(filterBox('name'), { key: 'Enter' })
 
-    expect(view.views()).toStrictEqual([{ sort: [], filters: [{ column: 1, text: 'an' }] }])
+    expect(view.views()).toStrictEqual([
+      { sort: [], filters: [{ column: 1, operator: 'contains', values: ['an'] }] },
+    ])
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(filter)
   })
@@ -149,7 +178,7 @@ describe('GridHeader', () => {
   })
 
   it('should apply or clear the filter of a column with the buttons of its popover', () => {
-    grid({ view: { sort: [], filters: [{ column: 0, text: '7' }] } })
+    grid({ view: { sort: [], filters: [{ column: 0, operator: 'contains', values: ['7'] }] } })
 
     pickFromMenu('Actions of id', 'Filter…')
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
@@ -163,8 +192,8 @@ describe('GridHeader', () => {
       {
         sort: [],
         filters: [
-          { column: 0, text: '7' },
-          { column: 1, text: 'x' },
+          { column: 0, operator: 'contains', values: ['7'] },
+          { column: 1, operator: 'contains', values: ['x'] },
         ],
       },
     ])
@@ -198,6 +227,7 @@ describe('GridHeader', () => {
       ['Clear sort', true],
       ['Filter…', true],
       ['Copy column name', false],
+      ['Hide column', false],
     ])
   })
 
@@ -216,5 +246,50 @@ describe('GridHeader', () => {
 
     expect(Number.parseInt(header.style.width, 10)).toBe(before + 60)
     expect(cellAt(0, 1).style.width).toBe(`${String(before + 60)}px`)
+  })
+
+  it('should list the values the host gave for the column, to pick from', () => {
+    grid(
+      {},
+      {
+        distinct: {
+          type: 'distinct',
+          tabId: 'tab-1',
+          column: 1,
+          values: ['ann'],
+          isComplete: true,
+        },
+      },
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter name' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Operator' }), {
+      target: { value: 'inList' },
+    })
+
+    expect(view.asks.onFetchDistinct).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'ann' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(view.views()).toStrictEqual([
+      { sort: [], filters: [{ column: 1, operator: 'inList', values: ['ann'] }] },
+    ])
+  })
+
+  it('should ask for the values of a column, not taking those of another', () => {
+    grid(
+      {},
+      {
+        distinct: { type: 'distinct', tabId: 'tab-1', column: 0, values: ['7'], isComplete: true },
+      },
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter name' }))
+    fireEvent.change(screen.getByRole('combobox', { name: 'Operator' }), {
+      target: { value: 'inList' },
+    })
+
+    expect(screen.queryByRole('checkbox', { name: '7' })).toBeNull()
+    expect(screen.getByText('Loading values…')).toBeDefined()
+    expect(view.asks.onFetchDistinct).toHaveBeenCalledWith(1)
   })
 })

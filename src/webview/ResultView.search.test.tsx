@@ -5,8 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resultTab } from '../../test/fixtures/results.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
+import { NO_ANSWERS } from './host-answers.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStore } from './row-store.ts'
+
+const CONTEXT = { connection: null, sql: null, step: null, scrolls: new Map<number, number>() }
 
 let api: FakeVsCodeApi
 let store: RowStore
@@ -17,8 +20,8 @@ function element(changes: Partial<ResultTab> = {}): JSX.Element {
       tab={resultTab({ rowCount: 4, loadedRows: 4, ...changes })}
       store={store}
       api={api}
-      cell={undefined}
-      connection={null}
+      answers={NO_ANSWERS}
+      context={CONTEXT}
       hasTabs={false}
     />
   )
@@ -33,7 +36,7 @@ function search(): HTMLInputElement {
 }
 
 function where(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: 'WHERE condition' })
+  return screen.getByRole('combobox', { name: 'WHERE condition' })
 }
 
 function clearWhere(): HTMLElement | null {
@@ -116,7 +119,7 @@ describe('ResultView, the WHERE of a table', () => {
   it('should be offered only for the rows of a table', () => {
     render(element())
 
-    expect(screen.queryByRole('textbox', { name: 'WHERE condition' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'WHERE condition' })).toBeNull()
   })
 
   it('should read the table with the condition typed when Enter is pressed', () => {

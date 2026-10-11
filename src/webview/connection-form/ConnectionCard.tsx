@@ -6,6 +6,7 @@ import { ConnectionField } from '../../core/connection/validation.ts'
 import { AdvancedSection } from './AdvancedSection.tsx'
 import { BoundText } from './bound-fields.tsx'
 import { CardHeader, SUBTITLE_ID, TITLE_ID } from './CardHeader.tsx'
+import { ColorField } from './ColorField.tsx'
 import { EnvironmentFields } from './EnvironmentFields.tsx'
 import type { FormView } from './form-view.ts'
 import { FormFooter } from './FormFooter.tsx'
@@ -29,14 +30,7 @@ export const ConnectionCard = ({ view }: { readonly view: FormView }): ReactElem
     {view.state.importer.isOpen ? <ImportPanel view={view} /> : null}
     <ImportWarnings warnings={view.state.importer.warnings} />
     <div className="card-body">
-      <BoundText
-        view={view}
-        field={ConnectionField.Name}
-        value={view.state.draft.connection.name}
-        isRequired
-        placeholder="Connection name"
-        write={(connection, name) => ({ ...connection, name })}
-      />
+      <IdentityFields view={view} />
       <EnvironmentFields view={view} />
       <ServerFields view={view} />
       <TunnelFields view={view} />
@@ -44,4 +38,26 @@ export const ConnectionCard = ({ view }: { readonly view: FormView }): ReactElem
     </div>
     <FormFooter view={view} />
   </form>
+)
+
+// What tells the connection apart in the explorer: its name, its color and its folder.
+const IdentityFields = ({ view }: { readonly view: FormView }): ReactElement => (
+  <>
+    <BoundText
+      view={view}
+      field={ConnectionField.Name}
+      value={view.state.draft.connection.name}
+      isRequired
+      placeholder="Connection name"
+      write={(connection, name) => ({ ...connection, name })}
+    />
+    <ColorField view={view} />
+    <BoundText
+      view={view}
+      field={ConnectionField.Folder}
+      value={view.state.draft.connection.folder}
+      placeholder="None, or clients/acme"
+      write={(connection, folder) => ({ ...connection, folder })}
+    />
+  </>
 )

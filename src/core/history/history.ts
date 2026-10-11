@@ -65,6 +65,7 @@ export const HISTORY_FORMAT: ListFormat<HistoryEntry> = {
       message: readString(record, 'message'),
     }
   },
+  migrations: new Map(),
 }
 
 // Newest first, at most `maxPerConnection` entries per connection. Running the same statement again

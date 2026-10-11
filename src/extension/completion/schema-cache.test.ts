@@ -112,7 +112,7 @@ describe('SchemaCache', () => {
       catalog: { databases: ['shop'] },
     })
     expect(log.debug).toHaveBeenCalledWith(
-      'The autocomplete could not load databases: permission denied',
+      'Could not load databases from the catalog: permission denied',
     )
   })
 })

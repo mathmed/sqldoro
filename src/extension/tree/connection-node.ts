@@ -1,11 +1,17 @@
 import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
-import { ENVIRONMENT_LABELS, labelOf, SSL_MODE_LABELS } from '../../core/connection/labels.ts'
+import {
+  CONNECTION_COLOR_LABELS,
+  connectionTint,
+  ENVIRONMENT_LABELS,
+  labelOf,
+  SSL_MODE_LABELS,
+} from '../../core/connection/labels.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import { shortServerVersion } from '../../core/engine/server-version.ts'
 import { CommandId } from '../command-id.ts'
-import { environmentBadge, environmentColor } from '../labels.ts'
+import { environmentBadge } from '../labels.ts'
 import { type ConnectionState, ConnectionStatus } from '../sessions/session-manager.ts'
 import { databaseNode } from './catalog-nodes.ts'
 import {
@@ -28,6 +34,8 @@ const STATUS_ICONS: ReadonlyMap<string, string> = new Map([
   [ConnectionStatus.Failed, 'error'],
 ])
 const FAILED_COLOR = 'errorForeground'
+// Marks a read-only connection beside its name, where an icon cannot go.
+const READ_ONLY_MARK = '🔒'
 
 export function connectionNode(
   connection: ConnectionConfig,
@@ -38,7 +46,11 @@ export function connectionNode(
     kind: NodeKind.Connection,
     connectionId: connection.id,
     treeItem: (context) =>
-      connectionItem(node, connection, { state: context.state(connection.id), engines }),
+      connectionItem(node, connection, {
+        state: context.state(connection.id),
+        engines,
+        isProduction: context.isProduction(connection.environment),
+      }),
     children: async (context) => connectionChildren(node, connection, { context, engines }),
   }
   return node
@@ -47,6 +59,7 @@ export function connectionNode(
 interface Display {
   readonly state: ConnectionState
   readonly engines: EngineRegistry
+  readonly isProduction: boolean
 }
 
 function connectionItem(
@@ -59,31 +72,36 @@ function connectionItem(
     label: connection.name,
     description: descriptionOf(connection, state),
     tooltip: tooltipOf(connection, display),
-    icon: statusIcon(connection, state.status),
+    icon: statusIcon(connection, display),
     isExpandable: true,
   })
   item.contextValue = `${NodeKind.Connection}.${state.status}.${connection.isReadOnly ? 'readOnly' : 'writable'}`
   return item
 }
 
-// "PROD · read-only · 8.0.45 · db.example.com": what matters before writing comes first, then the
-// version of the server once connected.
+// "PROD · 🔒 · 8.0.45": what matters before writing comes first, then the version of the server
+// once connected. Where the server is goes in the tooltip.
 function descriptionOf(connection: ConnectionConfig, state: ConnectionState): string {
   const badge = environmentBadge(connection.environment)
   const version =
     state.status === ConnectionStatus.Connected ? shortServerVersion(state.serverVersion) : ''
-  return [badge, connection.isReadOnly ? 'read-only' : '', version, connection.host]
+  return [badge, connection.isReadOnly ? READ_ONLY_MARK : '', version]
     .filter((part) => part !== '')
     .join(' · ')
 }
 
-// Failures are painted as errors; otherwise the color tells the environment, production in red.
-function statusIcon(connection: ConnectionConfig, status: ConnectionStatus): vscode.ThemeIcon {
-  const color =
+// Failures are painted as errors; otherwise production in red, then the color of the connection,
+// then the color of its environment.
+function statusIcon(connection: ConnectionConfig, display: Display): vscode.ThemeIcon {
+  const { status } = display.state
+  const tint =
     status === ConnectionStatus.Failed
-      ? new vscode.ThemeColor(FAILED_COLOR)
-      : environmentColor(connection.environment)
-  return new vscode.ThemeIcon(labelOf(STATUS_ICONS, status), color)
+      ? FAILED_COLOR
+      : connectionTint(connection, display.isProduction)
+  return new vscode.ThemeIcon(
+    labelOf(STATUS_ICONS, status),
+    tint === '' ? undefined : new vscode.ThemeColor(tint),
+  )
 }
 
 function tooltipOf(connection: ConnectionConfig, { state, engines }: Display): string {
@@ -92,11 +110,20 @@ function tooltipOf(connection: ConnectionConfig, { state, engines }: Display): s
     connection.name,
     `${engine} · ${addressOf(connection)}`,
     `Environment: ${labelOf(ENVIRONMENT_LABELS, connection.environment)}`,
-    connection.isReadOnly ? 'Read-only' : 'Writes allowed',
+    connection.isReadOnly ? 'Read-only: sqldoro and the session refuse writes' : 'Writes allowed',
+    ...organizationOf(connection),
     `SSL: ${labelOf(SSL_MODE_LABELS, connection.ssl.mode)}`,
     `SSH tunnel: ${tunnelOf(connection)}`,
     `Status: ${statusText(state)}`,
   ].join('\n')
+}
+
+// The folder and the color the user gave the connection, when it has them.
+function organizationOf({ folder, color }: ConnectionConfig): string[] {
+  return [
+    ...(folder === '' ? [] : [`Folder: ${folder}`]),
+    ...(color === '' ? [] : [`Color: ${labelOf(CONNECTION_COLOR_LABELS, color)}`]),
+  ]
 }
 
 function addressOf({ user, host, port, database }: ConnectionConfig): string {

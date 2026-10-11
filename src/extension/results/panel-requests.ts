@@ -1,28 +1,11 @@
-import type { Dialect } from '../../core/engine/dialect.ts'
-import type { Logger } from '../../core/platform.ts'
 import {
-  type HostMessage,
   HostMessageType,
   type WebviewMessage,
   WebviewMessageType,
 } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
-import type { PanelActions } from './panel-actions.ts'
-
-// What the messages of a result view act on: the tabs of its panel, what the panel tells the view,
-// and what it cannot do on its own.
-export interface PanelRequests {
-  readonly actions: PanelActions
-  readonly log: Logger
-  readonly tab: (tabId: string) => ResultSet | undefined
-  // The dialect of the last run, unknown before the first one.
-  readonly dialect: () => Dialect | undefined
-  readonly post: (message: HostMessage) => void
-  // Tells the view that a tab changed.
-  readonly update: (tab: ResultSet) => void
-  // The view (re)loaded: it gets the tabs of the run again.
-  readonly ready: () => void
-}
+import { NAVIGATION_ROUTES } from './panel-navigation-requests.ts'
+import type { PanelRequests } from './panel-request-context.ts'
 
 type MessageOf<T extends WebviewMessage['type']> = Extract<WebviewMessage, { readonly type: T }>
 type Handle<T extends WebviewMessage['type']> = (
@@ -115,10 +98,11 @@ const sendCell: Handle<typeof WebviewMessageType.FetchCell> = atOnce((requests, 
   }
 })
 
-// The rows already here are sorted and filtered at once; the server view runs the query again.
+// The rows already here are sorted and filtered at once; the server view runs the query again. The
+// rows of a table are always sorted and filtered by the server: its statement holds its view.
 const setView: Handle<typeof WebviewMessageType.SetView> = async (requests, message) => {
   const { tabId, view } = message
-  if (message.isServerSide) {
+  if (message.isServerSide || requests.tab(tabId)?.canRefresh === true) {
     await readAgain(requests, requests.tab(tabId), async (tab) =>
       requests.actions.serverView(tab, view),
     )
@@ -133,7 +117,7 @@ const copy: Handle<typeof WebviewMessageType.Copy> = async (requests, message) =
   const tab = current(requests, message.tabId, message.viewVersion)
   const dialect = requests.dialect()
   if (tab !== undefined && dialect !== undefined) {
-    await requests.actions.copy(tab, { range: message.range, format: message.format }, dialect)
+    await requests.actions.copy(tab, { block: message.block, format: message.format }, dialect)
   }
 }
 
@@ -244,6 +228,7 @@ const ROUTES: ReadonlyMap<string, Route> = new Map([
   route(WebviewMessageType.PreviewEdits, previewEdits),
   route(WebviewMessageType.ClosePreview, closePreview),
   route(WebviewMessageType.ApplyEdits, applyEdits),
+  ...NAVIGATION_ROUTES,
 ])
 
 // Does what a message of the view asks, once the parser has checked it.

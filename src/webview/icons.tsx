@@ -4,6 +4,12 @@ import type { ReactElement } from 'react'
 // webviews draw them inline: the page loads no font and no image.
 export const IconName = {
   Back: 'back',
+  Forward: 'forward',
+  ArrowLink: 'arrowLink',
+  Columns: 'columns',
+  References: 'references',
+  Expand: 'expand',
+  Grip: 'grip',
   Link: 'link',
   Lock: 'lock',
   Unlock: 'unlock',
@@ -37,6 +43,12 @@ export type IconName = (typeof IconName)[keyof typeof IconName]
 
 const SHAPES: ReadonlyMap<IconName, string> = new Map([
   [IconName.Back, 'M7.5 3.5 3 8l4.5 4.5M3.5 8H13'],
+  [IconName.Forward, 'M8.5 3.5 13 8l-4.5 4.5M12.5 8H3'],
+  [IconName.ArrowLink, 'M5.5 10.5 10.5 5.5M6.5 5.5h4v4'],
+  [IconName.Columns, 'M2.5 3h11v10h-11zM6.5 3v10M10 3v10'],
+  [IconName.References, 'M3 4.5h6M3 8h4M3 11.5h6M11 6.5l2.5 2-2.5 2M13.5 8.5H8'],
+  [IconName.Expand, 'M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9'],
+  [IconName.Grip, 'M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01'],
   [
     IconName.Link,
     'M6.5 9.5l3-3M7.2 4.8l1.1-1.1a2.5 2.5 0 0 1 3.5 3.5l-1.1 1.1M8.8 11.2l-1.1 1.1a2.5 2.5 0 0 1-3.5-3.5l1.1-1.1',

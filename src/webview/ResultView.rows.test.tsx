@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { editingView, gridRow, hasEditor, setEdit, theEditor } from '../../test/webview/editing.ts'
 import { buttonIn, cellAt, pickFromMenu, theGrid } from '../../test/webview/grid.ts'
 import { ValueType } from '../core/engine/table.ts'
-import type { EditPreview } from '../core/results/protocol.ts'
+import type { EditPreview } from '../core/results/tab-editing.ts'
 
 const PREVIEW: EditPreview = {
   id: 3,
@@ -99,9 +99,9 @@ describe('ResultView, editing the rows', () => {
     fireEvent.keyDown(theGrid(), { key: 'Delete' })
     fireEvent.keyDown(theGrid(), { key: 's', metaKey: true })
 
-    const range = { firstRow: 1, lastRow: 2, firstColumn: 0, lastColumn: 1 }
+    const block = { firstRow: 1, lastRow: 2, columns: [0, 1] }
     expect(sent('edit')).toStrictEqual([
-      { type: 'edit', tabId: 'tab-1', viewVersion: 0, edit: { kind: 'delete', range, input: '' } },
+      { type: 'edit', tabId: 'tab-1', viewVersion: 0, edit: { kind: 'delete', block, input: '' } },
     ])
     expect(sent('previewEdits')).toStrictEqual([{ type: 'previewEdits', tabId: 'tab-1' }])
   })
@@ -129,14 +129,14 @@ describe('ResultView, editing the rows', () => {
     fireEvent.click(buttonIn('Cells', 'Set NULL'))
     fireEvent.click(buttonIn('Rows', 'Add Row'))
 
-    const range = { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 1 }
+    const block = { firstRow: 0, lastRow: 1, columns: [0, 1] }
     expect(sent('edit')).toStrictEqual([
-      { type: 'edit', tabId: 'tab-1', viewVersion: 0, edit: { kind: 'setNull', range, input: '' } },
+      { type: 'edit', tabId: 'tab-1', viewVersion: 0, edit: { kind: 'setNull', block, input: '' } },
       {
         type: 'edit',
         tabId: 'tab-1',
         viewVersion: 0,
-        edit: { kind: 'insert', range: null, input: '' },
+        edit: { kind: 'insert', block: null, input: '' },
       },
     ])
   })
@@ -144,10 +144,16 @@ describe('ResultView, editing the rows', () => {
   it('should apply the preview it shows, or close it', () => {
     const { sent } = editingView({
       editing: { preview: PREVIEW, rows: [{ row: 0, isDeleted: true, cells: [], problem: '' }] },
-      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
+      connection: {
+        name: 'Shop',
+        environment: 'prod',
+        isProduction: true,
+        isReadOnly: false,
+        color: '',
+      },
     })
     expect(within(screen.getByRole('dialog')).getByRole('note').textContent).toBe(
-      'Production: PROD · Shop · writes allowed',
+      'Production: PROD · Shop',
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply 1 Statement' }))
@@ -162,14 +168,14 @@ describe('ResultView, editing the rows', () => {
     fireEvent.mouseDown(cellAt(2, 1))
     fireEvent.mouseDown(cellAt(3, 1), { shiftKey: true })
 
-    pickFromMenu('Copy the selection', 'Copy Rows as INSERT')
+    pickFromMenu('Copy the selection', 'Copy Rows as INSERT (every column)')
 
     expect(sent('copy')).toStrictEqual([
       {
         type: 'copy',
         tabId: 'tab-1',
         viewVersion: 0,
-        range: { firstRow: 2, lastRow: 3, firstColumn: 0, lastColumn: 1 },
+        block: { firstRow: 2, lastRow: 3, columns: [0, 1] },
         format: 'sql',
       },
     ])

@@ -1,36 +1,66 @@
+import type { Crumb } from '../navigation/history.ts'
 import {
   type HostMessage,
   HostMessageType,
   type PanelConnection,
   type ResultTab,
+  type SqlMessage,
 } from '../results/protocol.ts'
 
-// What the result webview shows: the connection of the editor, the tabs of the last run, and the
-// one in front.
+// What the result webview shows: the connection of the editor, how its SQL is written, the trail of
+// a table panel, the tabs of the last run, and the one in front.
 export interface ResultsState {
   readonly connection: PanelConnection | null
+  readonly sql: Omit<SqlMessage, 'type'> | null
+  readonly crumbs: readonly Crumb[]
   readonly tabs: readonly ResultTab[]
   readonly activeTabId: string | null
 }
 
-export const EMPTY_RESULTS: ResultsState = { connection: null, tabs: [], activeTabId: null }
+export const EMPTY_RESULTS: ResultsState = {
+  connection: null,
+  sql: null,
+  crumbs: [],
+  tabs: [],
+  activeTabId: null,
+}
 
-// A list of tabs replaces the run; a tab updates its own, and a new one comes to the front.
+type MessageOf<T extends HostMessage['type']> = Extract<HostMessage, { readonly type: T }>
+type Reducer = (state: ResultsState, message: HostMessage) => ResultsState
+
+function reducer<T extends HostMessage['type']>(
+  type: T,
+  reduce: (state: ResultsState, message: MessageOf<T>) => ResultsState,
+): readonly [string, Reducer] {
+  return [type, (state, message) => reduce(state, message as MessageOf<T>)]
+}
+
+// A list of tabs replaces the run; a tab updates its own, and a new one comes to the front. Rows,
+// cells and what goes to one part of the view leave the state as it is.
+const REDUCERS: ReadonlyMap<string, Reducer> = new Map([
+  reducer(HostMessageType.Tabs, (state, message) => ({
+    ...state,
+    tabs: message.tabs,
+    activeTabId: message.activeTabId ?? lastId(message.tabs),
+  })),
+  reducer(HostMessageType.Tab, (state, message) => withTab(state, message.tab)),
+  reducer(HostMessageType.Connection, (state, message) => ({
+    ...state,
+    connection: message.connection,
+  })),
+  reducer(HostMessageType.Trail, (state, message) => ({ ...state, crumbs: message.crumbs })),
+  reducer(HostMessageType.Sql, (state, message) => ({
+    ...state,
+    sql: {
+      identifierQuote: message.identifierQuote,
+      lexical: message.lexical,
+      keywords: message.keywords,
+    },
+  })),
+])
+
 export function reduceResults(state: ResultsState, message: HostMessage): ResultsState {
-  switch (message.type) {
-    case HostMessageType.Tabs:
-      return {
-        ...state,
-        tabs: message.tabs,
-        activeTabId: message.activeTabId ?? lastId(message.tabs),
-      }
-    case HostMessageType.Tab:
-      return withTab(state, message.tab)
-    case HostMessageType.Connection:
-      return { ...state, connection: message.connection }
-    default:
-      return state
-  }
+  return REDUCERS.get(message.type)?.(state, message) ?? state
 }
 
 function lastId(tabs: readonly ResultTab[]): string | null {

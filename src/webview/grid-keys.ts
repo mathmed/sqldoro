@@ -20,6 +20,11 @@ export interface GridKeyActions {
   readonly edit: (position: CellPosition, typed: string | undefined) => void
   readonly deleteRows: () => void
   readonly preview: () => void
+  // The links of a cell: opening the row its foreign key points at, peeking at it; false when the
+  // cell is no link.
+  readonly openLink: (position: CellPosition) => boolean
+  readonly peek: (position: CellPosition) => boolean
+  readonly openMenu: (position: CellPosition) => void
 }
 
 const MOVES: ReadonlyMap<string, Move> = new Map([
@@ -56,8 +61,14 @@ const EDIT_OR_OPEN: KeyHandler = (selection, actions) => {
   return true
 }
 
+const OPEN_MENU: KeyHandler = (selection, actions) => {
+  actions.openMenu(selection.focus)
+  return true
+}
+
 const PLAIN_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
   ['Enter', EDIT_OR_OPEN],
+  ['ContextMenu', OPEN_MENU],
   ['F2', typedHandler(undefined)],
   [
     'Delete',
@@ -67,8 +78,16 @@ const PLAIN_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
     },
   ],
 ])
-const SHIFT_KEYS: ReadonlyMap<string, KeyHandler> = new Map([['Enter', OPEN_DETAIL]])
+const SHIFT_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
+  ['Enter', OPEN_DETAIL],
+  ['F10', OPEN_MENU],
+])
+// Alt with the arrows goes along the trail of the panel: only Alt+Enter is the grid's.
+const ALT_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
+  ['Enter', (selection, actions) => actions.peek(selection.focus)],
+])
 const CONTROL_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
+  ['Enter', (selection, actions) => actions.openLink(selection.focus)],
   [
     'c',
     (...[, actions]) => {
@@ -88,6 +107,8 @@ const CONTROL_KEYS: ReadonlyMap<string, KeyHandler> = new Map([
 // The keyboard of a spreadsheet: arrows, Page Up and Down, Home and End (with Ctrl or Cmd, of the
 // grid), Shift to extend, Ctrl or Cmd with A to select all, C to copy and S to preview the changes;
 // Enter or F2 (or typing) to edit a cell, Shift+Enter for its whole value, Delete to delete rows.
+// On a link, Ctrl or Cmd with Enter opens the row it points at and Alt+Enter peeks at it; the menu
+// key (or Shift+F10) opens the menu of the cell.
 export function handleGridKey(
   event: KeyboardEvent,
   {
@@ -116,8 +137,11 @@ interface MoveOptions {
 
 function keyHandler(event: KeyboardEvent, bounds: GridBounds): KeyHandler | undefined {
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
-  return event.ctrlKey || event.metaKey
-    ? controlHandler(key, bounds)
+  if (event.ctrlKey || event.metaKey) {
+    return controlHandler(key, bounds)
+  }
+  return event.altKey
+    ? ALT_KEYS.get(key)
     : plainHandler(event, { isExtending: event.shiftKey, bounds })
 }
 
@@ -128,7 +152,7 @@ function plainHandler(event: KeyboardEvent, options: MoveOptions): KeyHandler | 
 
 // A character typed on a cell starts editing it.
 function typingHandler(event: KeyboardEvent): KeyHandler | undefined {
-  return event.key.length === 1 && !event.altKey ? typedHandler(event.key) : undefined
+  return event.key.length === 1 ? typedHandler(event.key) : undefined
 }
 
 function moveHandlerOf(key: string, options: MoveOptions): KeyHandler | undefined {

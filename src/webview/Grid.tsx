@@ -9,50 +9,20 @@ import {
   useSyncExternalStore,
 } from 'react'
 
-import {
-  type CellPosition,
-  extendSelection,
-  extendToRow,
-  type GridSelection,
-  selectCell,
-  selectionRange,
-  selectRow,
-} from '../core/grid/selection.ts'
-import { ExportFormat } from '../core/results/export-format.ts'
+import type { GridSelection } from '../core/grid/selection.ts'
 import { type ResultTab, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
-import type { ViewSpec } from '../core/results/view.ts'
-import { canEditCell, gridRowCount, isEditing, rowEditAt } from './edit-overlay.ts'
-import { handleGridKey } from './grid-keys.ts'
+import { gridRowCount, isEditing } from './edit-overlay.ts'
 import { cellId, HEADER_HEIGHT, ROW_HEIGHT, rowNumberWidth } from './grid-model.ts'
+import type { GridProps } from './grid-props.ts'
 import { pageSize, revealedScroll } from './grid-scroll.ts'
+import { eventsOf, layoutOf, onGridKey } from './grid-wiring.ts'
 import { GridHeader } from './GridHeader.tsx'
-import { type CellEvents, GridRows, type RowLayout, type ShownEditor } from './GridRows.tsx'
-import type { ResultsApi } from './results-api.ts'
-import type { RowStore } from './row-store.ts'
-import type { OpenEditor } from './use-cell-editor.ts'
+import { GridRows } from './GridRows.tsx'
 import { type ColumnWindow, useColumnWindow } from './use-column-window.ts'
 import { type GridTable, useGridTable } from './use-grid-table.ts'
+import { usePeekHover } from './use-peek-hover.ts'
 import { useRowWindow } from './use-row-window.ts'
-
-// What the grid does with the changes of its rows.
-export interface GridEdit {
-  readonly editor: OpenEditor | undefined
-  readonly start: (position: CellPosition, typed: string | undefined) => void
-  readonly deleteRows: () => void
-  readonly preview: () => void
-}
-
-export interface GridProps {
-  readonly api: ResultsApi
-  readonly tab: ResultTab
-  readonly store: RowStore
-  readonly selection: GridSelection | undefined
-  readonly onSelect: (selection: GridSelection) => void
-  readonly onOpenDetail: (position: CellPosition) => void
-  readonly onView: (view: ViewSpec) => void
-  readonly onCopy: (format: ExportFormat) => void
-  readonly edit: GridEdit
-}
+import { useStepScroll } from './use-step-scroll.ts'
 
 type ScrollRef = RefObject<HTMLDivElement | null>
 type GridVirtualizer = Virtualizer<HTMLDivElement, Element>
@@ -78,29 +48,48 @@ export const Grid = (props: GridProps): ReactElement => {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { table, virtualizer, widths, shown, gutter, select } = useGrid(props, scrollRef)
   useFocusAfterEditing(props.edit.editor !== undefined, scrollRef)
+  const onScroll = useStepScroll(props.scroll, scrollRef, props.tab.rowCount)
+  const hover = usePeekHover(props.links.onPeek)
   const { tab, store } = props
   const totalWidth = gutter + table.getTotalSize()
   return (
-    <div ref={scrollRef} {...gridAttributes(props)} onKeyDown={keyHandler(props, select)}>
-      <GridHeader
-        table={table}
-        tab={tab}
-        shown={shown}
-        gutter={gutter}
-        isDisabled={tab.status === TabStatus.Running}
-        onView={props.onView}
-        onCopyName={copyName(props)}
-      />
+    <div
+      ref={scrollRef}
+      {...gridAttributes(props)}
+      onKeyDown={keyHandler(props, select)}
+      onScroll={onScroll}
+    >
+      <Header props={props} table={table} shown={shown} gutter={gutter} />
       <GridRows
         items={virtualizer.getVirtualItems()}
         totalSize={virtualizer.getTotalSize() + HEADER_HEIGHT}
         rowAt={(index) => (index < tab.rowCount ? store.row(index) : undefined)}
         layout={layoutOf(props, { widths, shown, gutter, totalWidth, select })}
-        events={eventsOf(props, select)}
+        events={eventsOf(props, { select, hover })}
       />
     </div>
   )
 }
+
+interface HeaderProps {
+  readonly props: GridProps
+  readonly table: GridTable
+  readonly shown: ColumnWindow
+  readonly gutter: number
+}
+
+const Header = ({ props, table, shown, gutter }: HeaderProps): ReactElement => (
+  <GridHeader
+    table={table}
+    tab={props.tab}
+    shown={shown}
+    gutter={gutter}
+    isDisabled={props.tab.status === TabStatus.Running}
+    onView={props.onView}
+    onCopyName={copyName(props)}
+    {...props.columns}
+  />
+)
 
 // The host copies the name of a column to the clipboard.
 function copyName({ api, tab }: GridProps): (column: number) => void {
@@ -187,117 +176,5 @@ function keyHandler(
 ): (event: KeyboardEvent<HTMLDivElement>) => void {
   return (event) => {
     onGridKey(event, props, { select, pageSize: pageSize(event.currentTarget) })
-  }
-}
-
-interface KeyContext {
-  readonly select: (selection: GridSelection) => void
-  readonly pageSize: number
-}
-
-function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyContext): void {
-  const { tab, edit } = props
-  const bounds = {
-    rowCount: gridRowCount(tab),
-    columnCount: tab.columns.length,
-    pageSize: context.pageSize,
-  }
-  handleGridKey(
-    event,
-    { selection: props.selection, bounds },
-    {
-      select: context.select,
-      copy: () => {
-        props.onCopy(ExportFormat.Tsv)
-      },
-      openDetail: props.onOpenDetail,
-      canEdit: (position) => canEditCell(tab, position),
-      edit: edit.start,
-      deleteRows: edit.deleteRows,
-      preview: edit.preview,
-    },
-  )
-}
-
-interface Widths {
-  readonly widths: readonly number[]
-  readonly shown: ColumnWindow
-  readonly gutter: number
-  readonly totalWidth: number
-  readonly select: (selection: GridSelection) => void
-}
-
-function layoutOf(props: GridProps, sizes: Widths): RowLayout {
-  const { tab, selection } = props
-  return {
-    tabId: tab.id,
-    columns: tab.columns,
-    widths: sizes.widths,
-    gutter: sizes.gutter,
-    rowCount: tab.rowCount,
-    shown: sizes.shown,
-    totalWidth: sizes.totalWidth,
-    range: selection === undefined ? undefined : selectionRange(selection),
-    focus: selection?.focus,
-    isEditing: isEditing(tab),
-    rowEdit: (index) => rowEditAt(tab, index),
-    canEdit: (position) => canEditCell(tab, position),
-    editor: shownEditor(props, sizes.select),
-  }
-}
-
-// Putting a value in moves on along its row with Tab, as in a spreadsheet.
-function shownEditor(
-  { edit, tab }: GridProps,
-  select: (selection: GridSelection) => void,
-): ShownEditor | undefined {
-  const { editor } = edit
-  if (editor === undefined) {
-    return undefined
-  }
-  const { row, column } = editor.view.position
-  return {
-    view: editor.view,
-    actions: {
-      change: editor.change,
-      cancel: editor.cancel,
-      commit: (exit) => {
-        if (editor.commit()) {
-          const next = Math.min(Math.max(column + exit, 0), tab.columns.length - 1)
-          select(selectCell({ row, column: next }))
-        }
-      },
-    },
-  }
-}
-
-function eventsOf(
-  { selection, onOpenDetail, edit, tab, onSelect }: GridProps,
-  select: (selection: GridSelection) => void,
-): CellEvents {
-  const columnCount = tab.columns.length
-  return {
-    // The row is in view already: the grid does not scroll to its last column.
-    onRowDown: (row, isExtending) => {
-      onSelect(
-        isExtending && selection !== undefined
-          ? extendToRow(selection, row, columnCount)
-          : selectRow(row, columnCount),
-      )
-    },
-    onCellDown: (position, isExtending) => {
-      select(
-        isExtending && selection !== undefined
-          ? extendSelection(selection, position)
-          : selectCell(position),
-      )
-    },
-    onCellOpen: (position) => {
-      if (canEditCell(tab, position)) {
-        edit.start(position, undefined)
-        return
-      }
-      onOpenDetail(position)
-    },
   }
 }

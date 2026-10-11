@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type * as vscode from 'vscode'
 
 import { recordingLogger } from '../../../test/fakes/logger.ts'
+import { fakePanelActions } from '../../../test/fakes/panel-actions.ts'
 import { resetVscode, Uri, webviewPanels } from '../../../test/vscode.ts'
 import { tableUri } from '../tables/table-uri.ts'
 import { ResultsPanels } from './results-panels.ts'
@@ -10,6 +11,7 @@ const DOCUMENT = Uri.parse('untitled:Untitled-1') as unknown as vscode.Uri
 const ORDERS = tableUri({
   connectionId: 'shop',
   table: { database: 'shop', schema: 'sales', name: 'orders' },
+  instance: '',
 })
 let log: ReturnType<typeof recordingLogger>
 let cancel: Mock<() => void>
@@ -19,18 +21,7 @@ function panels(): ResultsPanels {
     extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
     now: () => 0,
     log,
-    actionsFor: () => ({
-      cancel,
-      serverView: vi.fn(),
-      loadAll: vi.fn(),
-      refresh: vi.fn(),
-      copy: vi.fn(),
-      export: vi.fn(),
-      filterTable: vi.fn(),
-      copyColumnName: vi.fn(),
-      applyEdits: vi.fn(),
-      isInOpenTransaction: () => false,
-    }),
+    actionsFor: () => ({ ...fakePanelActions(), cancel }),
     titleOf: (uri) => `Title of ${uri.path}`,
   })
 }

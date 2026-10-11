@@ -5,12 +5,16 @@ import type * as vscode from 'vscode'
 import type { ConnectionConfig } from '../../src/core/connection/connection.ts'
 import type { SecretKind } from '../../src/core/connection/secrets.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
+import type { EngineSession } from '../../src/core/engine/engine.ts'
 import type { SessionRequest } from '../../src/core/session/open-session.ts'
 import {
   type ConnectionCommandContext,
   registerConnectionCommands,
 } from '../../src/extension/commands/connection-commands.ts'
 import { registerExplorerCommands } from '../../src/extension/commands/explorer-commands.ts'
+import { registerFindCommands } from '../../src/extension/commands/find-commands.ts'
+import { registerFolderCommands } from '../../src/extension/commands/folder-commands.ts'
+import { SchemaCache } from '../../src/extension/completion/schema-cache.ts'
 import { ConnectionService } from '../../src/extension/connections/connection-service.ts'
 import { listServerDatabases, pingServer } from '../../src/extension/connections/server-test.ts'
 import { ConnectionForms } from '../../src/extension/form/connection-forms.ts'
@@ -19,10 +23,12 @@ import { readSettings } from '../../src/extension/settings.ts'
 import { ConnectionStore } from '../../src/extension/storage/connection-store.ts'
 import { SecretStore } from '../../src/extension/storage/secret-store.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
+import { TableIndex } from '../../src/extension/tree/table-index.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { FakeMemento, FakeSecretStorage } from '../fakes/extension-context.ts'
 import { recordingLogger } from '../fakes/logger.ts'
 import { Uri } from '../vscode.ts'
+import { never } from './explorer.ts'
 
 const MYSQL = fakeEngine({
   id: 'mysql',
@@ -52,11 +58,14 @@ export interface CommandHarness {
 export interface HarnessOptions {
   readonly openError?: Error
   readonly memento?: FakeMemento
+  // What the sessions answer; every list is empty by default.
+  readonly session?: Partial<EngineSession>
 }
 
 export function commandHarness({
   openError,
   memento = new FakeMemento(),
+  session = {},
 }: HarnessOptions = {}): CommandHarness {
   const log = recordingLogger()
   const engines = new EngineRegistry([MYSQL, POSTGRES])
@@ -70,7 +79,7 @@ export function commandHarness({
     return openError === undefined
       ? Promise.resolve({
           engine: POSTGRES,
-          engineSession: fakeSession({ serverVersion: '18.6' }),
+          engineSession: fakeSession({ serverVersion: '18.6', ...session }),
           close,
         })
       : Promise.reject(openError)
@@ -82,7 +91,22 @@ export function commandHarness({
     onConnectionLost: vi.fn(),
   })
   const service = new ConnectionService({ store, secrets, sessions, engines, createId: idMaker() })
-  const explorer = new ExplorerProvider({ connections: () => store.list(), sessions, engines, log })
+  const index = new TableIndex({
+    cache: new SchemaCache(log),
+    connections: () => store.list(),
+    sessions,
+    engines,
+    log,
+  })
+  const explorer = new ExplorerProvider({
+    connections: () => store.list(),
+    sessions,
+    engines,
+    index,
+    policy: () => readSettings().policy,
+    delay: never,
+    log,
+  })
   const viewMessages: string[] = []
   const forms = new ConnectionForms({
     extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
@@ -100,6 +124,7 @@ export function commandHarness({
     secrets,
     open,
     explorer,
+    index,
     log,
     forms,
     setViewMessage: (message) => viewMessages.push(message),
@@ -108,6 +133,8 @@ export function commandHarness({
     forms,
     ...registerConnectionCommands(context),
     ...registerExplorerCommands(context),
+    ...registerFolderCommands(context),
+    ...registerFindCommands(context),
   ]
   const dispose = (): void => {
     for (const disposable of disposables) {

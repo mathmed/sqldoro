@@ -18,5 +18,7 @@ top of the form, fills the fields from a URL.
 - **Environment**: tag production connections `prod`; sqldoro then asks you to type the connection
   name before anything writes there.
 - **Writes**: new connections are **read-only**. Allow writes only where you mean to change data.
+- **Color and folder**: give a connection a color to tell it apart, and a folder (`clients/acme`) to
+  group it in the explorer.
 
 Passwords and passphrases live only in the VS Code secret storage, never in settings or logs.

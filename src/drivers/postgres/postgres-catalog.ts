@@ -7,11 +7,13 @@ import {
   type ForeignKeyInfo,
   groupForeignKeyColumns,
   groupIndexColumns,
+  groupReferenceColumns,
   type IndexInfo,
   type ObjectRef,
   type ObjectScope,
   readDatabaseStats,
   readTableStats,
+  type ReferenceInfo,
   type SchemaInfo,
   type TableInfo,
   type ViewInfo,
@@ -109,6 +111,20 @@ JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = k.fattnum
 WHERE c.contype = 'f' AND n.nspname = $1 AND t.relname = $2
 ORDER BY c.conname, k.position`
 
+// The foreign keys of the tables of any schema of the database that point at a table.
+const REFERENCES = `SELECT n.nspname AS "tableSchema", t.relname AS "tableName",
+  c.conname AS "constraintName", a.attname AS "columnName", fa.attname AS "referencedColumn"
+FROM pg_constraint c
+JOIN pg_class t ON t.oid = c.conrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+JOIN pg_class ft ON ft.oid = c.confrelid
+JOIN pg_namespace fn ON fn.oid = ft.relnamespace
+CROSS JOIN LATERAL unnest(c.conkey, c.confkey) WITH ORDINALITY AS k(attnum, fattnum, position)
+JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum
+JOIN pg_attribute fa ON fa.attrelid = c.confrelid AND fa.attnum = k.fattnum
+WHERE c.contype = 'f' AND fn.nspname = $1 AND ft.relname = $2
+ORDER BY n.nspname, t.relname, c.conname, k.position`
+
 export async function queryRows(
   client: Client,
   sql: string,
@@ -190,6 +206,19 @@ export async function listForeignKeys(client: Client, table: ObjectRef): Promise
       referencedColumn: readString(row, 'referencedColumn'),
       onUpdate: readString(row, 'onUpdate'),
       onDelete: readString(row, 'onDelete'),
+    })),
+  )
+}
+
+export async function listReferences(client: Client, table: ObjectRef): Promise<ReferenceInfo[]> {
+  const rows = await queryRows(client, REFERENCES, [table.schema, table.name])
+  return groupReferenceColumns(
+    rows.map((row) => ({
+      schema: readString(row, 'tableSchema'),
+      table: readString(row, 'tableName'),
+      constraint: readString(row, 'constraintName'),
+      column: readString(row, 'columnName'),
+      referencedColumn: readString(row, 'referencedColumn'),
     })),
   )
 }

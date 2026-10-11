@@ -74,7 +74,7 @@ const SEEDED = [
   [2, 'B', 'second'],
   [3, 'C', null],
 ]
-const FIRST_TWO_ROWS = { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 0 }
+const FIRST_TWO_ROWS = { firstRow: 0, lastRow: 1, columns: [0] }
 
 describe.each(CASES)('the edits of the grid applied on a real $name server', (target) => {
   let observer: EngineSession
@@ -87,9 +87,9 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
 
   // A row added in the grid, after the three rows of the result.
   function addRow(grid: GridEditor, id: string, code: string): void {
-    edit(grid, { kind: EditKind.Insert, range: null })
-    edit(grid, { kind: EditKind.Set, range: cell(3, 0), input: id })
-    edit(grid, { kind: EditKind.Set, range: cell(3, 1), input: code })
+    edit(grid, { kind: EditKind.Insert, block: null })
+    edit(grid, { kind: EditKind.Set, block: cell(3, 0), input: id })
+    edit(grid, { kind: EditKind.Set, block: cell(3, 1), input: code })
   }
 
   async function editorSession(grid: GridEditor): Promise<EngineSession | undefined> {
@@ -131,9 +131,9 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
   it('should apply the changes in one transaction, then read the rows again', async () => {
     editor = await openGrid(target)
     window.showWarningMessage.mockResolvedValue('Delete 1 Row')
-    edit(editor, { kind: EditKind.Set, range: cell(0, 2), input: 'changed' })
+    edit(editor, { kind: EditKind.Set, block: cell(0, 2), input: 'changed' })
     addRow(editor, '4', 'D')
-    edit(editor, { kind: EditKind.Delete, range: cell(2, 0) })
+    edit(editor, { kind: EditKind.Delete, block: cell(2, 0) })
 
     const editing = await previewAndApply(editor)
 
@@ -154,7 +154,7 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
 
   it('should apply nothing when a statement fails, and say which', async () => {
     editor = await openGrid(target)
-    edit(editor, { kind: EditKind.Set, range: cell(0, 2), input: 'changed' })
+    edit(editor, { kind: EditKind.Set, block: cell(0, 2), input: 'changed' })
     addRow(editor, '2', 'Z')
 
     const editing = await previewAndApply(editor)
@@ -168,8 +168,8 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
 
   it('should report every row that changed meanwhile, and overwrite none', async () => {
     editor = await openGrid(target)
-    edit(editor, { kind: EditKind.Set, range: cell(0, 2), input: 'mine' })
-    edit(editor, { kind: EditKind.Set, range: cell(1, 2), input: 'mine too' })
+    edit(editor, { kind: EditKind.Set, block: cell(0, 2), input: 'mine' })
+    edit(editor, { kind: EditKind.Set, block: cell(1, 2), input: 'mine too' })
     await query(observer, `UPDATE ${target.table} SET note = 'theirs' WHERE id IN (1, 2)`)
 
     const editing = await previewAndApply(editor)
@@ -190,7 +190,7 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
 
   it('should ask for the name of a production connection, then the number of rows to delete', async () => {
     editor = await openGrid(target, { environment: EnvironmentTag.Production })
-    edit(editor, { kind: EditKind.Delete, range: FIRST_TWO_ROWS })
+    edit(editor, { kind: EditKind.Delete, block: FIRST_TWO_ROWS })
 
     answerInputs(undefined)
     const declined = await previewAndApply(editor)
@@ -211,7 +211,7 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
   it('should join the open transaction of the editor, inside a savepoint', async () => {
     settings.set('sqldoro.transactions.defaultMode', 'manual')
     editor = await openGrid(target)
-    edit(editor, { kind: EditKind.Set, range: cell(0, 2), input: 'pending' })
+    edit(editor, { kind: EditKind.Set, block: cell(0, 2), input: 'pending' })
 
     const joined = await previewAndApply(editor)
     expect(joined.notice).toBe(
@@ -219,7 +219,7 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
     )
     await expect(rows()).resolves.toStrictEqual(SEEDED)
 
-    edit(editor, { kind: EditKind.Set, range: cell(1, 2), input: 'lost' })
+    edit(editor, { kind: EditKind.Set, block: cell(1, 2), input: 'lost' })
     addRow(editor, '1', 'Z')
     const failed = await previewAndApply(editor)
     expect(failed.notice).toMatch(target.duplicate)
@@ -237,7 +237,7 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
   it('should not edit the rows of a read-only connection', async () => {
     editor = await openGrid(target, { isReadOnly: true })
 
-    edit(editor, { kind: EditKind.Set, range: cell(0, 2), input: 'changed' })
+    edit(editor, { kind: EditKind.Set, block: cell(0, 2), input: 'changed' })
     editor.panel.webview.send({ type: 'previewEdits', tabId: editor.tabId })
 
     expect(editingOf(editor)).toMatchObject({

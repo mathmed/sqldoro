@@ -10,7 +10,8 @@ import {
   readString,
 } from '../json/record.ts'
 import { isExportFormat } from './export-format.ts'
-import { readRange, readViewSpec } from './parse-common.ts'
+import { readBlock, readViewSpec } from './parse-common.ts'
+import { WEBVIEW_EXTRA_READERS } from './parse-webview-extras.ts'
 import { MAX_WINDOW_ROWS, type WebviewMessage, WebviewMessageType } from './protocol.ts'
 
 type Reader = (message: JsonRecord) => WebviewMessage
@@ -63,6 +64,7 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
     (message) => ({ type: WebviewMessageType.ClosePreview, tabId: readString(message, 'tabId') }),
   ],
   [WebviewMessageType.ApplyEdits, readApplyEdits],
+  ...WEBVIEW_EXTRA_READERS,
 ])
 const EDIT_KINDS: ReadonlySet<string> = new Set(Object.values(EditKind))
 
@@ -108,7 +110,7 @@ function readCopy(message: JsonRecord): WebviewMessage {
     type: WebviewMessageType.Copy,
     tabId: readString(message, 'tabId'),
     viewVersion: readCount(message, 'viewVersion'),
-    range: readRange(message, 'range'),
+    block: readBlock(message, 'block'),
     format: readOneOf(message, 'format', isExportFormat),
   }
 }
@@ -147,7 +149,7 @@ function readEdit(message: JsonRecord): WebviewMessage {
     viewVersion: readCount(message, 'viewVersion'),
     edit: {
       kind: readOneOf(edit, 'kind', isEditKind),
-      range: readNullable(edit, 'range', readRange),
+      block: readNullable(edit, 'block', readBlock),
       input: readString(edit, 'input'),
     },
   }

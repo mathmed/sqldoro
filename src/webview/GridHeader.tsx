@@ -1,8 +1,10 @@
 import { type ReactElement, useState } from 'react'
 
 import type { ResultColumn } from '../core/engine/query.ts'
-import { filterText, withFilter } from '../core/grid/view-state.ts'
-import type { ResultTab } from '../core/results/protocol.ts'
+import { columnFilters, withColumnFilters } from '../core/grid/view-state.ts'
+import { describeFilter } from '../core/results/conditions.ts'
+import type { DistinctMessage, ResultTab } from '../core/results/protocol.ts'
+import type { ColumnMeta } from '../core/results/tab-meta.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { FilterPopover } from './FilterPopover.tsx'
 import { ariaColumnIndex, filterButtonId, pairs } from './grid-model.ts'
@@ -25,12 +27,15 @@ interface GridHeaderProps {
   readonly isDisabled: boolean
   readonly onView: (view: ViewSpec) => void
   readonly onCopyName: (column: number) => void
+  readonly onHide: (column: number) => void
+  readonly onFetchDistinct: (column: number) => void
+  readonly distinct: DistinctMessage | undefined
 }
 
 // The filter open under the header of a column.
 interface Filtering {
-  readonly column: number
-  readonly name: string
+  readonly index: number
+  readonly column: ResultColumn
   readonly place: PopupPlace
 }
 
@@ -46,16 +51,13 @@ const SORT_MARKS: ReadonlyMap<string, string> = new Map([
 // The names of the columns, each with the kind of its values, its filter and a menu: a click sorts,
 // Shift adds a column to the sort, the edge resizes the column. A column's filter opens under it.
 export const GridHeader = (props: GridHeaderProps): ReactElement => {
-  const { table, tab, shown, gutter, isDisabled, onView, onCopyName } = props
+  const { table, tab, shown, gutter } = props
   const [filtering, setFiltering] = useState<Filtering>()
   const actions: HeaderActions = {
-    tab,
-    isDisabled,
-    onView,
-    onCopyName,
-    onFilter: (column, name) => {
-      const anchor = document.getElementById(filterButtonId(tab.id, column))
-      setFiltering({ column, name, place: placeUnder(anchor) })
+    ...props,
+    onFilter: (index, column) => {
+      const anchor = document.getElementById(filterButtonId(tab.id, index))
+      setFiltering({ index, column, place: placeUnder(anchor) })
     },
   }
   return (
@@ -102,31 +104,58 @@ interface HeaderFilterProps {
   readonly onEnd: (filtering: undefined) => void
 }
 
-// Closed from the keyboard or its buttons, the filter gives the focus back to its header.
+// The filter of a column, under its header, while it is open.
 const HeaderFilter = ({ filtering, actions, onEnd }: HeaderFilterProps): ReactElement | null => {
-  if (filtering === undefined) {
-    return null
-  }
+  return filtering === undefined ? null : (
+    <ColumnFilterPopover filtering={filtering} actions={actions} onEnd={onEnd} />
+  )
+}
+
+const ColumnFilterPopover = ({
+  filtering,
+  actions,
+  onEnd,
+}: HeaderFilterProps & { readonly filtering: Filtering }): ReactElement => {
   const { tab, onView } = actions
-  const { column } = filtering
+  const { index, column } = filtering
   return (
     <FilterPopover
-      key={column}
-      name={filtering.name}
-      text={filterText(tab.view, column)}
+      key={index}
+      column={{ ...column, choices: tab.meta.at(index)?.choices ?? [] }}
+      filters={columnFilters(tab.view, index)}
+      distinct={distinctOf(actions, index)}
+      onFetchDistinct={() => {
+        actions.onFetchDistinct(index)
+      }}
       place={filtering.place}
-      onApply={(text) => {
-        onView(withFilter(tab.view, column, text))
+      onApply={(filters) => {
+        onView(withColumnFilters(tab.view, index, filters))
       }}
-      onClose={() => {
-        onEnd(undefined)
-        document.getElementById(filterButtonId(tab.id, column))?.focus()
-      }}
-      onDismiss={() => {
-        onEnd(undefined)
-      }}
+      {...closers(filterButtonId(tab.id, index), onEnd)}
     />
   )
+}
+
+// Closed from the keyboard or its buttons, the filter gives the focus back to its button; a click
+// elsewhere leaves the focus where it went.
+function closers(
+  buttonId: string,
+  onEnd: (filtering: undefined) => void,
+): { readonly onClose: () => void; readonly onDismiss: () => void } {
+  return {
+    onClose: () => {
+      onEnd(undefined)
+      document.getElementById(buttonId)?.focus()
+    },
+    onDismiss: () => {
+      onEnd(undefined)
+    },
+  }
+}
+
+// The values the host listed for this column of this tab; undefined before it answers.
+function distinctOf({ distinct, tab }: HeaderActions, column: number): DistinctMessage | undefined {
+  return distinct?.tabId === tab.id && distinct.column === column ? distinct : undefined
 }
 
 interface HeaderCellProps {
@@ -149,8 +178,9 @@ const HeaderCell = ({ header, column, index, actions }: HeaderCellProps): ReactE
     <FilterButton column={column} index={index} actions={actions} />
     <MenuButton
       label={`Actions of ${column.name}`}
+      tooltip={`Actions of ${column.name}`}
       icon={IconName.More}
-      items={columnMenu(header, { index, name: column.name, actions })}
+      items={columnMenu(header, { index, column, actions })}
       isDisabled={false}
       hasChevron={false}
     />
@@ -165,7 +195,7 @@ const SortButton = ({ header, column, index, actions }: HeaderCellProps): ReactE
     <button
       type="button"
       className="sort"
-      title={`${column.name}: ${column.dataType} (${kindName(column.kind)}). Click to sort, Shift+click to sort by it too.`}
+      title={columnTooltip(column, actions.tab.meta.at(index))}
       disabled={actions.isDisabled}
       onClick={header.column.getToggleSortingHandler()}
     >
@@ -178,6 +208,28 @@ const SortButton = ({ header, column, index, actions }: HeaderCellProps): ReactE
   )
 }
 
+const MAX_LISTED_CHOICES = 20
+
+// What the column holds, the values of an enum, what its foreign key points at, and how to sort.
+function columnTooltip(column: ResultColumn, meta: ColumnMeta | undefined): string {
+  return [
+    `${column.name}: ${column.dataType} (${kindName(column.kind)})`,
+    choicesLine(meta?.choices ?? []),
+    meta === undefined || meta.reference === '' ? '' : `References ${meta.reference}`,
+    'Click to sort, Shift+click to sort by it too.',
+  ]
+    .filter((line) => line !== '')
+    .join('\n')
+}
+
+function choicesLine(choices: readonly string[]): string {
+  if (choices.length === 0) {
+    return ''
+  }
+  const listed = choices.slice(0, MAX_LISTED_CHOICES).join(', ')
+  return `Values: ${listed}${choices.length > MAX_LISTED_CHOICES ? ', …' : ''}`
+}
+
 function sortOrder(view: ViewSpec, column: number): string {
   return view.sort.length > 1 ? String(view.sort.findIndex((key) => key.column === column) + 1) : ''
 }
@@ -188,17 +240,18 @@ const FilterButton = ({
   index,
   actions,
 }: Omit<HeaderCellProps, 'header'>): ReactElement => {
-  const text = filterText(actions.tab.view, index)
+  const filters = columnFilters(actions.tab.view, index)
+  const text = filters.map((filter) => `${column.name} ${describeFilter(filter)}`).join(' and ')
   return (
     <button
       type="button"
       id={filterButtonId(actions.tab.id, index)}
       className={text === '' ? 'header-action' : 'header-action is-active'}
       aria-label={`Filter ${column.name}`}
-      title={text === '' ? `Filter ${column.name}` : `Filtered: ${column.name} contains "${text}"`}
+      title={text === '' ? `Filter ${column.name}` : `Filtered: ${text}`}
       disabled={actions.isDisabled}
       onClick={() => {
-        actions.onFilter(index, column.name)
+        actions.onFilter(index, column)
       }}
     >
       <Icon name={IconName.Filter} />

@@ -3,12 +3,9 @@
 import { act, render, screen } from '@testing-library/react'
 import { createElement, type ReactElement } from 'react'
 
-import type {
-  CellMessage,
-  PanelConnection,
-  ResultTab,
-  TabEditing,
-} from '../../src/core/results/protocol.ts'
+import type { CellMessage, PanelConnection, ResultTab } from '../../src/core/results/protocol.ts'
+import type { TabEditing } from '../../src/core/results/tab-editing.ts'
+import { NO_ANSWERS } from '../../src/webview/host-answers.ts'
 import { ResultView } from '../../src/webview/ResultView.tsx'
 import { RowStore } from '../../src/webview/row-store.ts'
 import { editableTab } from '../fixtures/results.ts'
@@ -37,8 +34,8 @@ export function editingView(shown: Shown = {}): EditingView {
       tab: editableTab(editing, changes),
       store,
       api,
-      cell,
-      connection: connection ?? null,
+      answers: { ...NO_ANSWERS, cell },
+      context: { connection: connection ?? null, sql: null, step: null, scrolls: new Map() },
       hasTabs: false,
     })
   const rendered = render(element(shown))
@@ -59,11 +56,7 @@ export function setEdit(row: number, column: number, input: string): object {
     type: 'edit',
     tabId: 'tab-1',
     viewVersion: 0,
-    edit: {
-      kind: 'set',
-      range: { firstRow: row, lastRow: row, firstColumn: column, lastColumn: column },
-      input,
-    },
+    edit: { kind: 'set', block: { firstRow: row, lastRow: row, columns: [column] }, input },
   }
 }
 

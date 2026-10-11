@@ -204,7 +204,7 @@ function opensData(node: ExplorerNode): ExplorerNode {
   return opening
 }
 
-function tableNode(
+export function tableNode(
   group: ExplorerNode,
   scope: ObjectScope,
   { name, stats }: TableInfo,
@@ -234,7 +234,11 @@ function tableNode(
   )
 }
 
-function viewNode(connectionId: string, view: ObjectRef, isMaterialized: boolean): ExplorerNode {
+export function viewNode(
+  connectionId: string,
+  view: ObjectRef,
+  isMaterialized: boolean,
+): ExplorerNode {
   return opensData(
     branch({
       kind: NodeKind.View,

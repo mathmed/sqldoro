@@ -2,10 +2,13 @@
 // receive (parse-host-message.ts, parse-webview-message.ts); values that may be absent are null,
 // which survives the trip where undefined would not.
 import type { EditKind } from '../edits/edit-kind.ts'
-import type { PendingValue } from '../edits/pending.ts'
 import type { CellValue, ResultColumn } from '../engine/query.ts'
-import type { ValueSpec } from '../engine/table.ts'
+import type { ColumnLayout } from '../grid/column-layout.ts'
+import type { Crumb } from '../navigation/history.ts'
+import type { LexicalRules } from '../sql/lexical-rules.ts'
 import type { ExportFormat } from './export-format.ts'
+import type { TabEditing } from './tab-editing.ts'
+import type { ColumnMeta, PeekView, RowReference } from './tab-meta.ts'
 import type { ViewSpec } from './view.ts'
 
 export const TabStatus = {
@@ -25,6 +28,17 @@ export const TabKind = {
 
 export type TabKind = (typeof TabKind)[keyof typeof TabKind]
 
+// Where a statement is, for the view to say while it waits: the session opening, the server
+// running it, its rows arriving, or done.
+export const TabProgress = {
+  Connecting: 'connecting',
+  Running: 'running',
+  Fetching: 'fetching',
+  Done: 'done',
+} as const
+
+export type TabProgress = (typeof TabProgress)[keyof typeof TabProgress]
+
 export interface TabSummary {
   readonly durationMs: number
   readonly affectedRows: number | null
@@ -41,6 +55,8 @@ export interface PanelConnection {
   readonly environment: string
   readonly isProduction: boolean
   readonly isReadOnly: boolean
+  // The theme color of its badge (charts.blue), empty for none; production is red whatever it is.
+  readonly color: string
 }
 
 // The server's message, and the place in the editor it points at (1-based) when it gave one.
@@ -50,78 +66,6 @@ export interface TabError {
   readonly column: number | null
 }
 
-// The editing of the rows of a tab. Rows are named by their position in the view; positions past
-// the rows of the view name the rows added in the grid, in order.
-export const EditingState = {
-  // A running or failed statement, or a plan: nothing to edit.
-  None: 'none',
-  Checking: 'checking',
-  ReadOnly: 'readOnly',
-  Editable: 'editable',
-  Applying: 'applying',
-} as const
-
-export type EditingState = (typeof EditingState)[keyof typeof EditingState]
-
-export interface PendingCell {
-  readonly column: number
-  readonly value: PendingValue
-}
-
-// A changed row the view shows, by its position in the view.
-export interface PendingRow {
-  readonly row: number
-  readonly isDeleted: boolean
-  readonly cells: readonly PendingCell[]
-  // Why the last apply did not take it, for people; empty otherwise.
-  readonly problem: string
-}
-
-export interface NewRowView {
-  readonly id: number
-  readonly cells: readonly PendingCell[]
-  readonly problem: string
-}
-
-export interface PreviewStatement {
-  readonly sql: string
-  // The bound values, in the order of their placeholders, as people read them.
-  readonly values: readonly string[]
-  readonly expectedRows: number
-  readonly label: string
-}
-
-export interface EditPreview {
-  // Applying names the preview it confirms: an older one applies nothing.
-  readonly id: number
-  readonly summary: string
-  readonly statements: readonly PreviewStatement[]
-  readonly deletions: number
-  // Whether the statements join the open transaction of the editor instead of their own.
-  readonly isInOpenTransaction: boolean
-}
-
-export interface TabEditing {
-  readonly state: EditingState
-  // Why the rows cannot be edited, when they cannot.
-  readonly problem: string
-  // The table and the columns of its key, when the rows can be edited.
-  readonly table: string
-  readonly key: readonly string[]
-  // How each column of the result takes values; read-only ones say why.
-  readonly columns: readonly ValueSpec[]
-  // Why rows cannot be added; empty when they can.
-  readonly insertProblem: string
-  readonly rows: readonly PendingRow[]
-  readonly newRows: readonly NewRowView[]
-  // Changed rows the filters of the view hide.
-  readonly hiddenRows: number
-  readonly preview: EditPreview | null
-  // What the last edit or apply said, for people; an error is shown as such.
-  readonly notice: string
-  readonly isNoticeError: boolean
-}
-
 // One statement of a run. Rows are not part of it: the webview asks for the ones it shows.
 export interface ResultTab {
   readonly id: string
@@ -129,7 +73,14 @@ export interface ResultTab {
   readonly sql: string
   readonly kind: TabKind
   readonly status: TabStatus
+  readonly progress: TabProgress
   readonly columns: readonly ResultColumn[]
+  // What the catalog says of each column, in order; empty until the host knows it.
+  readonly meta: readonly ColumnMeta[]
+  // The tables that reference the rows, where the result holds the columns they reference.
+  readonly references: readonly RowReference[]
+  // The columns the grid shows, and in which order.
+  readonly layout: ColumnLayout
   // Rows in the current view, after its filters.
   readonly rowCount: number
   readonly loadedRows: number
@@ -158,12 +109,12 @@ export interface WireRow {
   readonly truncated: readonly number[]
 }
 
-// Rows and columns of the view, both ends included.
-export interface CellRange {
+// Rows of the view, both ends included, and columns of the result in the order they are shown: the
+// grid may hide and move columns.
+export interface CellBlock {
   readonly firstRow: number
   readonly lastRow: number
-  readonly firstColumn: number
-  readonly lastColumn: number
+  readonly columns: readonly number[]
 }
 
 export const HostMessageType = {
@@ -172,6 +123,11 @@ export const HostMessageType = {
   Rows: 'rows',
   Cell: 'cell',
   Connection: 'connection',
+  Trail: 'trail',
+  Peek: 'peek',
+  ReferenceCounts: 'referenceCounts',
+  Distinct: 'distinct',
+  Sql: 'sql',
 } as const
 
 export type HostMessage =
@@ -197,9 +153,58 @@ export type HostMessage =
       readonly value: CellValue
     }
   | { readonly type: typeof HostMessageType.Connection; readonly connection: PanelConnection }
+  // The trail of a table panel reached by navigation, the step shown last.
+  | { readonly type: typeof HostMessageType.Trail; readonly crumbs: readonly Crumb[] }
+  | {
+      readonly type: typeof HostMessageType.Peek
+      readonly tabId: string
+      readonly viewVersion: number
+      readonly row: number
+      readonly column: number
+      readonly peek: PeekView
+    }
+  // How many rows of each referencing table reference a row, as decimal text; null where the count
+  // failed.
+  | {
+      readonly type: typeof HostMessageType.ReferenceCounts
+      readonly tabId: string
+      readonly viewVersion: number
+      readonly row: number
+      readonly counts: readonly (string | null)[]
+    }
+  // The values a column holds in the rows fetched, for the filter of the column to pick from.
+  | {
+      readonly type: typeof HostMessageType.Distinct
+      readonly tabId: string
+      readonly column: number
+      readonly values: readonly string[]
+      // False when there were more values than the list holds.
+      readonly isComplete: boolean
+    }
+  // How the SQL of the connection is written, for the WHERE of a table to color and complete it.
+  | {
+      readonly type: typeof HostMessageType.Sql
+      readonly identifierQuote: string
+      readonly lexical: LexicalRules
+      readonly keywords: readonly string[]
+    }
 
 // The whole value of one cell, sent when the webview asks for a value it only holds cut.
 export type CellMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Cell }>
+
+export type PeekMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Peek }>
+
+export type ReferenceCountsMessage = Extract<
+  HostMessage,
+  { readonly type: typeof HostMessageType.ReferenceCounts }
+>
+
+export type DistinctMessage = Extract<
+  HostMessage,
+  { readonly type: typeof HostMessageType.Distinct }
+>
+
+export type SqlMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Sql }>
 
 export const WebviewMessageType = {
   Ready: 'ready',
@@ -219,14 +224,33 @@ export const WebviewMessageType = {
   PreviewEdits: 'previewEdits',
   ClosePreview: 'closePreview',
   ApplyEdits: 'applyEdits',
+  SetLayout: 'setLayout',
+  Navigate: 'navigate',
+  OpenReference: 'openReference',
+  CountReferences: 'countReferences',
+  Peek: 'peek',
+  GoToStep: 'goToStep',
+  AllowWrites: 'allowWrites',
+  OpenInEditor: 'openInEditor',
+  FetchDistinct: 'fetchDistinct',
 } as const
 
 // An edit of the grid: the cells or rows of the view it acts on (null for adding a row and
 // reverting everything), and what was typed, for setting a value.
 export interface EditMessage {
   readonly kind: EditKind
-  readonly range: CellRange | null
+  readonly block: CellBlock | null
   readonly input: string
+}
+
+// Where a navigation starts: the row of a tab, and whether the rows it leads to open in place of
+// the rows of the panel (table panels keep a trail of the steps to go back to) or in a panel of
+// their own.
+export interface NavigationStart {
+  readonly tabId: string
+  readonly viewVersion: number
+  readonly row: number
+  readonly isInPlace: boolean
 }
 
 export type WebviewMessage =
@@ -248,7 +272,7 @@ export type WebviewMessage =
       readonly type: typeof WebviewMessageType.Copy
       readonly tabId: string
       readonly viewVersion: number
-      readonly range: CellRange
+      readonly block: CellBlock
       readonly format: ExportFormat
     }
   | {
@@ -301,6 +325,54 @@ export type WebviewMessage =
       readonly tabId: string
       readonly previewId: number
     }
+  // The columns the grid shows and their order: a table panel keeps them for its table.
+  | {
+      readonly type: typeof WebviewMessageType.SetLayout
+      readonly tabId: string
+      readonly layout: ColumnLayout
+    }
+  // Opens the row a link of a cell (a foreign key) points at.
+  | NavigateMessage
+  // Opens the rows of a referencing table (by its place among the references of the tab) that
+  // reference a row.
+  | OpenReferenceMessage
+  | {
+      readonly type: typeof WebviewMessageType.CountReferences
+      readonly tabId: string
+      readonly viewVersion: number
+      readonly row: number
+    }
+  | {
+      readonly type: typeof WebviewMessageType.Peek
+      readonly tabId: string
+      readonly viewVersion: number
+      readonly row: number
+      readonly column: number
+    }
+  // Shows a step of the trail of a table panel again.
+  | { readonly type: typeof WebviewMessageType.GoToStep; readonly step: number }
+  // Asks to allow writes on the connection of the panel (a confirmed change of its own).
+  | { readonly type: typeof WebviewMessageType.AllowWrites }
+  // Opens the statement of a table panel in an SQL editor.
+  | { readonly type: typeof WebviewMessageType.OpenInEditor; readonly tabId: string }
+  | {
+      readonly type: typeof WebviewMessageType.FetchDistinct
+      readonly tabId: string
+      readonly column: number
+    }
+
+interface NavigateMessage extends NavigationStart {
+  readonly type: typeof WebviewMessageType.Navigate
+  readonly column: number
+}
+
+interface OpenReferenceMessage extends NavigationStart {
+  readonly type: typeof WebviewMessageType.OpenReference
+  readonly reference: number
+}
 
 // The webview asks for at most this many rows at a time.
 export const MAX_WINDOW_ROWS = 1000
+
+// The filter of a column offers at most this many of its values.
+export const MAX_DISTINCT_VALUES = 500

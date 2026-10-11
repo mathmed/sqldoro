@@ -4,7 +4,6 @@ import { vi } from 'vitest'
 import type * as vscode from 'vscode'
 
 import type { ObjectRef } from '../../src/core/engine/catalog.ts'
-import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { ResultSet } from '../../src/core/results/result-set.ts'
 import { CommandId } from '../../src/extension/command-id.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
@@ -18,7 +17,6 @@ import type { GridResult } from './edits.ts'
 import {
   CRM,
   type HarnessOptions,
-  MYSQL_ENGINE,
   POSTGRES_ENGINE,
   type QueryHarness,
   queryHarness,
@@ -39,8 +37,6 @@ export function objectNode(
 }
 
 export interface TableHarness extends QueryHarness {
-  // The ids of the tabs of the tables opened, in order.
-  readonly tabIds: string[]
   readonly sessions: SessionManager
   readonly store: ConnectionStore
   readonly dispose: () => void
@@ -60,30 +56,26 @@ export async function tableHarness(options: HarnessOptions = {}): Promise<TableH
     log: harness.log,
     onConnectionLost: vi.fn(),
   })
-  const tabIds: string[] = []
   const store = new ConnectionStore(new FakeMemento(), harness.log)
   await store.save(SHOP)
   await store.save(CRM)
   const disposables: vscode.Disposable[] = [
-    ...registerTableDataCommands({
-      runner: harness.runner,
-      panels: harness.panels,
-      connections: (id) => harness.connections.get(id),
-      engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]),
-      createId: () => {
-        tabIds.push(`table-${String(tabIds.length + 1)}`)
-        return tabIds.at(-1) ?? ''
-      },
-      log: harness.log,
+    harness.tables.navigations,
+    ...registerTableDataCommands(harness.tables),
+    ...followTablePanels({
+      ...harness,
+      navigations: harness.tables.navigations,
+      peeks: harness.tables.peeks,
+      sessions,
+      store,
     }),
-    ...followTablePanels({ ...harness, sessions, store }),
   ]
   const dispose = (): void => {
     for (const disposable of disposables) {
       disposable.dispose()
     }
   }
-  return { ...harness, tabIds, sessions, store, dispose }
+  return { ...harness, sessions, store, dispose }
 }
 
 export interface TableResult extends GridResult {
@@ -103,7 +95,7 @@ export async function openTable(
   panel.webview.send({ type: 'ready' })
   await opening
   const { connectionId, place } = node as { connectionId: string; place: ObjectRef }
-  const uri = tableUri({ connectionId, table: place })
+  const uri = tableUri({ connectionId, table: place, instance: '' })
   return { uri, panel, tab: tabOf(harness, uri) }
 }
 

@@ -10,17 +10,22 @@ export const TABLE_SCHEME = 'sqldoro-table'
 export interface TableTarget {
   readonly connectionId: string
   readonly table: ObjectRef
+  // Tells apart the panels a navigation opens on the same table; empty for the panel the explorer
+  // opens.
+  readonly instance: string
 }
 
 // The key of the panel with the rows of a table, as the editor URI is the key of an editor's: it
-// names the connection, the database, the schema and the table, so that the same table always
-// finds the same panel, session and transaction.
-export function tableUri({ connectionId, table }: TableTarget): vscode.Uri {
+// names the connection, the database, the schema and the table (and the instance of a panel a
+// navigation opened), so that the same table always finds the same panel, session and transaction.
+// It holds no value of any row: URIs reach the log.
+export function tableUri({ connectionId, table, instance }: TableTarget): vscode.Uri {
   const query = JSON.stringify({
     connectionId,
     database: table.database,
     schema: table.schema,
     name: table.name,
+    instance,
   })
   return vscode.Uri.from({ scheme: TABLE_SCHEME, path: `/${table.name}`, query })
 }
@@ -44,6 +49,7 @@ export function tableTargetOf(uri: vscode.Uri): TableTarget | undefined {
       schema: readString(record, 'schema'),
       name: readString(record, 'name'),
     },
+    instance: readString(record, 'instance'),
   }
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { type ValueSpec, ValueType } from '../engine/table.ts'
-import { isEditable, readValue } from './values.ts'
+import { isEditable, readValue, setOptions, setText } from './values.ts'
 
 const TINYINT: ValueSpec = { type: ValueType.Integer, min: '-128', max: '127' }
 const INT8: ValueSpec = {
@@ -179,5 +179,19 @@ describe('isEditable', () => {
     expect(
       isEditable({ type: ValueType.ReadOnly, reason: 'Binary values are shown read-only.' }),
     ).toBe(false)
+  })
+})
+
+describe('setOptions and setText', () => {
+  it('should read the options of a SET value', () => {
+    expect(setOptions('')).toStrictEqual([])
+    expect(setOptions('b,a')).toStrictEqual(['b', 'a'])
+  })
+
+  it('should write the options chosen in the order of the column', () => {
+    const sut = setText(['a', 'b', 'c'], ['c', 'a'])
+
+    expect(sut).toBe('a,c')
+    expect(setText(['a', 'b'], [])).toBe('')
   })
 })

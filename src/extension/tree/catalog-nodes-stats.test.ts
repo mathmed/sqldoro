@@ -63,9 +63,7 @@ describe('the statistics in the explorer', () => {
   it('should show the server version beside a connected connection', async () => {
     const { sut } = await connected()
 
-    expect(itemOf(sut, await childrenOf(sut), 'Shop').description).toBe(
-      'PROD · read-only · 18.6 · localhost',
-    )
+    expect(itemOf(sut, await childrenOf(sut), 'Shop').description).toBe('PROD · 🔒 · 18.6')
   })
 
   it('should show the size of each database, exact in its tooltip', async () => {
@@ -202,8 +200,6 @@ describe('the statistics in the explorer', () => {
     const tables = await open(sut, 'Local', 'shop', 'Tables')
 
     expect(itemOf(sut, tables, 'orders').description).toBe('~27k rows · 32 MB')
-    expect(itemOf(sut, await childrenOf(sut), 'Local').description).toBe(
-      'read-only · 18.6 · localhost',
-    )
+    expect(itemOf(sut, await childrenOf(sut), 'Local').description).toBe('🔒 · 18.6')
   })
 })

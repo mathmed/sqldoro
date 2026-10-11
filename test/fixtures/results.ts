@@ -2,13 +2,9 @@
 import { NOT_EDITING } from '../../src/core/edits/tab-editor.ts'
 import { ColumnKind, type ResultColumn } from '../../src/core/engine/query.ts'
 import { ValueType } from '../../src/core/engine/table.ts'
-import {
-  EditingState,
-  type ResultTab,
-  type TabEditing,
-  TabKind,
-  TabStatus,
-} from '../../src/core/results/protocol.ts'
+import { DEFAULT_LAYOUT } from '../../src/core/grid/column-layout.ts'
+import { type ResultTab, TabKind, TabProgress, TabStatus } from '../../src/core/results/protocol.ts'
+import { EditingState, type TabEditing } from '../../src/core/results/tab-editing.ts'
 import { IDENTITY_VIEW } from '../../src/core/results/view.ts'
 
 export const RESULT_COLUMNS: readonly ResultColumn[] = [
@@ -23,7 +19,11 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     sql: 'SELECT * FROM orders',
     kind: TabKind.Rows,
     status: TabStatus.Succeeded,
+    progress: TabProgress.Done,
     columns: RESULT_COLUMNS,
+    meta: [],
+    references: [],
+    layout: DEFAULT_LAYOUT,
     rowCount: 2,
     loadedRows: 2,
     view: IDENTITY_VIEW,

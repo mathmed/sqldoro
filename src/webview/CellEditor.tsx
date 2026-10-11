@@ -1,21 +1,9 @@
-import { type KeyboardEvent, type ReactElement, useEffect, useRef } from 'react'
+import { type ReactElement, useEffect, useRef } from 'react'
 
+import { ValueType } from '../core/engine/table.ts'
+import { ChoiceEditor } from './ChoiceEditor.tsx'
+import { type CellEditorActions, onEditorKey } from './editor-keys.ts'
 import type { CellEditorView } from './use-cell-editor.ts'
-
-// Where the focus goes once a value is in: how many columns it moves along the row of the cell.
-export const EditorExit = {
-  Stay: 0,
-  Next: 1,
-  Previous: -1,
-} as const
-
-export type EditorExit = (typeof EditorExit)[keyof typeof EditorExit]
-
-export interface CellEditorActions {
-  readonly change: (text: string) => void
-  readonly commit: (exit: EditorExit) => void
-  readonly cancel: () => void
-}
 
 interface CellEditorProps {
   readonly editor: CellEditorView
@@ -32,12 +20,16 @@ export const CellEditor = ({ editor, label, actions }: CellEditorProps): ReactEl
   const problemId = `editor-problem-${String(editor.position.row)}-${String(editor.position.column)}`
   return (
     <span className="cell-editor-box">
-      <EditorInput
-        text={editor.text}
-        label={label}
-        problemId={editor.problem === '' ? undefined : problemId}
-        actions={actions}
-      />
+      {editor.spec.type === ValueType.Choice ? (
+        <ChoiceEditor text={editor.text} label={label} spec={editor.spec} actions={actions} />
+      ) : (
+        <EditorInput
+          text={editor.text}
+          label={label}
+          problemId={editor.problem === '' ? undefined : problemId}
+          actions={actions}
+        />
+      )}
       {editor.problem === '' ? null : (
         <span id={problemId} role="alert" className="cell-editor-problem">
           {editor.problem}
@@ -79,25 +71,4 @@ const EditorInput = ({ text, label, problemId, actions }: EditorInputProps): Rea
       }}
     />
   )
-}
-
-function onEditorKey(event: KeyboardEvent, actions: CellEditorActions): void {
-  const exit = event.key === 'Tab' ? tabExit(event) : enterExit(event)
-  if (exit === undefined && event.key !== 'Escape') {
-    return
-  }
-  event.preventDefault()
-  if (exit === undefined) {
-    actions.cancel()
-    return
-  }
-  actions.commit(exit)
-}
-
-function tabExit(event: KeyboardEvent): EditorExit {
-  return event.shiftKey ? EditorExit.Previous : EditorExit.Next
-}
-
-function enterExit(event: KeyboardEvent): EditorExit | undefined {
-  return event.key === 'Enter' && !event.shiftKey && !event.altKey ? EditorExit.Stay : undefined
 }

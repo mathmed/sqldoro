@@ -1,39 +1,23 @@
 import * as vscode from 'vscode'
 
-import type { ConnectionConfig } from '../../core/connection/connection.ts'
-import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
-import type { Logger } from '../../core/platform.ts'
+import { startNavigation } from '../../core/navigation/history.ts'
 import { TabKind } from '../../core/results/protocol.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
 import { tableDataQuery } from '../../core/results/table-data.ts'
 import { CommandId } from '../command-id.ts'
 import { registerAll } from '../commands/command-context.ts'
-import type { QueryRunner } from '../editor/query-runner.ts'
-import { refreshTab } from '../editor/refresh-rows.ts'
 import type { ResultsPanel } from '../results/results-panel.ts'
-import type { ResultsPanels } from '../results/results-panels.ts'
 import { isObjectNode } from '../tree/explorer-node.ts'
-import { type TableTarget, tableUri } from './table-uri.ts'
-
-export interface TableDataContext {
-  readonly runner: QueryRunner
-  readonly panels: ResultsPanels
-  readonly connections: (id: string) => ConnectionConfig | undefined
-  readonly engines: EngineRegistry
-  readonly createId: () => string
-  readonly log: Logger
-}
-
-interface Opening {
-  readonly uri: vscode.Uri
-  readonly target: TableTarget
-  readonly connection: ConnectionConfig
-}
+import type { TableContext } from './table-context.ts'
+import { readStep } from './table-read.ts'
+import { tableSourceOf } from './table-source.ts'
+import { tableUri } from './table-uri.ts'
 
 const NOT_A_TABLE = 'Open Table Data works on a table or a view of the Connections view.'
 const NOT_READ = 'sqldoro did not read the rows of this table: Refresh reads them.'
+const NO_CONNECTION = 'The connection of this table no longer exists.'
 
-export function registerTableDataCommands(context: TableDataContext): vscode.Disposable[] {
+export function registerTableDataCommands(context: TableContext): vscode.Disposable[] {
   return registerAll(context, [
     { id: CommandId.OpenTableData, action: 'Open Table Data', run: openTableData },
   ])
@@ -42,42 +26,48 @@ export function registerTableDataCommands(context: TableDataContext): vscode.Dis
 // From a table or view of the explorer: its rows in a panel of their own, read like any query (the
 // guards, the automatic limit, the editing of the rows). A table already open is shown again, not
 // read again: its panel reads it again on Refresh.
-async function openTableData(context: TableDataContext, argument: unknown): Promise<void> {
+async function openTableData(context: TableContext, argument: unknown): Promise<void> {
   if (!isObjectNode(argument) || argument.place === undefined) {
     void vscode.window.showInformationMessage(NOT_A_TABLE)
     return
   }
-  const target = { connectionId: argument.connectionId, table: argument.place }
-  const uri = tableUri(target)
+  const table = argument.place
+  const uri = tableUri({ connectionId: argument.connectionId, table, instance: '' })
   const open = context.panels.get(uri)
   if (open !== undefined) {
     open.reveal()
     return
   }
-  const connection = context.connections(target.connectionId)
-  if (connection === undefined) {
-    void vscode.window.showErrorMessage('The connection of this table no longer exists.')
-    return
-  }
-  await readTable(context, { uri, target, connection })
+  context.navigations.set(uri, startNavigation({ table, key: undefined }))
+  await showStep(context, uri)
 }
 
-// The panel and its tab exist at once (a second click finds them), and show what stopped the read
-// if it could not run.
-async function readTable(context: TableDataContext, opening: Opening): Promise<void> {
-  const { dialect } = context.engines.get(opening.connection.engine)
-  const panel = context.panels.show(opening.uri)
+// The rows of the step a table panel shows, in a new tab of its panel (which opens if it is not
+// open yet). The panel and its tab exist at once (a second click finds them), and show what stopped
+// the read if it could not run.
+export async function showStep(context: TableContext, uri: vscode.Uri): Promise<void> {
+  const source = tableSourceOf(context, uri)
+  if (source === undefined) {
+    void vscode.window.showErrorMessage(NO_CONNECTION)
+    return
+  }
+  const { step, connection } = source
+  const { dialect } = source.engine
+  const panel = context.panels.show(uri)
   const tab = new ResultSet({
     id: context.createId(),
-    sql: tableDataQuery(opening.target.table, dialect),
+    sql: tableDataQuery(step.table, dialect),
+    values: [],
     kind: TabKind.Rows,
     canServerView: true,
     canRefresh: true,
   })
+  tab.setLayout(context.layouts.get(connection.id, step.table))
+  tab.waitForSession()
   panel.startRun(dialect)
   panel.addTab(tab)
   try {
-    await refreshTab(context.runner, opening.uri, tab)
+    await readStep(context, uri, { tab, change: {}, shouldAutoLimit: true })
   } finally {
     settleUnread(panel, tab)
   }

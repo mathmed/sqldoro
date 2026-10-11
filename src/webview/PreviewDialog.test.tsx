@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { EditPreview, PanelConnection } from '../core/results/protocol.ts'
+import type { PanelConnection } from '../core/results/protocol.ts'
+import type { EditPreview } from '../core/results/tab-editing.ts'
 import { PreviewDialog } from './PreviewDialog.tsx'
 
 const PREVIEW: EditPreview = {
@@ -106,10 +107,13 @@ describe('PreviewDialog', () => {
   })
 
   it('should show where the statements run, production standing out', () => {
-    renderDialog({}, { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false })
+    renderDialog(
+      {},
+      { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false, color: '' },
+    )
 
     const banner = within(screen.getByRole('dialog')).getByRole('note', { name: 'Connection' })
-    expect(banner.textContent).toBe('Production: PROD · Shop · writes allowed')
+    expect(banner.textContent).toBe('Production: PROD · Shop')
     expect(banner.className).toBe('connection-banner production')
   })
 
@@ -123,5 +127,16 @@ describe('PreviewDialog', () => {
     renderDialog({ statements: PREVIEW.statements.slice(0, 1) })
 
     expect(screen.getByRole('button', { name: 'Apply 1 Statement' })).toBeDefined()
+  })
+
+  it('should name a connection that is not production plainly', () => {
+    renderDialog(
+      {},
+      { name: 'Local', environment: '', isProduction: false, isReadOnly: false, color: '' },
+    )
+
+    const banner = within(screen.getByRole('dialog')).getByRole('note', { name: 'Connection' })
+    expect(banner.textContent).toBe('Local')
+    expect(banner.className).toBe('connection-banner')
   })
 })

@@ -108,3 +108,27 @@ describe('the statistics of the PostgreSQL catalog', () => {
     )
   })
 })
+
+describe('the references to a PostgreSQL table', () => {
+  it('should describe the foreign keys of the tables of any schema that point here', async () => {
+    const row = {
+      tableSchema: 'audit',
+      tableName: 'entries',
+      constraintName: 'fk_order',
+      columnName: 'order_id',
+      referencedColumn: 'id',
+    }
+    answerBy([['SELECT n.nspname AS "tableSchema"', { rows: [row] }]])
+    const sut = await connected()
+
+    await expect(sut.listReferences({ ...SCOPE, name: 'orders' })).resolves.toStrictEqual([
+      {
+        name: 'fk_order',
+        schema: 'audit',
+        table: 'entries',
+        columns: ['order_id'],
+        referencedColumns: ['id'],
+      },
+    ])
+  })
+})

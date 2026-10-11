@@ -2,6 +2,7 @@
 // the columns and rows of each answer, fails it, or keeps it running until it is cancelled.
 import { vi } from 'vitest'
 
+import type { ForeignKeyInfo, ObjectRef, ReferenceInfo } from '../../src/core/engine/catalog.ts'
 import type { EngineSession } from '../../src/core/engine/engine.ts'
 import {
   QueryCancelledError,
@@ -39,6 +40,11 @@ export class ScriptedEngine {
   )
   // Why the server would change the values written, as MySQL outside strict mode.
   writeProblem: string | undefined = undefined
+  // The foreign keys of the tables of the catalog, those that point at them, and the tables by where
+  // they are: by placeKey.
+  readonly foreignKeys = new Map<string, readonly ForeignKeyInfo[]>()
+  readonly references = new Map<string, readonly ReferenceInfo[]>()
+  readonly places = new Map<string, TableDescription>()
 
   session(overrides: Partial<EngineSession> = {}): EngineSession {
     return fakeSession({
@@ -47,6 +53,10 @@ export class ScriptedEngine {
       transactionStatus: async () => Promise.resolve(this.status),
       describeTable: this.describeTable,
       writeProblem: async () => Promise.resolve(this.writeProblem),
+      listForeignKeys: async (table) =>
+        Promise.resolve(this.foreignKeys.get(placeKey(table)) ?? []),
+      listReferences: async (table) => Promise.resolve(this.references.get(placeKey(table)) ?? []),
+      describeTableAt: async (table) => Promise.resolve(this.places.get(placeKey(table))),
       ...overrides,
     })
   }
@@ -69,6 +79,11 @@ export class ScriptedEngine {
       },
     }
   }
+}
+
+// A table by where it is, as the catalog maps of the engine hold it.
+export function placeKey({ database, schema, name }: ObjectRef): string {
+  return JSON.stringify([database, schema, name])
 }
 
 interface Settlement {
