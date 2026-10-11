@@ -130,10 +130,10 @@ describe('createQueryServices', () => {
     pg.script.read = firstPageOnly(ONE_ROW)
     const panel = await run(query, await boundEditor(query, 'SELECT 1 AS one'))
     const [tabId = ''] = postedTabs(panel).keys()
-    const range = { firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 }
+    const block = { firstRow: 0, lastRow: 0, columns: [0] }
 
     panel.webview.send({ type: 'cancel' })
-    panel.webview.send({ type: 'copy', tabId, viewVersion: 0, range, format: 'tsv' })
+    panel.webview.send({ type: 'copy', tabId, viewVersion: 0, block, format: 'tsv' })
     await vi.waitFor(() => {
       expect(env.clipboard.writeText).toHaveBeenCalledOnce()
     })

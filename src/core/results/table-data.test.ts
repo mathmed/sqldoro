@@ -78,6 +78,7 @@ describe('tableFilterQuery', () => {
     ['-- nothing', TableFilterProblem.Empty],
     ['/* nothing */', TableFilterProblem.Empty],
     ['id = 1) OR (1 = 1', TableFilterProblem.Parentheses],
+    ['id = $1', TableFilterProblem.Parameters],
     ['id = 1) UNION SELECT * FROM users WHERE (true', TableFilterProblem.Parentheses],
     ['(id = 1', TableFilterProblem.Parentheses],
     ['id = 1)', TableFilterProblem.Parentheses],
@@ -91,6 +92,18 @@ describe('tableFilterQuery', () => {
     ).toStrictEqual({ problem: TableFilterProblem.Statements })
     expect(tableFilterQuery(MYSQL_ORDERS, '/*! */', MYSQL_DIALECT)).toStrictEqual({
       problem: TableFilterProblem.Empty,
+    })
+  })
+
+  it('should refuse the placeholders the dialect binds, and only those', () => {
+    expect(tableFilterQuery(MYSQL_ORDERS, 'id = ?', MYSQL_DIALECT)).toStrictEqual({
+      problem: TableFilterProblem.Parameters,
+    })
+    expect(tableFilterQuery(MYSQL_ORDERS, "note = '?'", MYSQL_DIALECT)).toStrictEqual({
+      sql: `${MYSQL_READ} WHERE (note = '?'\n)`,
+    })
+    expect(tableFilterQuery(ORDERS, "tags ? 'new'", POSTGRES_DIALECT)).toStrictEqual({
+      sql: `${POSTGRES_READ} WHERE (tags ? 'new'\n)`,
     })
   })
 

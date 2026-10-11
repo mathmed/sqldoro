@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { fakeEngine } from '../../../test/fakes/engine.ts'
 import {
   changesSession,
+  ConnectionColor,
   DEFAULT_SSH_TUNNEL,
   DEFAULT_SSL,
   duplicateConnection,
   EnvironmentTag,
+  isConnectionColor,
   isEnvironmentTag,
   isSshAuthMethod,
   isSslMode,
@@ -31,7 +33,19 @@ describe('newConnection', () => {
       ssh: undefined,
       environment: EnvironmentTag.None,
       isReadOnly: true,
+      color: ConnectionColor.None,
+      folder: '',
     })
+  })
+})
+
+describe('isConnectionColor', () => {
+  it('should know every color, no color included, and nothing else', () => {
+    for (const color of Object.values(ConnectionColor)) {
+      expect(isConnectionColor(color)).toBe(true)
+    }
+    expect(isConnectionColor('pink')).toBe(false)
+    expect(isConnectionColor(undefined)).toBe(false)
   })
 })
 
@@ -113,6 +127,8 @@ describe('changesSession', () => {
   it.each([
     { field: 'the name', changes: { name: 'Shop (prod)' } },
     { field: 'the environment', changes: { environment: EnvironmentTag.Production } },
+    { field: 'the color', changes: { color: ConnectionColor.Blue } },
+    { field: 'the folder', changes: { folder: 'clients' } },
   ])('should keep the session when only $field changes', ({ changes }) => {
     expect(changesSession(connection, { ...connection, ...changes })).toBe(false)
   })

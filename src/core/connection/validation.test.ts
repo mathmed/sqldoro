@@ -51,6 +51,13 @@ describe('validateConnection', () => {
     ])
   })
 
+  it('should reject a folder it cannot keep', () => {
+    expect(issuesOf({ folder: 'clients\tacme' })).toStrictEqual([
+      { field: ConnectionField.Folder, message: 'The folder cannot contain control characters' },
+    ])
+    expect(issuesOf({ folder: 'clients/acme' })).toStrictEqual([])
+  })
+
   it('should reject an engine that is not registered', () => {
     expect(issuesOf({ engine: 'oracle' })).toStrictEqual([
       { field: ConnectionField.Engine, message: 'Unknown database engine "oracle"' },

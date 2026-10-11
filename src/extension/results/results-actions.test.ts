@@ -11,7 +11,14 @@ import { ResultSet } from '../../core/results/result-set.ts'
 import { copyColumnName, copyRows, exportRows } from './results-actions.ts'
 
 function result(sql = 'SELECT id, name FROM sales.orders', count = 2): ResultSet {
-  const sut = new ResultSet({ id: 't', sql, kind: 'rows', canServerView: true, canRefresh: false })
+  const sut = new ResultSet({
+    values: [],
+    id: 't',
+    sql,
+    kind: 'rows',
+    canServerView: true,
+    canRefresh: false,
+  })
   sut.describe(RESULT_COLUMNS)
   sut.addRows(
     Array.from({ length: count }, (...[, index]) => [
@@ -54,7 +61,7 @@ describe('copyRows', () => {
   it('should copy the selected cells in the format asked and say how many rows', async () => {
     await copyRows(
       result(),
-      { range: { firstRow: 0, lastRow: 1, firstColumn: 0, lastColumn: 1 }, format: 'tsv' },
+      { block: { firstRow: 0, lastRow: 1, columns: [0, 1] }, format: 'tsv' },
       POSTGRES_DIALECT,
     )
 
@@ -65,7 +72,7 @@ describe('copyRows', () => {
   it('should write INSERT statements to the table the query read', async () => {
     await copyRows(
       result(),
-      { range: { firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 1 }, format: 'sql' },
+      { block: { firstRow: 0, lastRow: 0, columns: [0, 1] }, format: 'sql' },
       POSTGRES_DIALECT,
     )
 
@@ -81,7 +88,7 @@ describe('copyRows', () => {
   it('should name the table when the query reads none or several', async () => {
     await copyRows(
       result('SELECT 1 AS id, 2 AS name'),
-      { range: { firstRow: 0, lastRow: 0, firstColumn: 0, lastColumn: 0 }, format: 'sql' },
+      { block: { firstRow: 0, lastRow: 0, columns: [0] }, format: 'sql' },
       MYSQL_DIALECT,
     )
 
@@ -93,7 +100,7 @@ describe('copyRows', () => {
   it('should send large selections to a file instead of the clipboard', async () => {
     await copyRows(
       result(),
-      { range: { firstRow: 0, lastRow: 100_000, firstColumn: 0, lastColumn: 0 }, format: 'csv' },
+      { block: { firstRow: 0, lastRow: 100_000, columns: [0] }, format: 'csv' },
       POSTGRES_DIALECT,
     )
 

@@ -145,13 +145,13 @@ describe('createQueryServices, editing', () => {
     answerOrders()
     const panel = await editableOrders(query)
     const [tabId = ''] = postedTabs(panel).keys()
-    const range = { firstRow: 0, lastRow: 0, firstColumn: 1, lastColumn: 1 }
+    const block = { firstRow: 0, lastRow: 0, columns: [1] }
 
     panel.webview.send({
       type: 'edit',
       tabId,
       viewVersion: 0,
-      edit: { kind: 'set', range, input: 'birthday' },
+      edit: { kind: 'set', block, input: 'birthday' },
     })
     panel.webview.send({ type: 'previewEdits', tabId })
     await expect.poll(() => editingIn(panel).preview?.id).toBe(1)
@@ -181,13 +181,13 @@ describe('createQueryServices, editing', () => {
     }
     const panel = await editableOrders(query)
     const [tabId = ''] = postedTabs(panel).keys()
-    const range = { firstRow: 0, lastRow: 0, firstColumn: 1, lastColumn: 1 }
+    const block = { firstRow: 0, lastRow: 0, columns: [1] }
 
     panel.webview.send({
       type: 'edit',
       tabId,
       viewVersion: 0,
-      edit: { kind: 'set', range, input: 'x' },
+      edit: { kind: 'set', block, input: 'x' },
     })
     panel.webview.send({ type: 'previewEdits', tabId })
     await expect.poll(() => editingIn(panel).preview?.id).toBe(1)

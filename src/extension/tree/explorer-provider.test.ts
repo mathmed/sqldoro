@@ -33,7 +33,7 @@ describe('ExplorerProvider', () => {
       expect(labelsOf(sut, await childrenOf(sut))).toStrictEqual(['local db', 'Shop'])
     })
 
-    it('should show the environment, the host and the status of a connection', async () => {
+    it('should show the environment, whether it writes and the status of a connection, not its host', async () => {
       const { sut } = explorer([SHOP, LOCAL])
       const roots = await childrenOf(sut)
 
@@ -41,14 +41,14 @@ describe('ExplorerProvider', () => {
       const local = itemOf(sut, roots, 'local db')
 
       expect(shop).toMatchObject({
-        description: 'PROD · read-only · localhost',
+        description: 'PROD · 🔒',
         contextValue: 'connection.disconnected.readOnly',
         collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
       })
       expect(shop.iconPath).toStrictEqual(
         new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('charts.red')),
       )
-      expect(local.description).toBe('read-only · localhost')
+      expect(local.description).toBe('🔒')
       expect(local.iconPath).toStrictEqual(new vscode.ThemeIcon('debug-disconnect', undefined))
     })
 
@@ -56,7 +56,7 @@ describe('ExplorerProvider', () => {
       const { sut } = explorer([{ ...LOCAL, isReadOnly: false }])
 
       expect(itemOf(sut, await childrenOf(sut), 'local db')).toMatchObject({
-        description: 'localhost',
+        description: '',
         contextValue: 'connection.disconnected.writable',
       })
     })
@@ -78,7 +78,7 @@ describe('ExplorerProvider', () => {
           'Shop',
           'PostgreSQL · app@localhost:5432/shop',
           'Environment: Production',
-          'Read-only',
+          'Read-only: sqldoro and the session refuse writes',
           'SSL: Disabled',
           'SSH tunnel: none',
           'Status: disconnected',

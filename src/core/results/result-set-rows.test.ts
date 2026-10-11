@@ -6,6 +6,7 @@ import { ResultSet } from './result-set.ts'
 
 function resultSet(): ResultSet {
   const sut = new ResultSet({
+    values: [],
     id: 't',
     sql: 'SELECT * FROM orders',
     kind: 'rows',
@@ -43,8 +44,8 @@ describe('ResultSet as the rows its edits read', () => {
   it('should leave out the rows the filters hide', () => {
     const sut = resultSet()
 
-    sut.applyView({ sort: [], filters: [{ column: 0, text: '0' }] })
-    sut.applyView({ sort: [], filters: [{ column: 0, text: '3' }] })
+    sut.applyView({ sort: [], filters: [{ column: 0, operator: 'contains', values: ['0'] }] })
+    sut.applyView({ sort: [], filters: [{ column: 0, operator: 'contains', values: ['3'] }] })
 
     expect(sut.viewPositions([0, 1, 2])).toStrictEqual(new Map([[0, 0]]))
     expect(sut.sourceIndex(1)).toBeUndefined()

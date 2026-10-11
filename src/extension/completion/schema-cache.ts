@@ -21,9 +21,9 @@ export interface CatalogLoad {
   readonly isComplete: boolean
 }
 
-// What the autocomplete knows of each connection's catalog: each list loads once, on first need,
-// and stays until the explorer refreshes it or a statement changes the schema. A list that fails
-// to load is asked again next time.
+// What sqldoro knows of each connection's catalog, for the autocomplete and the navigation of the
+// result grid: each list or description loads once, on first need, and stays until the explorer
+// refreshes it or a statement changes the schema. What fails to load is asked again next time.
 export class SchemaCache {
   readonly #log: Logger
   readonly #entries = new Map<string, Promise<unknown>>()
@@ -55,7 +55,7 @@ export class SchemaCache {
     const source: Source = {
       session,
       loaded,
-      cached: async (parts, load) => this.#cached([connectionId, ...parts], load),
+      cached: async (parts, load) => this.cached(connectionId, parts, load),
     }
     const tasks = [
       ...databaseTasks(source, needs),
@@ -70,8 +70,13 @@ export class SchemaCache {
     return { catalog: loaded.snapshot(), isComplete }
   }
 
-  async #cached<T>(parts: readonly string[], load: () => Promise<T>): Promise<T> {
-    const key = parts.map((part) => JSON.stringify(part)).join(',')
+  // What `load` gives for these parts of the catalog of the connection, loaded once.
+  async cached<T>(
+    connectionId: string,
+    parts: readonly string[],
+    load: () => Promise<T>,
+  ): Promise<T> {
+    const key = [connectionId, ...parts].map((part) => JSON.stringify(part)).join(',')
     const existing = this.#entries.get(key) as Promise<T> | undefined
     if (existing !== undefined) {
       return existing
@@ -80,9 +85,7 @@ export class SchemaCache {
     this.#entries.set(key, loading)
     loading.catch((error: unknown) => {
       this.#entries.delete(key)
-      this.#log.debug(
-        `The autocomplete could not load ${parts.slice(1).join(' ')}: ${describeError(error)}`,
-      )
+      this.#log.debug(`Could not load ${parts.join(' ')} from the catalog: ${describeError(error)}`)
     })
     return loading
   }

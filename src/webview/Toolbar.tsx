@@ -9,7 +9,8 @@ import { IconName } from './icons.tsx'
 import { MenuButton, type MenuItem } from './Menu.tsx'
 import { QuickSearch } from './QuickSearch.tsx'
 import { ToolButton, ToolGroup, ToolToggle } from './tool-buttons.tsx'
-import { WhereFilter } from './WhereFilter.tsx'
+import { type ToolbarPanels, ViewTools } from './ViewTools.tsx'
+import { WhereEditor } from './WhereEditor.tsx'
 
 export interface ToolbarActions {
   readonly cancel: () => void
@@ -25,6 +26,8 @@ export interface ToolbarActions {
   readonly search: (text: string) => void
   // Reads the rows of a table again with a condition as their WHERE.
   readonly filterTable: (condition: string) => void
+  // Opens the statement of a table in an SQL editor.
+  readonly openInEditor: () => void
 }
 
 interface ToolbarProps {
@@ -33,6 +36,7 @@ interface ToolbarProps {
   readonly isServerSide: boolean
   readonly actions: ToolbarActions
   readonly edits: EditActions
+  readonly panels: ToolbarPanels
 }
 
 interface ToolsProps {
@@ -40,6 +44,7 @@ interface ToolsProps {
   readonly actions: ToolbarActions
 }
 
+const SHOWN_NOTE = 'the columns shown, in their order'
 const COPY_FORMATS: readonly (readonly [ExportFormat, string])[] = [
   [ExportFormat.Csv, 'Copy as CSV'],
   [ExportFormat.Json, 'Copy as JSON'],
@@ -53,23 +58,28 @@ const EXPORT_FORMATS: readonly (readonly [ExportFormat, string])[] = [
 
 // The actions of a result, grouped as in VS Code's toolbars: reading the rows again, their changes,
 // copying and exporting, how they are read; then the WHERE of a table and the quick search.
-export const Toolbar = ({
-  tab,
-  hasSelection,
-  isServerSide,
-  actions,
-  edits,
-}: ToolbarProps): ReactElement => (
-  <div className="toolbar" role="toolbar" aria-label="Result actions">
-    <RunTools tab={tab} actions={actions} />
-    <EditTools tab={tab} hasSelection={hasSelection} actions={edits} />
-    <CopyTools tab={tab} hasSelection={hasSelection} actions={actions} />
-    <ReadTools tab={tab} isServerSide={isServerSide} actions={actions} />
-    <span className="toolbar-fill" />
-    {tab.canRefresh ? <WhereFilter tab={tab} onFilter={actions.filterTable} /> : null}
-    <QuickSearch tab={tab} onSearch={actions.search} />
-  </div>
-)
+export const Toolbar = (props: ToolbarProps): ReactElement => {
+  const { tab, hasSelection, actions, panels } = props
+  return (
+    <div className="toolbar" role="toolbar" aria-label="Result actions">
+      <RunTools tab={tab} actions={actions} />
+      <EditTools tab={tab} hasSelection={hasSelection} actions={props.edits} />
+      <CopyTools tab={tab} hasSelection={hasSelection} actions={actions} />
+      <ViewTools tab={tab} panels={panels} />
+      <ReadTools tab={tab} isServerSide={props.isServerSide} actions={actions} />
+      <span className="toolbar-fill" />
+      {tab.canRefresh ? (
+        <WhereEditor
+          tab={tab}
+          sql={panels.whereSql}
+          onFilter={actions.filterTable}
+          onOpenInEditor={actions.openInEditor}
+        />
+      ) : null}
+      <QuickSearch tab={tab} onSearch={actions.search} />
+    </div>
+  )
+}
 
 // While the statement runs it can be cancelled; once it ran, the rows of a table can be read again.
 const RunTools = ({ tab, actions }: ToolsProps): ReactElement | null => {
@@ -108,16 +118,15 @@ const CopyTools = ({
   <ToolGroup label="Copy and export">
     <MenuButton
       label="Copy the selection"
+      tooltip={`Copy the selection: ${SHOWN_NOTE}`}
       icon={IconName.Copy}
-      items={[
-        ...formatItems(COPY_FORMATS, actions.copy),
-        { label: 'Copy Rows as INSERT', isDisabled: false, onSelect: actions.copyRows },
-      ]}
+      items={[...formatItems(COPY_FORMATS, actions.copy), copyRowsItem(actions)]}
       isDisabled={!hasSelection}
       hasChevron
     />
     <MenuButton
       label="Export the result"
+      tooltip={`Export the result: ${SHOWN_NOTE}`}
       icon={IconName.Export}
       items={formatItems(EXPORT_FORMATS, actions.export)}
       isDisabled={tab.status === TabStatus.Running || tab.columns.length === 0}
@@ -125,6 +134,15 @@ const CopyTools = ({
     />
   </ToolGroup>
 )
+
+// INSERT statements that write the selected rows whole, hidden columns too.
+function copyRowsItem(actions: ToolbarActions): MenuItem {
+  return {
+    label: 'Copy Rows as INSERT (every column)',
+    isDisabled: false,
+    onSelect: actions.copyRows,
+  }
+}
 
 function formatItems(
   formats: readonly (readonly [ExportFormat, string])[],
@@ -147,13 +165,14 @@ const ReadTools = ({
   actions,
 }: ToolsProps & { readonly isServerSide: boolean }): ReactElement | null => {
   const isLimited = canLoadAll(tab)
-  if (!isLimited && !tab.canServerView) {
+  const canToggle = canToggleServer(tab)
+  if (!isLimited && !canToggle) {
     return null
   }
   return (
     <ToolGroup label="Reading">
       {isLimited ? <LoadAllButton onClick={actions.loadAll} /> : null}
-      {tab.canServerView ? (
+      {canToggle ? (
         <ToolToggle
           icon={IconName.Server}
           label="Sort and filter on the server"
@@ -165,6 +184,11 @@ const ReadTools = ({
       ) : null}
     </ToolGroup>
   )
+}
+
+// The rows of a table are always sorted and filtered by the server.
+function canToggleServer(tab: ResultTab): boolean {
+  return tab.canServerView && !tab.canRefresh
 }
 
 // The query was cut at the automatic limit: one click runs it again without it.

@@ -5,9 +5,11 @@ import {
   type ForeignKeyColumn,
   groupForeignKeyColumns,
   groupIndexColumns,
+  groupReferenceColumns,
   type IndexColumn,
   readDatabaseStats,
   readTableStats,
+  type ReferenceColumn,
 } from './catalog.ts'
 
 function indexColumn(
@@ -90,6 +92,57 @@ describe('groupForeignKeyColumns', () => {
         referencedColumns: ['region', 'country'],
         onUpdate: 'NO ACTION',
         onDelete: 'CASCADE',
+      },
+    ])
+  })
+})
+
+describe('groupReferenceColumns', () => {
+  it('should return no reference when there is no row', () => {
+    expect(groupReferenceColumns([])).toStrictEqual([])
+  })
+
+  it('should group the columns of each foreign key of each table that points here', () => {
+    const column = (
+      table: string,
+      constraint: string,
+      columns: readonly [string, string],
+    ): ReferenceColumn => ({
+      schema: 'shop',
+      table,
+      constraint,
+      column: columns[0],
+      referencedColumn: columns[1],
+    })
+
+    expect(
+      groupReferenceColumns([
+        column('lines', 'fk_order', ['order_id', 'id']),
+        column('lines', 'fk_order', ['order_region', 'region']),
+        column('returns', 'fk_order', ['order_id', 'id']),
+        { ...column('returns', 'fk_order', ['order_id', 'id']), schema: 'archive' },
+      ]),
+    ).toStrictEqual([
+      {
+        name: 'fk_order',
+        schema: 'shop',
+        table: 'lines',
+        columns: ['order_id', 'order_region'],
+        referencedColumns: ['id', 'region'],
+      },
+      {
+        name: 'fk_order',
+        schema: 'shop',
+        table: 'returns',
+        columns: ['order_id'],
+        referencedColumns: ['id'],
+      },
+      {
+        name: 'fk_order',
+        schema: 'archive',
+        table: 'returns',
+        columns: ['order_id'],
+        referencedColumns: ['id'],
       },
     ])
   })

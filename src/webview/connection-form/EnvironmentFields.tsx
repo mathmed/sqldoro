@@ -8,6 +8,7 @@ import {
   labelOf,
 } from '../../core/connection/labels.ts'
 import { withEnvironment } from '../../core/safety/guard.ts'
+import { themeColor } from '../theme-color.ts'
 import { steppedItem } from './arrow-keys.ts'
 import { SwitchInput } from './controls.tsx'
 import { edit, type FormView } from './form-view.ts'
@@ -18,11 +19,6 @@ const READ_ONLY_HELP = 'sqldoro and the database session refuse writes. Recommen
 
 function segmentId(tag: EnvironmentTag): string {
   return `environment-${tag}`
-}
-
-// The color VS Code gives a theme color id, as a CSS value.
-function themeColor(id: string): string {
-  return `var(--vscode-${id.replaceAll('.', '-')})`
 }
 
 // The dot of an environment takes its color in the explorer; an untagged one stays hollow.

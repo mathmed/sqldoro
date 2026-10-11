@@ -20,3 +20,10 @@ export async function withTimeout<T>(
     clearTimeout(timer)
   }
 }
+
+// Resolves once this many milliseconds went by.
+export async function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
+}

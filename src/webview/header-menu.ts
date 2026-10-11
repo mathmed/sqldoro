@@ -1,5 +1,6 @@
+import type { ResultColumn } from '../core/engine/query.ts'
 import { sortedBy, withoutSort } from '../core/grid/view-state.ts'
-import type { ResultTab } from '../core/results/protocol.ts'
+import type { DistinctMessage, ResultTab } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import type { MenuItem } from './Menu.tsx'
 import type { GridTable } from './use-grid-table.ts'
@@ -12,18 +13,23 @@ export interface HeaderActions {
   // While the statement runs, the view waits.
   readonly isDisabled: boolean
   readonly onView: (view: ViewSpec) => void
-  readonly onFilter: (column: number, name: string) => void
+  readonly onFilter: (index: number, column: ResultColumn) => void
   readonly onCopyName: (column: number) => void
+  readonly onHide: (column: number) => void
+  // Asks the host for the values a column holds, for its filter to list.
+  readonly onFetchDistinct: (column: number) => void
+  // The last values the host listed for a column of the grid.
+  readonly distinct: DistinctMessage | undefined
 }
 
 interface MenuTarget {
   // The position of the column in the result.
   readonly index: number
-  readonly name: string
+  readonly column: ResultColumn
   readonly actions: HeaderActions
 }
 
-// The menu of the header of a column: its sort, its filter and its name.
+// The menu of the header of a column: its sort, its filter, its name, and hiding it.
 export function columnMenu(header: Header, target: MenuTarget): MenuItem[] {
   return [...sortItems(header, target), ...otherItems(target)]
 }
@@ -47,13 +53,13 @@ function sortItems(header: Header, { index, actions }: MenuTarget): MenuItem[] {
   ]
 }
 
-function otherItems({ index, name, actions }: MenuTarget): MenuItem[] {
+function otherItems({ index, column, actions }: MenuTarget): MenuItem[] {
   return [
     {
       label: 'Filter…',
       isDisabled: actions.isDisabled,
       onSelect: () => {
-        actions.onFilter(index, name)
+        actions.onFilter(index, column)
       },
     },
     {
@@ -61,6 +67,13 @@ function otherItems({ index, name, actions }: MenuTarget): MenuItem[] {
       isDisabled: false,
       onSelect: () => {
         actions.onCopyName(index)
+      },
+    },
+    {
+      label: 'Hide column',
+      isDisabled: false,
+      onSelect: () => {
+        actions.onHide(index)
       },
     },
   ]

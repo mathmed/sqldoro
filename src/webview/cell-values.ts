@@ -2,10 +2,10 @@ import type { CellValue } from '../core/engine/query.ts'
 import type { CellPosition } from '../core/grid/selection.ts'
 import { type CellMessage, type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ResultsApi } from './results-api.ts'
-import type { RowStore } from './row-store.ts'
+import type { RowView } from './row-store.ts'
 
 export interface CellPlace {
-  readonly store: RowStore
+  readonly store: RowView
   readonly position: CellPosition
 }
 

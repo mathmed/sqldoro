@@ -55,7 +55,9 @@ async function filter(context: CommandContext): Promise<void> {
   }
 }
 
+// Clears the filter and what Find Table in Explorer kept.
 async function clearFilter(context: CommandContext): Promise<void> {
+  context.explorer.setFind('')
   await applyFilter(context, '')
 }
 

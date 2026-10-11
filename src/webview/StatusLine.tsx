@@ -3,17 +3,43 @@ import type { ReactElement } from 'react'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { formatDuration, groupDigits, plural, summaryText } from '../core/results/tabs.ts'
 
+interface StatusLineProps {
+  readonly tab: ResultTab
+  // How many columns the grid hides; a click on how many shows the columns.
+  readonly hiddenColumns: number
+  readonly onShowColumns: (anchor: HTMLElement) => void
+}
+
 // What happened to the statement, read out by screen readers as it changes; its tooltip shows the
-// statement.
-export const StatusLine = ({ tab }: { readonly tab: ResultTab }): ReactElement => (
-  <div
-    className={`status-line status-line-${tab.status}`}
-    role="status"
-    aria-live="polite"
-    title={tab.sql}
-  >
-    {[statusText(tab), viewText(tab), tab.notice].filter((part) => part !== '').join(' · ')}
-  </div>
+// statement. Beside it, how many columns are hidden.
+export const StatusLine = ({
+  tab,
+  hiddenColumns,
+  onShowColumns,
+}: StatusLineProps): ReactElement => (
+  <>
+    <div
+      className={`status-line status-line-${tab.status}`}
+      role="status"
+      aria-live="polite"
+      title={tab.sql}
+    >
+      {[statusText(tab), viewText(tab), tab.notice].filter((part) => part !== '').join(' · ')}
+    </div>
+    {hiddenColumns === 0 ? null : (
+      <button
+        type="button"
+        className="link-button hidden-columns"
+        aria-haspopup="dialog"
+        title="Show the columns, hidden ones too"
+        onClick={(event) => {
+          onShowColumns(event.currentTarget)
+        }}
+      >
+        {plural(hiddenColumns, 'column hidden', 'columns hidden')}
+      </button>
+    )}
+  </>
 )
 
 function statusText(tab: ResultTab): string {

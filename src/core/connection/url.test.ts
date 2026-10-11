@@ -53,6 +53,8 @@ describe('parseConnectionUrl', () => {
         ssh: undefined,
         environment: EnvironmentTag.None,
         isReadOnly: true,
+        color: '',
+        folder: '',
       },
       password: 's@cret',
       warnings: [],

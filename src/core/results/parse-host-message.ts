@@ -14,12 +14,23 @@ import {
 import { readCells, readCellValue, readColumns, readCounts, readViewSpec } from './parse-common.ts'
 import { readEditing } from './parse-editing.ts'
 import {
+  readColumnMeta,
+  readDistinct,
+  readLayout,
+  readPeek,
+  readReferenceCounts,
+  readRowReference,
+  readSql,
+  readTrail,
+} from './parse-host-extras.ts'
+import {
   type HostMessage,
   HostMessageType,
   type PanelConnection,
   type ResultTab,
   type TabError,
   TabKind,
+  TabProgress,
   TabStatus,
   type TabSummary,
   type WireRow,
@@ -29,6 +40,7 @@ type Reader = (message: JsonRecord) => HostMessage
 
 const TAB_STATUSES: ReadonlySet<string> = new Set(Object.values(TabStatus))
 const TAB_KINDS: ReadonlySet<string> = new Set(Object.values(TabKind))
+const TAB_PROGRESS: ReadonlySet<string> = new Set(Object.values(TabProgress))
 
 const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [HostMessageType.Tabs, readTabs],
@@ -39,6 +51,11 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [HostMessageType.Rows, readRows],
   [HostMessageType.Cell, readCell],
   [HostMessageType.Connection, readConnectionMessage],
+  [HostMessageType.Trail, readTrail],
+  [HostMessageType.Peek, readPeek],
+  [HostMessageType.ReferenceCounts, readReferenceCounts],
+  [HostMessageType.Distinct, readDistinct],
+  [HostMessageType.Sql, readSql],
 ])
 
 function isTabStatus(value: unknown): value is TabStatus {
@@ -47,6 +64,10 @@ function isTabStatus(value: unknown): value is TabStatus {
 
 function isTabKind(value: unknown): value is TabKind {
   return typeof value === 'string' && TAB_KINDS.has(value)
+}
+
+function isTabProgress(value: unknown): value is TabProgress {
+  return typeof value === 'string' && TAB_PROGRESS.has(value)
 }
 
 // What the extension host sent, checked field by field: a TypeError names the first field that is
@@ -75,7 +96,11 @@ function readTab(tab: JsonRecord): ResultTab {
     sql: readString(tab, 'sql'),
     kind: readOneOf(tab, 'kind', isTabKind),
     status: readOneOf(tab, 'status', isTabStatus),
+    progress: readOneOf(tab, 'progress', isTabProgress),
     columns: readColumns(tab, 'columns'),
+    meta: readList(tab, 'meta', readColumnMeta),
+    references: readList(tab, 'references', readRowReference),
+    layout: readLayout(tab, 'layout'),
     rowCount: readCount(tab, 'rowCount'),
     loadedRows: readCount(tab, 'loadedRows'),
     view: readViewSpec(tab, 'view'),
@@ -148,5 +173,6 @@ function readConnection(connection: JsonRecord): PanelConnection {
     environment: readString(connection, 'environment'),
     isProduction: readBoolean(connection, 'isProduction'),
     isReadOnly: readBoolean(connection, 'isReadOnly'),
+    color: readString(connection, 'color'),
   }
 }

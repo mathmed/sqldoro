@@ -9,9 +9,11 @@ import {
 } from '../../src/core/connection/connection.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { EngineSession } from '../../src/core/engine/engine.ts'
+import { SchemaCache } from '../../src/extension/completion/schema-cache.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
 import type { ExplorerNode } from '../../src/extension/tree/explorer-node.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
+import { TableIndex } from '../../src/extension/tree/table-index.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { recordingLogger } from '../fakes/logger.ts'
 import { MYSQL_DIALECT } from '../fixtures/dialects.ts'
@@ -49,11 +51,18 @@ export interface ExplorerOptions {
   readonly session?: Partial<EngineSession>
   // Makes every connection attempt fail.
   readonly openError?: Error
+  // The clock of the loading nodes; by default no list is ever slow.
+  readonly delay?: (milliseconds: number) => Promise<void>
+}
+
+// A delay that never ends: no list takes long enough to show a loading node.
+export async function never(): Promise<void> {
+  return new Promise(() => undefined)
 }
 
 export function explorer(
   connections: readonly ConnectionConfig[],
-  { session = {}, openError }: ExplorerOptions = {},
+  { session = {}, openError, delay = never }: ExplorerOptions = {},
 ): Explorer {
   const log = recordingLogger()
   const sessions = new SessionManager({
@@ -69,10 +78,20 @@ export function explorer(
     log: recordingLogger(),
     onConnectionLost: vi.fn(),
   })
+  const engines = new EngineRegistry([POSTGRES, MYSQL])
   const sut = new ExplorerProvider({
     connections: () => connections,
     sessions,
-    engines: new EngineRegistry([POSTGRES, MYSQL]),
+    engines,
+    index: new TableIndex({
+      cache: new SchemaCache(log),
+      connections: () => connections,
+      sessions,
+      engines,
+      log,
+    }),
+    policy: () => ({ productionEnvironments: new Set(['prod']) }),
+    delay,
     log,
   })
   return { sut, sessions, log }

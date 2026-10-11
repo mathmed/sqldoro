@@ -3,6 +3,7 @@ import { FormMode, type FormSetup, FormStart } from '../../src/core/connection-f
 // What the connection form opens with, for the tests of the core, the webview and the extension host:
 // two engines (MySQL first, so it is the default) and a new connection.
 import {
+  ConnectionColor,
   type ConnectionConfig,
   DEFAULT_SSL,
   EnvironmentTag,
@@ -29,6 +30,8 @@ export const NEW_CONNECTION: ConnectionConfig = {
   ssh: undefined,
   environment: EnvironmentTag.None,
   isReadOnly: true,
+  color: ConnectionColor.None,
+  folder: '',
 }
 
 // A connection the form can save as it is.

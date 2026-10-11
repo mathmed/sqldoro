@@ -5,6 +5,7 @@ import { ObjectKind, type ObjectRef } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { QueryError } from '../../core/engine/query-error.ts'
 import { QueryCancelledError, type QueryRequest } from '../../core/engine/query.ts'
+import { FilterOperator } from '../../core/results/conditions.ts'
 import { locateError } from '../../core/results/error-location.ts'
 import { explainStatement, planLines } from '../../core/results/plan.ts'
 import { serverViewQuery } from '../../core/results/server-view.ts'
@@ -208,9 +209,13 @@ describe('postgresEngine for the SQL editor, against a real PostgreSQL server', 
     const statement = "SELECT * FROM (VALUES ('a1'), ('b12'), ('C1'), ('d3')) AS t(code)"
     const query = serverViewQuery(
       statement,
-      { sort: [{ column: 0, isDescending: true }], filters: [{ column: 0, text: 'c1' }] },
+      {
+        sort: [{ column: 0, isDescending: true }],
+        filters: [{ column: 0, operator: FilterOperator.Contains, values: ['c1'] }],
+      },
       {
         columns: [{ name: 'code', dataType: 'TEXT', kind: 'text' }],
+        parameterTypes: new Map(),
         dialect: postgresEngine.dialect,
       },
     )

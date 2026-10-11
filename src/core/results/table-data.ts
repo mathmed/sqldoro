@@ -1,9 +1,8 @@
 import type { ObjectRef } from '../engine/catalog.ts'
-import { type Dialect, qualifiedName } from '../engine/dialect.ts'
+import { type Dialect, ParameterStyle, qualifiedName } from '../engine/dialect.ts'
 import { codeTokens, statementsOf, viewOf } from '../safety/statement-view.ts'
-import type { LexicalRules } from '../sql/lexical-rules.ts'
 import { significantTokens } from '../sql/statement-kind.ts'
-import type { Token } from '../sql/tokens.ts'
+import { type Token, TokenKind } from '../sql/tokens.ts'
 
 // The SQL of a table read with a condition, or why the condition cannot be one, for people.
 export type TableFilterQuery = { readonly sql: string } | { readonly problem: string }
@@ -13,7 +12,11 @@ export const TableFilterProblem = {
   Empty: 'The condition holds only comments: write one, or clear it to read every row.',
   Statements: 'The condition cannot end the statement or start another: remove its semicolon (;).',
   Parentheses: 'The parentheses of the condition do not match.',
+  Parameters:
+    'The condition cannot hold placeholders of bound values (? in MySQL, $1 in PostgreSQL): write the values in it.',
 } as const
+
+export type ConditionDialect = Pick<Dialect, 'identifierQuote' | 'lexical' | 'parameterStyle'>
 
 const LABEL_SEPARATOR = ' — '
 const PATH_SEPARATOR = '/'
@@ -34,7 +37,7 @@ export function tableDataQuery(
 export function tableFilterQuery(
   table: ObjectRef,
   condition: string,
-  dialect: Pick<Dialect, 'identifierQuote' | 'lexical'>,
+  dialect: ConditionDialect,
 ): TableFilterQuery {
   const read = tableDataQuery(table, dialect)
   if (condition.trim() === '') {
@@ -43,35 +46,48 @@ export function tableFilterQuery(
   const opening = `${read} WHERE (`
   const sql = `${opening}${condition}\n)`
   const before = significantTokens(opening, dialect.lexical).length
-  const problem = statementProblem(sql, { before, rules: dialect.lexical })
+  const problem = statementProblem(sql, { before, dialect })
   return problem === undefined ? { sql } : { problem }
 }
 
 interface Reading {
   // How many tokens of code come before the condition: those of the read and of WHERE (.
   readonly before: number
-  readonly rules: LexicalRules
+  readonly dialect: ConditionDialect
 }
 
 // The statement as the server reads it (the code of MySQL's executable comments included): its
 // strings and comments end, it stays one statement, and the condition between the parentheses
 // holds code.
-function statementProblem(sql: string, { before, rules }: Reading): string | undefined {
-  const code = codeTokens(sql, rules)
+function statementProblem(sql: string, { before, dialect }: Reading): string | undefined {
+  const code = codeTokens(sql, dialect.lexical)
   if (code === undefined) {
     return TableFilterProblem.Unclosed
   }
   return statementsOf(code).length === 1
-    ? conditionProblem(code.slice(before, -1))
+    ? conditionProblem(code.slice(before, -1), dialect)
     : TableFilterProblem.Statements
 }
 
-// The parentheses of the condition close inside it: it cannot reach out of its own.
-function conditionProblem(condition: readonly Token[]): string | undefined {
+// The parentheses of the condition close inside it: it cannot reach out of its own. Placeholders
+// would take the values sqldoro binds to the statement around it.
+function conditionProblem(
+  condition: readonly Token[],
+  dialect: Pick<Dialect, 'parameterStyle'>,
+): string | undefined {
   if (condition.length === 0) {
     return TableFilterProblem.Empty
   }
+  if (condition.some((token) => isPlaceholder(token, dialect))) {
+    return TableFilterProblem.Parameters
+  }
   return viewOf(condition) === undefined ? TableFilterProblem.Parentheses : undefined
+}
+
+// MySQL binds ?; PostgreSQL binds $1, and reads ? as an operator of JSON.
+function isPlaceholder(token: Token, dialect: Pick<Dialect, 'parameterStyle'>): boolean {
+  const isNumbered = dialect.parameterStyle === ParameterStyle.Numbered
+  return token.kind === TokenKind.Parameter && token.text.startsWith('$') === isNumbered
 }
 
 // "orders — sales": the table and where it is, as messages name the source of its rows.

@@ -1,4 +1,4 @@
-import { readArray, readNumber, readRecord } from './record.ts'
+import { type JsonRecord, readArray, readNumber, readRecord } from './record.ts'
 
 // A list saved with the version of its format, read back entry by entry: what this version cannot
 // read is kept and written back as it was, never dropped.
@@ -11,6 +11,8 @@ export interface ListFormat<T> {
   readonly entryName: string
   // Throws a TypeError naming the field it cannot read.
   readonly decode: (value: unknown) => T
+  // How an entry of an older version of the format becomes an entry of this one, by that version.
+  readonly migrations: ReadonlyMap<number, (entry: unknown) => unknown>
 }
 
 export interface DecodedList<T> {
@@ -43,18 +45,27 @@ export function decodeList<T>(value: unknown, format: ListFormat<T>): DecodedLis
     return { items: [], unreadable: [], problems: [], isWritable: true }
   }
   try {
-    const stored = readRecord(value)
-    const version = readNumber(stored, 'version')
-    if (version !== format.version) {
-      return unwritable(format, `their format (version ${String(version)}) is not supported`)
-    }
-    return decodeEntries(readArray(stored, format.key), format)
+    return decodeStored(readRecord(value), format)
   } catch (error) {
     if (!(error instanceof TypeError)) {
       throw error
     }
     return unwritable(format, error.message)
   }
+}
+
+// The entries of a version this one reads, as entries of this version.
+function decodeStored<T>(stored: JsonRecord, format: ListFormat<T>): DecodedList<T> {
+  const version = readNumber(stored, 'version')
+  const migrate = version === format.version ? sameEntry : format.migrations.get(version)
+  if (migrate === undefined) {
+    return unwritable(format, `their format (version ${String(version)}) is not supported`)
+  }
+  return decodeEntries(readArray(stored, format.key).map(migrate), format)
+}
+
+function sameEntry(entry: unknown): unknown {
+  return entry
 }
 
 function unwritable<T>(format: ListFormat<T>, reason: string): DecodedList<T> {

@@ -12,6 +12,7 @@ import {
   listDatabases,
   listForeignKeys,
   listIndexes,
+  listReferences,
   listSchemas,
   listTables,
   listViews,
@@ -21,7 +22,7 @@ import { clientConfig, closeClient, openClient } from './postgres-connection.ts'
 import { objectDdl } from './postgres-ddl.ts'
 import { POSTGRES_DIALECT } from './postgres-dialect.ts'
 import { executeQuery } from './postgres-query.ts'
-import { describeTable } from './postgres-tables.ts'
+import { describeTable, describeTableAt } from './postgres-tables.ts'
 
 const DEFAULT_PORT = 5432
 const SESSION_INFO = `SELECT current_setting('server_version') AS version, pg_backend_pid() AS pid,
@@ -194,11 +195,13 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
     listColumns: async (object) => listColumns(await of(object.database), object),
     listIndexes: async (table) => listIndexes(await of(table.database), table),
     listForeignKeys: async (table) => listForeignKeys(await of(table.database), table),
+    listReferences: async (table) => listReferences(await of(table.database), table),
     objectDdl: async (object, kind) => objectDdl(await of(object.database), object, kind),
     useScope: async (scope) => clients.use(scope),
     execute: (query) => executeOn(clients.current, request, query),
     transactionStatus: async () => transactionStatusOf(clients.current.client),
     describeTable: async (database, table) => describeTable(await clients.in(database), table),
+    describeTableAt: async (table) => describeTableAt(await clients.in(table.database), table),
     // PostgreSQL refuses a value its column cannot hold.
     writeProblem: async () => Promise.resolve(undefined),
   }

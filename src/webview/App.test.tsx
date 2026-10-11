@@ -8,6 +8,17 @@ import { App } from './App.tsx'
 
 const FIRST = resultTab({ id: 'tab-1', title: 'SELECT * FROM orders', rowCount: 4 })
 const SECOND = resultTab({ id: 'tab-2', title: 'SELECT 2', rowCount: 1 })
+const SHOP = {
+  name: 'Shop',
+  environment: 'prod',
+  isProduction: false,
+  isReadOnly: false,
+  color: '',
+}
+const TRAIL = [
+  { id: 1, label: 'Condominium #1', isCurrent: false },
+  { id: 2, label: 'CondominiumBankAccount (condominiumId = 1)', isCurrent: true },
+]
 
 let api: FakeVsCodeApi
 
@@ -83,26 +94,75 @@ describe('App', () => {
     expect(cellAt(0, 1).className).toContain('look-loading')
   })
 
-  it('should show the connection of the editor above the tabs, production loud', () => {
+  it('should show the connection above the results in its color, production in red', () => {
     render(<App api={api} />)
     expect(screen.queryByRole('note', { name: 'Connection' })).toBeNull()
 
     fromHost({
       type: 'connection',
-      connection: { name: 'Shop', environment: 'prod', isProduction: true, isReadOnly: false },
+      connection: { ...SHOP, isProduction: true, color: 'charts.red' },
     })
-    const banner = screen.getByRole('note', { name: 'Connection' })
-    expect(banner.textContent).toBe('Production: PROD · Shop · writes allowed')
-    expect(banner.className).toBe('connection-banner production')
+    const chip = screen.getByRole('note', { name: 'Connection' })
+    expect(chip.textContent).toBe('PROD · Shop')
+    expect(chip.className).toBe('connection-chip production')
 
     fromHost({
       type: 'connection',
-      connection: { name: 'Local', environment: '', isProduction: false, isReadOnly: true },
+      connection: { ...SHOP, environment: '', name: 'Local', color: 'charts.blue' },
     })
     expect(screen.getByRole('note', { name: 'Connection' })).toMatchObject({
-      textContent: 'Local · read-only',
-      className: 'connection-banner',
+      textContent: 'Local',
+      className: 'connection-chip',
     })
+    expect(screen.queryByRole('button', { name: 'Read-only' })).toBeNull()
+  })
+
+  it('should say once that the connection is read-only, and offer to allow writes', () => {
+    render(<App api={api} />)
+    fromHost({ type: 'connection', connection: { ...SHOP, isReadOnly: true } })
+
+    const lock = screen.getByRole('button', { name: 'Read-only' })
+    expect(lock.title).toContain('refuse anything that writes')
+    fireEvent.click(lock)
+    fireEvent.click(screen.getByRole('button', { name: 'Allow Writes…' }))
+
+    expect(api.posted().at(-1)).toStrictEqual({ type: 'allowWrites' })
+    expect(screen.queryByRole('button', { name: 'Allow Writes…' })).toBeNull()
+  })
+
+  it('should show the trail of a table panel and go along it', () => {
+    render(<App api={api} />)
+    fromHost({ type: 'tabs', tabs: [FIRST], activeTabId: 'tab-1' })
+    fromHost({ type: 'trail', crumbs: TRAIL })
+
+    const trail = screen.getByRole('navigation', { name: 'Trail' })
+    expect(trail.textContent).toContain('Condominium #1')
+    expect(screen.getByRole('button', { name: 'Forward' })).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Condominium #1' }))
+    fireEvent.keyDown(window, { key: 'ArrowLeft', altKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowRight', altKey: true })
+
+    expect(api.posted().filter((message) => message.type === 'goToStep')).toStrictEqual([
+      { type: 'goToStep', step: 1 },
+      { type: 'goToStep', step: 1 },
+      { type: 'goToStep', step: 1 },
+    ])
+  })
+
+  it('should leave Alt with the arrows to the fields', () => {
+    render(<App api={api} />)
+    fromHost({ type: 'tabs', tabs: [{ ...FIRST, canRefresh: true }], activeTabId: 'tab-1' })
+    fromHost({ type: 'trail', crumbs: TRAIL })
+
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'WHERE condition' }), {
+      key: 'ArrowLeft',
+      altKey: true,
+    })
+    fireEvent.keyDown(window, { key: 'ArrowUp', altKey: true })
+    fireEvent.keyDown(window, { key: 'ArrowLeft' })
+
+    expect(api.posted().filter((message) => message.type === 'goToStep')).toStrictEqual([])
   })
 
   it('should ask for every row of a tab cut by the automatic limit', () => {

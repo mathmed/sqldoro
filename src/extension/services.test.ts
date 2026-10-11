@@ -33,7 +33,9 @@ describe('createServices', () => {
     }
     await services.service.save(connection, new Map([[SecretKind.Password, 'never-shown']]))
 
-    await expect(services.explorer.getChildren()).resolves.toHaveLength(1)
+    const [root] = await services.explorer.getChildren()
+    expect(root === undefined ? undefined : services.explorer.getTreeItem(root).label).toBe('Local')
+    await expect(services.index.objects()).resolves.toStrictEqual([])
     await expect(services.sessions.connect(connection)).rejects.toThrow(/ECONNREFUSED/)
     expect(services.sessions.state('local')).toMatchObject({ status: ConnectionStatus.Failed })
   })

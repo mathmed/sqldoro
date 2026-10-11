@@ -1,15 +1,12 @@
 import { type CellValue, ColumnKind, type ResultColumn, type Row } from '../engine/query.ts'
 import { cellText } from './cells.ts'
+import { type ColumnFilter, isCompleteFilter } from './conditions.ts'
 import { compareNumericKeys, type NumericKey, numericKey } from './decimal.ts'
+import { matchesFilter } from './filter-match.ts'
 
 export interface SortKey {
   readonly column: number
   readonly isDescending: boolean
-}
-
-export interface ColumnFilter {
-  readonly column: number
-  readonly text: string
 }
 
 // How the rows of a result are shown: filtered by every filter, then sorted by the keys in order.
@@ -25,17 +22,13 @@ type SortValue = NumericKey | string | null
 // Natural order with a fixed locale: the same on every machine.
 const COLLATOR = new Intl.Collator('en', { numeric: true })
 
+// The filters that apply: those with the values their operator takes.
 export function activeFilters(spec: ViewSpec): ColumnFilter[] {
-  return spec.filters.filter((filter) => filter.text !== '')
+  return spec.filters.filter(isCompleteFilter)
 }
 
 export function isIdentityView(spec: ViewSpec): boolean {
   return spec.sort.length === 0 && activeFilters(spec).length === 0
-}
-
-// A filter matches the text of a value without case; NULL matches no filter.
-export function matchesCell(value: CellValue, filter: string): boolean {
-  return value !== null && cellText(value).toLowerCase().includes(filter.toLowerCase())
 }
 
 // The quick search: of the rows shown (their positions in order, or every row without a view),
@@ -66,7 +59,9 @@ export function applyView(
 ): number[] {
   const filters = activeFilters(spec)
   const shown = rows.flatMap((row, index) =>
-    filters.every((filter) => matchesCell(row.at(filter.column) ?? null, filter.text))
+    filters.every((filter) =>
+      matchesFilter(row.at(filter.column) ?? null, filter, kindOf(columns, filter.column)),
+    )
       ? [index]
       : [],
   )

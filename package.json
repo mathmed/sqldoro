@@ -319,6 +319,36 @@
         "title": "About sqldoro and Its Safety Model",
         "category": "sqldoro",
         "icon": "$(shield)"
+      },
+      {
+        "command": "sqldoro.findTable",
+        "title": "Find Table in Explorer",
+        "category": "sqldoro",
+        "icon": "$(search)"
+      },
+      {
+        "command": "sqldoro.goToTable",
+        "title": "Go to Table…",
+        "category": "sqldoro",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "sqldoro.moveToFolder",
+        "title": "Move to Folder…",
+        "category": "sqldoro",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "sqldoro.renameFolder",
+        "title": "Rename Folder…",
+        "category": "sqldoro",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "sqldoro.deleteFolder",
+        "title": "Delete Folder",
+        "category": "sqldoro",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -374,19 +404,24 @@
           "group": "navigation@1"
         },
         {
-          "command": "sqldoro.filter",
+          "command": "sqldoro.findTable",
           "when": "view == sqldoro.connections",
           "group": "navigation@2"
         },
         {
+          "command": "sqldoro.filter",
+          "when": "view == sqldoro.connections",
+          "group": "navigation@3"
+        },
+        {
           "command": "sqldoro.clearFilter",
           "when": "view == sqldoro.connections && sqldoro.isFiltered",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "sqldoro.refresh",
           "when": "view == sqldoro.connections",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "sqldoro.importConnectionUrl",
@@ -397,6 +432,11 @@
           "command": "sqldoro.newQuery",
           "when": "view == sqldoro.connections",
           "group": "1_connections@2"
+        },
+        {
+          "command": "sqldoro.goToTable",
+          "when": "view == sqldoro.connections",
+          "group": "1_connections@3"
         },
         {
           "command": "sqldoro.searchHistory",
@@ -481,9 +521,24 @@
           "group": "2_edit@3"
         },
         {
+          "command": "sqldoro.moveToFolder",
+          "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
+          "group": "2_edit@4"
+        },
+        {
           "command": "sqldoro.deleteConnection",
           "when": "view == sqldoro.connections && viewItem =~ /^connection\\./",
           "group": "3_delete@1"
+        },
+        {
+          "command": "sqldoro.renameFolder",
+          "when": "view == sqldoro.connections && viewItem == folder",
+          "group": "1_folder@1"
+        },
+        {
+          "command": "sqldoro.deleteFolder",
+          "when": "view == sqldoro.connections && viewItem == folder",
+          "group": "2_delete@1"
         },
         {
           "command": "sqldoro.refresh",
@@ -723,6 +778,11 @@
         "key": "ctrl+shift+backspace",
         "mac": "cmd+shift+backspace",
         "when": "editorTextFocus && editorLangId == sql && sqldoro.isQueryRunning"
+      },
+      {
+        "command": "sqldoro.goToTable",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t"
       }
     ],
     "configuration": {

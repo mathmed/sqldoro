@@ -10,6 +10,7 @@ import {
   type ResultColumn,
   type Row,
 } from '../../core/engine/query.ts'
+import { FilterOperator } from '../../core/results/conditions.ts'
 import { locateError } from '../../core/results/error-location.ts'
 import { explainStatement, planLines } from '../../core/results/plan.ts'
 import { serverViewQuery } from '../../core/results/server-view.ts'
@@ -210,9 +211,13 @@ describe('mysqlEngine for the SQL editor, against a real MySQL server', () => {
       'SELECT n FROM (SELECT 1 AS n UNION ALL SELECT 12 UNION ALL SELECT 21 UNION ALL SELECT 3) AS t'
     const query = serverViewQuery(
       statement,
-      { sort: [{ column: 0, isDescending: true }], filters: [{ column: 0, text: '1' }] },
+      {
+        sort: [{ column: 0, isDescending: true }],
+        filters: [{ column: 0, operator: FilterOperator.Contains, values: ['1'] }],
+      },
       {
         columns: [{ name: 'n', dataType: 'LONGLONG', kind: 'number' }],
+        parameterTypes: new Map(),
         dialect: mysqlEngine.dialect,
       },
     )

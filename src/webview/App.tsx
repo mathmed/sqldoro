@@ -1,4 +1,4 @@
-import { type ReactElement, useEffect, useReducer, useState } from 'react'
+import { type ReactElement, useEffect, useReducer, useRef, useState } from 'react'
 
 import {
   activateTab,
@@ -7,18 +7,16 @@ import {
   reduceResults,
   type ResultsState,
 } from '../core/grid/results-state.ts'
-import {
-  type CellMessage,
-  type HostMessage,
-  HostMessageType,
-  WebviewMessageType,
-} from '../core/results/protocol.ts'
-import { ConnectionBanner } from './ConnectionBanner.tsx'
+import { type HostMessage, HostMessageType, WebviewMessageType } from '../core/results/protocol.ts'
+import { type HostAnswers, NO_ANSWERS, withAnswer } from './host-answers.ts'
 import { listenToHost } from './host.ts'
+import { PanelHeader } from './PanelHeader.tsx'
 import { RESULTS_CHANNEL, type ResultsApi } from './results-api.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStores } from './row-stores.ts'
 import { TabBar } from './TabBar.tsx'
+import { useTrailKeys } from './use-trail-keys.ts'
+import type { ViewContext } from './view-context.ts'
 
 type Action =
   | { readonly kind: 'host'; readonly message: HostMessage }
@@ -33,66 +31,70 @@ function reduce(state: ResultsState, action: Action): ResultsState {
 interface Results {
   readonly state: ResultsState
   readonly stores: RowStores
-  readonly cell: CellMessage | undefined
+  // Where the grid of each step of a trail was scrolled to.
+  readonly scrolls: Map<number, number>
+  readonly answers: HostAnswers
   readonly activate: (tabId: string) => void
 }
 
-// Listens to the extension host (then tells it the view is ready): rows and cell values go to the
-// row stores and the cell detail; the rest changes the tabs.
+// Listens to the extension host (then tells it the view is ready): rows go to the row stores, the
+// answers to what the view asked (a whole cell, a peek, counts, the values of a column) to where they
+// are shown; the rest changes the tabs.
 function useResults(api: ResultsApi): Results {
   const [state, dispatch] = useReducer(reduce, EMPTY_RESULTS)
   const [stores] = useState(() => new RowStores())
-  const [cell, setCell] = useState<CellMessage>()
-  useEffect(
-    () =>
-      listenToHost(api, RESULTS_CHANNEL, (message) => {
-        route(message, { stores, setCell, dispatch })
-      }),
-    [api, stores],
-  )
-  useEffect(() => {
-    api.postMessage({ type: WebviewMessageType.Ready })
-  }, [api])
+  const [scrolls] = useState(() => new Map<number, number>())
+  const [answers, setAnswers] = useState<HostAnswers>(NO_ANSWERS)
+  useHostMessages(api, (message) => {
+    if (message.type === HostMessageType.Rows) {
+      stores.of(message.tabId).store(message.viewVersion, message.start, message.rows)
+      return
+    }
+    setAnswers((current) => withAnswer(current, message))
+    dispatch({ kind: 'host', message })
+  })
   useEffect(() => {
     stores.retain(new Set(state.tabs.map((tab) => tab.id)))
   }, [state.tabs, stores])
   return {
     state,
     stores,
-    cell,
+    scrolls,
+    answers,
     activate: (tabId) => {
       dispatch({ kind: 'activate', tabId })
     },
   }
 }
 
-interface Routes {
-  readonly stores: RowStores
-  readonly setCell: (cell: CellMessage) => void
-  readonly dispatch: (action: Action) => void
+// Hands each message of the host to `onMessage`, then tells the host the view is ready.
+function useHostMessages(api: ResultsApi, onMessage: (message: HostMessage) => void): void {
+  const handlerRef = useRef(onMessage)
+  useEffect(() => {
+    handlerRef.current = onMessage
+  })
+  useEffect(
+    () =>
+      listenToHost(api, RESULTS_CHANNEL, (message) => {
+        handlerRef.current(message)
+      }),
+    [api],
+  )
+  useEffect(() => {
+    api.postMessage({ type: WebviewMessageType.Ready })
+  }, [api])
 }
 
-function route(message: HostMessage, { stores, setCell, dispatch }: Routes): void {
-  if (message.type === HostMessageType.Rows) {
-    stores.of(message.tabId).store(message.viewVersion, message.start, message.rows)
-    return
-  }
-  if (message.type === HostMessageType.Cell) {
-    setCell(message)
-    return
-  }
-  dispatch({ kind: 'host', message })
-}
-
-// The result view: the tabs of the last run (when it has several) and the result of the one in
-// front.
+// The result view: the trail of a table panel and its connection, the tabs of the last run (when it
+// has several) and the result of the one in front.
 export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
-  const { state, stores, cell, activate } = useResults(api)
+  const { state, stores, scrolls, answers, activate } = useResults(api)
+  useTrailKeys(api, state.crumbs)
   const tab = activeTab(state)
   const hasTabs = state.tabs.length > 1
   return (
     <main className="results">
-      {state.connection === null ? null : <ConnectionBanner connection={state.connection} />}
+      <PanelHeader api={api} connection={state.connection} crumbs={state.crumbs} />
       {hasTabs ? (
         <TabBar tabs={state.tabs} activeTabId={state.activeTabId} onActivate={activate} />
       ) : null}
@@ -104,11 +106,22 @@ export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
           tab={tab}
           store={stores.of(tab.id)}
           api={api}
-          cell={cell}
-          connection={state.connection}
+          answers={answers}
+          context={viewContext(state, scrolls)}
           hasTabs={hasTabs}
         />
       )}
     </main>
   )
+}
+
+// What the result of a tab shows of the panel: its connection, how its SQL is written, and the step
+// of the trail it is (its scroll position is kept for it).
+function viewContext(state: ResultsState, scrolls: Map<number, number>): ViewContext {
+  return {
+    connection: state.connection,
+    sql: state.sql,
+    step: state.crumbs.find((crumb) => crumb.isCurrent)?.id ?? null,
+    scrolls,
+  }
 }

@@ -7,11 +7,13 @@ import {
   type ForeignKeyInfo,
   groupForeignKeyColumns,
   groupIndexColumns,
+  groupReferenceColumns,
   type IndexInfo,
   type ObjectRef,
   type ObjectScope,
   readDatabaseStats,
   readTableStats,
+  type ReferenceInfo,
   type TableInfo,
   type ViewInfo,
 } from '../../core/engine/catalog.ts'
@@ -68,6 +70,15 @@ JOIN information_schema.REFERENTIAL_CONSTRAINTS r
   AND r.TABLE_NAME = k.TABLE_NAME
 WHERE k.TABLE_SCHEMA = ? AND k.TABLE_NAME = ? AND k.REFERENCED_TABLE_NAME IS NOT NULL
 ORDER BY k.CONSTRAINT_NAME, k.ORDINAL_POSITION`
+
+// The foreign keys of every table of any database that point at a table, as MySQL lets the user see
+// them.
+const REFERENCES = `SELECT k.TABLE_SCHEMA AS tableSchema, k.TABLE_NAME AS tableName,
+  k.CONSTRAINT_NAME AS constraintName, k.COLUMN_NAME AS columnName,
+  k.REFERENCED_COLUMN_NAME AS referencedColumn
+FROM information_schema.KEY_COLUMN_USAGE k
+WHERE k.REFERENCED_TABLE_SCHEMA = ? AND k.REFERENCED_TABLE_NAME = ?
+ORDER BY k.TABLE_SCHEMA, k.TABLE_NAME, k.CONSTRAINT_NAME, k.ORDINAL_POSITION`
 
 // Nothing is parsed inside the mysql2 callback: an exception there would escape every handler.
 export async function runQuery(
@@ -168,6 +179,22 @@ export async function listForeignKeys(
       referencedColumn: readString(row, 'referencedColumn'),
       onUpdate: readString(row, 'onUpdate'),
       onDelete: readString(row, 'onDelete'),
+    })),
+  )
+}
+
+export async function listReferences(
+  connection: Connection,
+  table: ObjectRef,
+): Promise<ReferenceInfo[]> {
+  const rows = await queryRows(connection, REFERENCES, [table.schema, table.name])
+  return groupReferenceColumns(
+    rows.map((row) => ({
+      schema: readString(row, 'tableSchema'),
+      table: readString(row, 'tableName'),
+      constraint: readString(row, 'constraintName'),
+      column: readString(row, 'columnName'),
+      referencedColumn: readString(row, 'referencedColumn'),
     })),
   )
 }

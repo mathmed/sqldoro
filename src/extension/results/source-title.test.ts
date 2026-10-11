@@ -11,7 +11,11 @@ const ORDERS = { database: 'shop', schema: 'sales', name: 'orders' }
 const CUSTOMERS = { database: 'crm', schema: 'crm', name: 'customers' }
 
 function sources(connections: TitleSources['connections']): TitleSources {
-  return { connections, engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]) }
+  return {
+    connections,
+    engines: new EngineRegistry([POSTGRES_ENGINE, MYSQL_ENGINE]),
+    tableOf: () => undefined,
+  }
 }
 
 const SAVED = sources((id) => [SHOP, CRM].find((connection) => connection.id === id))
@@ -24,24 +28,32 @@ describe('sourceTitle', () => {
   })
 
   it('should name a table by its connection, its database, then its schema and its name', () => {
-    expect(sourceTitle(tableUri({ connectionId: SHOP.id, table: ORDERS }), SAVED)).toBe(
-      'Shop/shop/sales.orders',
-    )
-    expect(sourceTitle(tableUri({ connectionId: CRM.id, table: CUSTOMERS }), SAVED)).toBe(
-      'CRM/crm/customers',
-    )
+    expect(
+      sourceTitle(tableUri({ connectionId: SHOP.id, table: ORDERS, instance: '' }), SAVED),
+    ).toBe('Shop/shop/sales.orders')
+    expect(
+      sourceTitle(tableUri({ connectionId: CRM.id, table: CUSTOMERS, instance: '' }), SAVED),
+    ).toBe('CRM/crm/customers')
+  })
+
+  it('should name a table panel after the table it shows now', () => {
+    const moved = { ...SAVED, tableOf: () => ({ ...ORDERS, name: 'lines' }) }
+
+    expect(
+      sourceTitle(tableUri({ connectionId: SHOP.id, table: ORDERS, instance: 'x' }), moved),
+    ).toBe('Shop/shop/sales.lines')
   })
 
   it('should name the connection as it is named now', () => {
     const renamed = sources(() => ({ ...SHOP, name: 'Store' }))
 
-    expect(sourceTitle(tableUri({ connectionId: SHOP.id, table: ORDERS }), renamed)).toBe(
-      'Store/shop/sales.orders',
-    )
+    expect(
+      sourceTitle(tableUri({ connectionId: SHOP.id, table: ORDERS, instance: '' }), renamed),
+    ).toBe('Store/shop/sales.orders')
   })
 
   it('should name a table by itself once its connection or its engine is gone', () => {
-    const uri = tableUri({ connectionId: SHOP.id, table: ORDERS })
+    const uri = tableUri({ connectionId: SHOP.id, table: ORDERS, instance: '' })
 
     expect(
       sourceTitle(

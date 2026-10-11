@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 
 import { vi } from 'vitest'
 
+import { createInputBox, createQuickPick, resetPickers } from './pickers.ts'
 import { registerFileDecorationProvider, resetTabs, tabGroups } from './tabs.ts'
 import { FakeTextDocument, FakeTextEditor } from './text.ts'
 import { FakeUri } from './uri.ts'
@@ -214,6 +215,8 @@ export const window = {
   createOutputChannel: outputChannel,
   createStatusBarItem: statusBarItem,
   createWebviewPanel,
+  createInputBox,
+  createQuickPick,
   registerFileDecorationProvider,
   tabGroups,
   withProgress: async <T>(...[, task]: [unknown, ProgressTask<T>]): Promise<T> =>
@@ -252,6 +255,7 @@ export const env = {
 
 export function resetWorkbench(): void {
   resetTabs()
+  resetPickers()
   webviewPanels.length = 0
   treeViews.length = 0
   outputChannels.length = 0

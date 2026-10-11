@@ -22,6 +22,9 @@ interface Actions {
   readonly edit: Mock
   readonly deleteRows: Mock
   readonly preview: Mock
+  readonly openLink: Mock<() => boolean>
+  readonly peek: Mock<() => boolean>
+  readonly openMenu: Mock
 }
 
 interface Pressed {
@@ -37,6 +40,9 @@ function keyActions(isEditable = false): Actions {
     canEdit: vi.fn(() => isEditable),
     edit: vi.fn(),
     deleteRows: vi.fn(),
+    openLink: vi.fn(() => isEditable),
+    peek: vi.fn(() => isEditable),
+    openMenu: vi.fn(),
     preview: vi.fn(),
   }
 }
@@ -189,5 +195,52 @@ describe('an empty grid', () => {
     )
 
     expect(actions.select).not.toHaveBeenCalled()
+  })
+})
+
+describe('the keys of links', () => {
+  it('should open the row a link points at with Ctrl+Enter, or Cmd+Enter', () => {
+    const control = press('Enter', { modifiers: { ctrlKey: true }, isEditable: true })
+    const command = press('Enter', { modifiers: { metaKey: true }, isEditable: true })
+
+    expect(control.actions.openLink).toHaveBeenCalledWith({ row: 5, column: 1 })
+    expect(control.isPrevented).toBe(true)
+    expect(command.actions.openLink).toHaveBeenCalledWith({ row: 5, column: 1 })
+  })
+
+  it('should peek at it with Alt+Enter', () => {
+    const sut = press('Enter', { modifiers: { altKey: true }, isEditable: true })
+
+    expect(sut.actions.peek).toHaveBeenCalledWith({ row: 5, column: 1 })
+    expect(sut.actions.edit).not.toHaveBeenCalled()
+    expect(sut.isPrevented).toBe(true)
+  })
+
+  it('should leave the keys of a cell that is no link to the page', () => {
+    expect(press('Enter', { modifiers: { ctrlKey: true } }).isPrevented).toBe(false)
+    expect(press('Enter', { modifiers: { altKey: true } }).isPrevented).toBe(false)
+  })
+
+  it('should leave Alt with the arrows to the trail of the panel', () => {
+    const sut = press('ArrowLeft', { modifiers: { altKey: true } })
+
+    expect(sut.actions.select).not.toHaveBeenCalled()
+    expect(sut.isPrevented).toBe(false)
+  })
+
+  it('should open the menu of the cell with the menu key or Shift+F10', () => {
+    const menuKey = press('ContextMenu')
+    const shifted = press('F10', { modifiers: { shiftKey: true } })
+
+    expect(menuKey.actions.openMenu).toHaveBeenCalledWith({ row: 5, column: 1 })
+    expect(menuKey.isPrevented).toBe(true)
+    expect(shifted.actions.openMenu).toHaveBeenCalledWith({ row: 5, column: 1 })
+  })
+
+  it('should leave a key it has no use for to the page', () => {
+    const sut = press('Escape')
+
+    expect(sut.isPrevented).toBe(false)
+    expect(sut.actions.select).not.toHaveBeenCalled()
   })
 })

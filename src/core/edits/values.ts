@@ -162,8 +162,18 @@ function readChoice(input: string, spec: SpecOf<typeof ValueType.Choice>): Value
     : invalid(`Type some of these, separated by commas: ${listed}.`)
 }
 
+// The options a SET value holds, as typed: none for an empty one.
+export function setOptions(input: string): string[] {
+  return input === '' ? [] : input.split(SET_SEPARATOR)
+}
+
+// The value of a SET that holds these options, in the order of the options of its column.
+export function setText(options: readonly string[], chosen: readonly string[]): string {
+  return options.filter((option) => chosen.includes(option)).join(SET_SEPARATOR)
+}
+
 function isSubset(input: string, options: readonly string[]): boolean {
-  const chosen = input === '' ? [] : input.split(SET_SEPARATOR)
+  const chosen = setOptions(input)
   return (
     chosen.every((option) => options.includes(option)) && new Set(chosen).size === chosen.length
   )

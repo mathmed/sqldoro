@@ -1,13 +1,22 @@
 import type { ReactElement } from 'react'
 
-import { EditingState, type ResultTab, type TabEditing } from '../core/results/protocol.ts'
+import type { ResultTab } from '../core/results/protocol.ts'
+import { EditingState, type TabEditing } from '../core/results/tab-editing.ts'
 import { plural } from '../core/results/tabs.ts'
 
 // Whether the rows can be edited (and why not), how many changed, and what the last edit or apply
-// said. What can be done with them is in the toolbar.
-export const EditBar = ({ tab }: { readonly tab: ResultTab }): ReactElement | null => {
+// said. What can be done with them is in the toolbar. A read-only connection is said once, by the
+// lock above the results.
+export const EditBar = ({
+  tab,
+  isConnectionReadOnly,
+}: {
+  readonly tab: ResultTab
+  readonly isConnectionReadOnly: boolean
+}): ReactElement | null => {
   const { editing } = tab
-  if (editing.state === EditingState.None) {
+  const isSaidAbove = isConnectionReadOnly && editing.state === EditingState.ReadOnly
+  if (editing.state === EditingState.None || isSaidAbove) {
     return null
   }
   return (

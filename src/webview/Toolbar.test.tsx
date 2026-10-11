@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { editableTab, resultTab } from '../../test/fixtures/results.ts'
@@ -7,6 +7,7 @@ import type { ExportFormat } from '../core/results/export-format.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import type { EditActions } from './edit-messages.ts'
 import { Toolbar } from './Toolbar.tsx'
+import { type WhereSql, whereSql } from './where-source.ts'
 
 let actions: {
   cancel: Mock<() => void>
@@ -18,6 +19,14 @@ let actions: {
   setServerSide: Mock<(isServerSide: boolean) => void>
   search: Mock<(text: string) => void>
   filterTable: Mock<(condition: string) => void>
+  openInEditor: Mock<() => void>
+}
+
+let panels: {
+  openColumns: Mock<(anchor: HTMLElement) => void>
+  openReferences: Mock<(anchor: HTMLElement) => void> | undefined
+  hiddenColumns: number
+  whereSql: WhereSql
 }
 
 const EDITS: EditActions = {
@@ -36,6 +45,7 @@ function toolbar(tab: ResultTab, { hasSelection = true, isServerSide = false } =
       isServerSide={isServerSide}
       actions={actions}
       edits={EDITS}
+      panels={panels}
     />,
   )
 }
@@ -61,6 +71,13 @@ beforeEach(() => {
     setServerSide: vi.fn(),
     search: vi.fn(),
     filterTable: vi.fn(),
+    openInEditor: vi.fn(),
+  }
+  panels = {
+    openColumns: vi.fn(),
+    openReferences: undefined,
+    hiddenColumns: 0,
+    whereSql: whereSql(resultTab(), null),
   }
 })
 
@@ -68,14 +85,7 @@ describe('Toolbar', () => {
   it('should group compact icon buttons, each named and with a tooltip', () => {
     toolbar(editableTab({}, { canRefresh: true }))
 
-    expect(groups()).toStrictEqual([
-      'Run',
-      'Changes',
-      'Rows',
-      'Cells',
-      'Copy and export',
-      'Reading',
-    ])
+    expect(groups()).toStrictEqual(['Run', 'Changes', 'Rows', 'Cells', 'Copy and export', 'View'])
     expect(button('Refresh')).toMatchObject({
       className: 'tool-button',
       title: 'Read the rows again, in the same view',
@@ -92,7 +102,7 @@ describe('Toolbar', () => {
     pickFromMenu('Copy the selection', 'Copy as CSV')
     pickFromMenu('Copy the selection', 'Copy as JSON')
     pickFromMenu('Copy the selection', 'Copy as INSERT')
-    pickFromMenu('Copy the selection', 'Copy Rows as INSERT')
+    pickFromMenu('Copy the selection', 'Copy Rows as INSERT (every column)')
 
     expect(actions.copy.mock.calls).toStrictEqual([['csv'], ['json'], ['sql']])
     expect(actions.copyRows).toHaveBeenCalledOnce()
@@ -149,9 +159,9 @@ describe('Toolbar', () => {
   it('should leave out what a complete result that cannot run again has no use for', () => {
     toolbar(resultTab({ canServerView: false }))
 
-    expect(groups()).toStrictEqual(['Copy and export'])
+    expect(groups()).toStrictEqual(['Copy and export', 'View'])
     expect(screen.queryByRole('button', { name: 'Refresh' })).toBeNull()
-    expect(screen.queryByRole('textbox', { name: 'WHERE condition' })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'WHERE condition' })).toBeNull()
   })
 
   it('should read the rows of a table again, and offer its WHERE', () => {
@@ -160,7 +170,72 @@ describe('Toolbar', () => {
     fireEvent.click(button('Refresh'))
 
     expect(actions.refresh).toHaveBeenCalledOnce()
-    expect(screen.getByRole('textbox', { name: 'WHERE condition' })).toBeDefined()
+    expect(screen.getByRole('combobox', { name: 'WHERE condition' })).toBeDefined()
+  })
+
+  it('should always sort and filter the rows of a table on the server, with no switch', () => {
+    toolbar(resultTab({ canRefresh: true, canServerView: true }))
+
+    expect(screen.queryByRole('button', { name: 'Sort and filter on the server' })).toBeNull()
+  })
+
+  it('should open the query of a table in an SQL editor from its WHERE', () => {
+    toolbar(resultTab({ canRefresh: true }))
+
+    fireEvent.click(button('Open in SQL Editor'))
+
+    expect(actions.openInEditor).toHaveBeenCalledOnce()
+  })
+
+  it('should say that copying and exporting take the columns shown, in their order', () => {
+    toolbar(resultTab())
+
+    expect(button('Copy the selection').title).toBe(
+      'Copy the selection: the columns shown, in their order',
+    )
+    expect(button('Export the result').title).toBe(
+      'Export the result: the columns shown, in their order',
+    )
+  })
+
+  it('should open the columns, saying how many are hidden', () => {
+    panels = { ...panels, hiddenColumns: 2 }
+    toolbar(resultTab())
+
+    const columns = button('Columns')
+    fireEvent.click(columns)
+
+    expect(columns.title).toBe('Choose the columns shown and their order (2 hidden)')
+    expect(panels.openColumns).toHaveBeenCalledWith(columns)
+  })
+
+  it('should open the rows that reference the selected row, once a row is selected', () => {
+    const tab = resultTab({ references: [{ label: 'orders (customer_id)' }] })
+    toolbar(tab)
+    expect(button('References')).toMatchObject({
+      disabled: true,
+      title: 'Select a row to see the rows of other tables that reference it',
+    })
+    cleanup()
+
+    panels = { ...panels, openReferences: vi.fn() }
+    toolbar(tab)
+    fireEvent.click(button('References'))
+
+    expect(button('Columns').title).toBe('Choose the columns shown and their order')
+    expect(button('References').title).toBe(
+      'The rows of other tables that reference the selected row',
+    )
+    expect(panels.openReferences).toHaveBeenCalledWith(button('References'))
+  })
+
+  it('should not offer the columns of a plan or of a failed statement', () => {
+    toolbar(resultTab({ kind: 'plan' }))
+    expect(screen.queryByRole('button', { name: 'Columns' })).toBeNull()
+    cleanup()
+
+    toolbar(resultTab({ status: 'failed' }))
+    expect(screen.queryByRole('button', { name: 'Columns' })).toBeNull()
   })
 
   it('should search the rows of every result', () => {

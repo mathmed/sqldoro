@@ -38,7 +38,7 @@ describe('applyEdits, reading the rows again', () => {
       isServerSide: false,
     })
     await expect.poll(() => result.tab.view).toStrictEqual(BY_ID_DESCENDING)
-    await edit(result, { kind: EditKind.SetNull, range: cell(0, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(0, 2) })
 
     await previewAndApply(result)
 
@@ -57,7 +57,7 @@ describe('applyEdits, reading the rows again', () => {
     })
     await expect.poll(() => result.tab.isServerView).toBe(true)
     await expect.poll(() => editingOf(result.tab).state).toBe('editable')
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
 
     await previewAndApply(result)
 
@@ -71,7 +71,7 @@ describe('applyEdits, reading the rows again', () => {
     harness = queryHarness({ autoLimit: 5 })
     answerOrders(harness)
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
 
     await previewAndApply(result)
 
@@ -81,11 +81,12 @@ describe('applyEdits, reading the rows again', () => {
 
   it('should find out again whether the rows read again can be edited', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
 
     await previewAndApply(result)
 
-    expect(harness.engine.describeTable).toHaveBeenCalledTimes(2)
+    // Twice for the editing, before and after the apply; once for the links, kept since.
+    expect(harness.engine.describeTable).toHaveBeenCalledTimes(3)
     await expect
       .poll(() => editingOf(result.tab))
       .toMatchObject({

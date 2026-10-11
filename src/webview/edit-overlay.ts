@@ -1,7 +1,8 @@
 import { PendingKind, type PendingValue } from '../core/edits/pending.ts'
 import { type ValueSpec, ValueType } from '../core/engine/table.ts'
 import type { CellPosition } from '../core/grid/selection.ts'
-import { EditingState, type ResultTab } from '../core/results/protocol.ts'
+import type { ResultTab } from '../core/results/protocol.ts'
+import { EditingState } from '../core/results/tab-editing.ts'
 
 // How a row of the grid stands: as the query returned it, changed, added in the grid, or marked
 // for deletion.

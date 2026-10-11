@@ -48,7 +48,7 @@ export function registerQueryFeatures(
     ...registerCommands(base, query, log),
     ...followDocuments(query, log),
     ...followConnections(base, query, log),
-    ...registerTables(base, query, log),
+    ...registerTables(base, query),
   ]
 }
 
@@ -100,18 +100,19 @@ function registerCommands(base: Services, query: QueryServices, log: Logger): vs
   ]
 }
 
-// The rows of the tables opened from the explorer, each in a panel of its own.
-function registerTables(base: Services, query: QueryServices, log: Logger): vscode.Disposable[] {
+// The rows of the tables opened from the explorer, each in a panel of its own, and those a
+// navigation from a row leads to.
+function registerTables(base: Services, query: QueryServices): vscode.Disposable[] {
   return [
-    ...registerTableDataCommands({
-      runner: query.runner,
-      panels: query.panels,
-      connections: (id) => base.store.find(id),
-      engines: base.engines,
-      createId: randomUUID,
-      log,
+    query.tables.navigations,
+    ...registerTableDataCommands(query.tables),
+    ...followTablePanels({
+      ...query,
+      navigations: query.tables.navigations,
+      peeks: query.tables.peeks,
+      sessions: base.sessions,
+      store: base.store,
     }),
-    ...followTablePanels({ ...query, sessions: base.sessions, store: base.store }),
   ]
 }
 
@@ -178,4 +179,5 @@ async function forgetDeleted(base: Services, query: QueryServices): Promise<void
   const ids = new Set(base.store.list().map((connection) => connection.id))
   await query.history.retain(ids)
   await query.bindings.retain(ids)
+  await query.tables.layouts.retain(ids)
 }

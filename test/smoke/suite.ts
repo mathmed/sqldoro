@@ -17,6 +17,9 @@ const MILLISECONDS_PER_SECOND = 1000
 // VS Code prefixes the view type of the webviews of extensions.
 const RESULTS_VIEW_TYPE = 'sqldoro.results'
 const CONNECTION_FORM_VIEW_TYPE = 'sqldoro.connectionForm'
+// How long a picker gets to show before the probe closes it, and to end once closed.
+const PICKER_SHOW_MS = 500
+const PICKER_END_MS = 5000
 const MANUAL_COMMIT = '$(git-commit) Manual commit'
 const AUTO_COMMIT = '$(check-all) Auto-commit'
 
@@ -31,6 +34,7 @@ export async function run(): Promise<void> {
     await probeResultViewReopens()
     await probeTransactionStatus()
     await probeConnectionForm()
+    await probeFindingTables()
   } catch (error) {
     report(`smoke: ${error instanceof Error ? error.message : String(error)}`)
     throw error
@@ -156,6 +160,29 @@ async function probeTransactionStatus(): Promise<void> {
     throw new Error(`${CommandId.ToggleTransactionMode} answered ${JSON.stringify([manual, auto])}`)
   }
   report(`transaction status: ${manual} -> ${auto}`)
+}
+
+// Go to Table and Find Table in Explorer open a picker over the connected connections (none here);
+// each command ends once its picker closes.
+async function probeFindingTables(): Promise<void> {
+  for (const command of [CommandId.GoToTable, CommandId.FindTable]) {
+    const running = vscode.commands.executeCommand(command)
+    await delay(PICKER_SHOW_MS)
+    await vscode.commands.executeCommand('workbench.action.closeQuickOpen')
+    await Promise.race([
+      running,
+      delay(PICKER_END_MS).then(() => {
+        throw new Error(`${command} did not end once its picker closed`)
+      }),
+    ])
+  }
+  report(`${CommandId.GoToTable} and ${CommandId.FindTable} opened and closed their pickers`)
+}
+
+async function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
 }
 
 // The editor tab of the webview of this view type.

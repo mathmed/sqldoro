@@ -19,7 +19,7 @@ import {
   type PendingRow,
   type PreviewStatement,
   type TabEditing,
-} from './protocol.ts'
+} from './tab-editing.ts'
 
 type SpecReader = (spec: JsonRecord) => ValueSpec
 

@@ -1,6 +1,7 @@
 import { nameKey, uniqueName } from '../connection/names.ts'
 import { readRecord, readString } from '../json/record.ts'
 import { decodeList, encodeList, type ListFormat } from '../json/versioned-list.ts'
+import { childFolders, folderPathsOf, normalizeFolder } from '../text/folder-paths.ts'
 
 // A named query kept for later, in a folder ("" is the top; "reports/monthly" nests).
 export interface SavedQuery {
@@ -24,7 +25,6 @@ export interface ImportResult {
   readonly problems: readonly string[]
 }
 
-const FOLDER_SEPARATOR = '/'
 // Marks a file as saved queries exported by sqldoro.
 const FILE_KIND = 'sqldoro.savedQueries'
 const FILE_INDENT = 2
@@ -45,15 +45,7 @@ export const SAVED_QUERY_FORMAT: ListFormat<SavedQuery> = {
       updatedAt: readString(record, 'updatedAt'),
     }
   },
-}
-
-// " reports / monthly/ " is "reports/monthly".
-export function normalizeFolder(folder: string): string {
-  return folder
-    .split(FOLDER_SEPARATOR)
-    .map((part) => part.trim())
-    .filter((part) => part !== '')
-    .join(FOLDER_SEPARATOR)
+  migrations: new Map(),
 }
 
 export function queryNameProblem(name: string): string | undefined {
@@ -74,27 +66,13 @@ export function deleteQuery(queries: readonly SavedQuery[], id: string): readonl
 
 // Every folder that holds a query, with the folders above it, in order.
 export function folderPaths(queries: readonly SavedQuery[]): string[] {
-  const paths = new Set<string>()
-  for (const { folder } of queries) {
-    const parts = folder === '' ? [] : folder.split(FOLDER_SEPARATOR)
-    parts.forEach((...[, index]) => paths.add(parts.slice(0, index + 1).join(FOLDER_SEPARATOR)))
-  }
-  return [...paths].toSorted((left, right) => left.localeCompare(right, 'en'))
-}
-
-// The last part of a folder path: the name the folder shows under its parent.
-export function folderName(folder: string): string {
-  return folder.slice(folder.lastIndexOf(FOLDER_SEPARATOR) + 1)
+  return folderPathsOf(queries.map(({ folder }) => folder))
 }
 
 // The folders right under `folder` and the queries in it, each in name order.
 export function folderContents(queries: readonly SavedQuery[], folder: string): FolderContents {
-  const prefix = folder === '' ? '' : `${folder}${FOLDER_SEPARATOR}`
-  const folders = folderPaths(queries).filter(
-    (path) => path.startsWith(prefix) && !path.slice(prefix.length).includes(FOLDER_SEPARATOR),
-  )
   return {
-    folders,
+    folders: childFolders(folderPaths(queries), folder),
     queries: queries
       .filter((saved) => saved.folder === folder)
       .toSorted((left, right) => left.name.localeCompare(right.name, 'en')),

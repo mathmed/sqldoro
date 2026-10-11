@@ -14,6 +14,7 @@ import {
   validatePort,
   validateUser,
 } from './fields.ts'
+import { folderProblem } from './folders.ts'
 import { nameKey } from './names.ts'
 
 export const ConnectionField = {
@@ -23,6 +24,7 @@ export const ConnectionField = {
   Port: 'port',
   User: 'user',
   Database: 'database',
+  Folder: 'folder',
   SslMode: 'sslMode',
   SslCaPath: 'sslCaPath',
   SslCertPath: 'sslCertPath',
@@ -61,6 +63,7 @@ export function validateConnection(
     [ConnectionField.Port, validatePort(connection.port)],
     [ConnectionField.User, validateUser(connection.user)],
     [ConnectionField.Database, validateDatabase(connection.database)],
+    [ConnectionField.Folder, folderProblem(connection.folder)],
     ...sslChecks(connection.ssl),
     ...sshChecks(connection.ssh),
   ]

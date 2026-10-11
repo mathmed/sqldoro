@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { parseWebviewMessage } from './parse-webview-message.ts'
 import { MAX_WINDOW_ROWS } from './protocol.ts'
 
-const RANGE = { firstRow: 0, lastRow: 2, firstColumn: 1, lastColumn: 1 }
+const RANGE = { firstRow: 0, lastRow: 2, columns: [3, 1] }
 
 describe('parseWebviewMessage', () => {
   it('should read the messages without fields', () => {
@@ -91,7 +91,7 @@ describe('parseWebviewMessage', () => {
   it('should read a view with its sort and filters', () => {
     const view = {
       sort: [{ column: 1, isDescending: true }],
-      filters: [{ column: 0, text: 'a' }],
+      filters: [{ column: 0, operator: 'contains', values: ['a'] }],
     }
 
     expect(
@@ -105,20 +105,20 @@ describe('parseWebviewMessage', () => {
         type: 'copy',
         tabId: 't',
         viewVersion: 1,
-        range: RANGE,
+        block: RANGE,
         format: 'tsv',
       }),
-    ).toStrictEqual({ type: 'copy', tabId: 't', viewVersion: 1, range: RANGE, format: 'tsv' })
-    const oneCell = { firstRow: 2, lastRow: 2, firstColumn: 1, lastColumn: 1 }
+    ).toStrictEqual({ type: 'copy', tabId: 't', viewVersion: 1, block: RANGE, format: 'tsv' })
+    const oneCell = { firstRow: 2, lastRow: 2, columns: [1] }
     expect(
       parseWebviewMessage({
         type: 'copy',
         tabId: 't',
         viewVersion: 1,
-        range: oneCell,
+        block: oneCell,
         format: 'csv',
       }),
-    ).toMatchObject({ range: oneCell })
+    ).toMatchObject({ block: oneCell })
     expect(parseWebviewMessage({ type: 'export', tabId: 't', format: 'sql' })).toStrictEqual({
       type: 'export',
       tabId: 't',
@@ -127,6 +127,51 @@ describe('parseWebviewMessage', () => {
     expect(
       parseWebviewMessage({ type: 'fetchCell', tabId: 't', viewVersion: 3, row: 4, column: 5 }),
     ).toStrictEqual({ type: 'fetchCell', tabId: 't', viewVersion: 3, row: 4, column: 5 })
+  })
+
+  it('should read the requests to navigate from a row', () => {
+    const start = { tabId: 't', viewVersion: 2, row: 7, isInPlace: true }
+
+    expect(parseWebviewMessage({ type: 'navigate', ...start, column: 3 })).toStrictEqual({
+      type: 'navigate',
+      ...start,
+      column: 3,
+    })
+    expect(parseWebviewMessage({ type: 'openReference', ...start, reference: 1 })).toStrictEqual({
+      type: 'openReference',
+      ...start,
+      reference: 1,
+    })
+    expect(
+      parseWebviewMessage({ type: 'countReferences', tabId: 't', viewVersion: 2, row: 7 }),
+    ).toStrictEqual({ type: 'countReferences', tabId: 't', viewVersion: 2, row: 7 })
+    expect(
+      parseWebviewMessage({ type: 'peek', tabId: 't', viewVersion: 2, row: 7, column: 1 }),
+    ).toStrictEqual({ type: 'peek', tabId: 't', viewVersion: 2, row: 7, column: 1 })
+    expect(parseWebviewMessage({ type: 'goToStep', step: 4 })).toStrictEqual({
+      type: 'goToStep',
+      step: 4,
+    })
+  })
+
+  it('should read the layout of the columns and the other requests of a panel', () => {
+    const layout = { order: ['b', 'a'], hidden: ['c'] }
+
+    expect(parseWebviewMessage({ type: 'setLayout', tabId: 't', layout })).toStrictEqual({
+      type: 'setLayout',
+      tabId: 't',
+      layout,
+    })
+    expect(parseWebviewMessage({ type: 'allowWrites' })).toStrictEqual({ type: 'allowWrites' })
+    expect(parseWebviewMessage({ type: 'openInEditor', tabId: 't' })).toStrictEqual({
+      type: 'openInEditor',
+      tabId: 't',
+    })
+    expect(parseWebviewMessage({ type: 'fetchDistinct', tabId: 't', column: 2 })).toStrictEqual({
+      type: 'fetchDistinct',
+      tabId: 't',
+      column: 2,
+    })
   })
 
   it('should read a problem the webview reports', () => {
@@ -146,19 +191,28 @@ describe('parseWebviewMessage', () => {
       '"row" must be a whole number of 0 or more',
     ],
     [
-      { type: 'copy', tabId: 't', viewVersion: 0, range: { ...RANGE, firstRow: 3 }, format: 'csv' },
-      '"range" must start before it ends',
+      { type: 'copy', tabId: 't', viewVersion: 0, block: { ...RANGE, firstRow: 3 }, format: 'csv' },
+      '"block" must start before it ends',
     ],
     [
       {
         type: 'copy',
         tabId: 't',
         viewVersion: 0,
-        range: { ...RANGE, firstColumn: 2 },
+        block: { ...RANGE, columns: ['a'] },
         format: 'csv',
       },
-      '"range" must start before it ends',
+      '"0" must be a whole number of 0 or more',
     ],
+    [
+      { type: 'navigate', tabId: 't', viewVersion: 0, row: 1, column: 2, isInPlace: 'no' },
+      '"isInPlace" must be a boolean',
+    ],
+    [
+      { type: 'setLayout', tabId: 't', layout: { order: ['a'], hidden: [1] } },
+      '"0" must be a string',
+    ],
+    [{ type: 'goToStep', step: -1 }, '"step" must be a whole number of 0 or more'],
     [
       {
         type: 'setView',
@@ -172,7 +226,7 @@ describe('parseWebviewMessage', () => {
       {
         type: 'setView',
         tabId: 't',
-        view: { sort: [], filters: [{ column: 'a', text: '' }] },
+        view: { sort: [], filters: [{ column: 'a', operator: 'contains', values: [''] }] },
         isServerSide: false,
       },
       '"column" must be a whole number of 0 or more',

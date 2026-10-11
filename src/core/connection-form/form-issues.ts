@@ -5,11 +5,12 @@ import {
 } from '../connection/validation.ts'
 import { FormAction, type FormState } from './form-state.ts'
 
-// The fields as the form shows them, top to bottom: the engine in the header, the server and the
-// login, the tunnel, then the SSL settings at the bottom.
+// The fields as the form shows them, top to bottom: the engine in the header, the name and the
+// folder, the server and the login, the tunnel, then the SSL settings at the bottom.
 const FIELD_ORDER: readonly ConnectionField[] = [
   ConnectionField.Engine,
   ConnectionField.Name,
+  ConnectionField.Folder,
   ConnectionField.Host,
   ConnectionField.Port,
   ConnectionField.User,

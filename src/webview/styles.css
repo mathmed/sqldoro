@@ -186,16 +186,6 @@
   color: var(--vscode-descriptionForeground);
 }
 
-.where-filter input {
-  flex: 1;
-  box-sizing: border-box;
-  min-width: 0;
-  height: 22px;
-  padding: 0 6px;
-  font-family: var(--grid-font);
-  font-size: var(--grid-font-size);
-}
-
 .quick-search {
   position: relative;
   display: inline-flex;
@@ -508,10 +498,6 @@
 
 .look-empty {
   opacity: 0.6;
-}
-
-.grid-row.loading .grid-cell {
-  background: var(--vscode-editorWidget-background);
 }
 
 .grid-row:hover .grid-cell {

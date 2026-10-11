@@ -1,5 +1,6 @@
 import type { Client } from 'pg'
 
+import type { ObjectRef } from '../../core/engine/catalog.ts'
 import { RelationKind, type TableDescription } from '../../core/engine/table.ts'
 import {
   type JsonRecord,
@@ -10,6 +11,11 @@ import {
 } from '../../core/json/record.ts'
 import { queryRows } from './postgres-catalog.ts'
 import { type PostgresColumn, tableColumnOf } from './postgres-columns.ts'
+
+// A table named by its schema and its name, as the catalog keeps it.
+const RELATION_ID = `SELECT c.oid::text AS id FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = $1 AND c.relname = $2`
 
 const RELATION = `SELECT n.nspname AS schema, c.relname AS name, c.relkind AS kind,
   EXISTS (SELECT 1 FROM pg_inherits i WHERE i.inhparent = c.oid) AS "hasChildren"
@@ -78,6 +84,15 @@ export async function describeTable(
     columns: columns.map(readColumn).map(tableColumnOf),
     keys: keysOf(keys.map(readKeyPart)),
   })
+}
+
+// The table at a place of the catalog: its object number, then the description of describeTable.
+export async function describeTableAt(
+  target: CatalogClient,
+  table: Pick<ObjectRef, 'name' | 'schema'>,
+): Promise<TableDescription | undefined> {
+  const [row] = await queryRows(target.client, RELATION_ID, [table.schema, table.name])
+  return row === undefined ? undefined : describeTable(target, [readString(row, 'id')])
 }
 
 interface DescribedParts extends Pick<TableDescription, 'columns' | 'keys'> {

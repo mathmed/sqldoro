@@ -14,7 +14,10 @@ import { RunScope } from '../../core/editor/run-plan.ts'
 import { ColumnKind } from '../../core/engine/query.ts'
 
 const NAME = { name: 'name', dataType: 'TEXT', kind: ColumnKind.Text }
-const VIEW = { sort: [{ column: 0, isDescending: true }], filters: [{ column: 0, text: 'a' }] }
+const VIEW = {
+  sort: [{ column: 0, isDescending: true }],
+  filters: [{ column: 0, operator: 'contains', values: ['a'] }],
+}
 
 let harness: QueryHarness
 

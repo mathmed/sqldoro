@@ -9,7 +9,9 @@ import {
 } from '../json/record.ts'
 import { decodeList, encodeList, type ListFormat } from '../json/versioned-list.ts'
 import {
+  ConnectionColor,
   type ConnectionConfig,
+  isConnectionColor,
   isEnvironmentTag,
   isSshAuthMethod,
   isSslMode,
@@ -17,12 +19,20 @@ import {
   type SslOptions,
 } from './connection.ts'
 
+// Version 2 gave connections a color and a folder: connections saved before have neither.
 const FORMAT: ListFormat<ConnectionConfig> = {
-  version: 1,
+  version: 2,
   key: 'connections',
   listName: 'saved connections',
   entryName: 'Saved connection',
   decode: decodeConnection,
+  migrations: new Map([[1, withoutColorOrFolder]]),
+}
+
+function withoutColorOrFolder(entry: unknown): unknown {
+  return typeof entry === 'object' && entry !== null
+    ? { color: ConnectionColor.None, folder: '', ...entry }
+    : entry
 }
 
 export interface DecodedConnections {
@@ -65,6 +75,8 @@ export function readConnection(record: JsonRecord): ConnectionConfig {
     ssh: record.get('ssh') === undefined ? undefined : decodeSsh(readNested(record, 'ssh')),
     environment: readOneOf(record, 'environment', isEnvironmentTag),
     isReadOnly: readBoolean(record, 'isReadOnly'),
+    color: readOneOf(record, 'color', isConnectionColor),
+    folder: readString(record, 'folder'),
   }
 }
 

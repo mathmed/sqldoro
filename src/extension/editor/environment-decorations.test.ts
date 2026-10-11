@@ -9,7 +9,7 @@ import {
   sqlEditor,
 } from '../../../test/support/query.ts'
 import { resetVscode, ThemeColor, Uri } from '../../../test/vscode.ts'
-import { EnvironmentTag } from '../../core/connection/connection.ts'
+import { ConnectionColor, EnvironmentTag } from '../../core/connection/connection.ts'
 import { EnvironmentDecorations } from './environment-decorations.ts'
 
 let harness: QueryHarness
@@ -26,6 +26,7 @@ beforeEach(() => {
   sut = new EnvironmentDecorations({
     bindings: harness.bindings,
     connections: (id) => harness.connections.get(id),
+    policy: () => ({ productionEnvironments: new Set(['prod', 'staging']) }),
   })
 })
 
@@ -38,6 +39,26 @@ describe('EnvironmentDecorations', () => {
       tooltip: 'Runs on "Shop" (Production)',
       color: new ThemeColor('charts.red'),
       propagate: false,
+    })
+  })
+
+  it('should color the editors as production for every production environment', async () => {
+    harness.connections.set('shop', {
+      ...SHOP,
+      environment: EnvironmentTag.Staging,
+      color: ConnectionColor.Green,
+    })
+
+    expect(await decorationOf()).toMatchObject({ badge: 'S', color: new ThemeColor('charts.red') })
+  })
+
+  it('should badge the editors of a connection with a color and no environment', async () => {
+    harness.connections.set('shop', { ...SHOP, color: ConnectionColor.Purple })
+
+    expect(await decorationOf()).toMatchObject({
+      badge: '●',
+      tooltip: 'Runs on "Shop"',
+      color: new ThemeColor('charts.purple'),
     })
   })
 

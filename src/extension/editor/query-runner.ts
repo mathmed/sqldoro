@@ -177,7 +177,7 @@ export class QueryRunner implements vscode.Disposable {
 
   #newTab(sql: string, kind: TabKind): ResultSet {
     const id = this.#dependencies.createId()
-    return new ResultSet({ id, sql, kind, canServerView: false, canRefresh: false })
+    return new ResultSet({ values: [], id, sql, kind, canServerView: false, canRefresh: false })
   }
 
   async #target(uri: vscode.Uri): Promise<RunTarget | undefined> {
@@ -247,6 +247,7 @@ export class QueryRunner implements vscode.Disposable {
   async #runAll(parts: RunParts, { document, statements }: EditorStatements): Promise<void> {
     for (const [index, statement] of statements.entries()) {
       const tab = new ResultSet({
+        values: [],
         id: this.#dependencies.createId(),
         sql: statement.sql,
         kind: TabKind.Rows,

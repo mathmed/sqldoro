@@ -5,11 +5,9 @@ import {
   deleteQuery,
   exportQueries,
   folderContents,
-  folderName,
   folderPaths,
   freeName,
   importQueries,
-  normalizeFolder,
   putQuery,
   queryNameProblem,
   SAVED_QUERY_FORMAT,
@@ -36,13 +34,6 @@ const QUERIES = [
   query('e', { name: 'x', folder: 'admin' }),
 ]
 
-describe('normalizeFolder', () => {
-  it('should trim the parts of a folder and drop the empty ones', () => {
-    expect(normalizeFolder(' reports / monthly/ ')).toBe('reports/monthly')
-    expect(normalizeFolder('//')).toBe('')
-  })
-})
-
 describe('queryNameProblem', () => {
   it('should require a name', () => {
     expect(queryNameProblem('  ')).toBe('A saved query needs a name')
@@ -65,16 +56,6 @@ describe('putQuery and deleteQuery', () => {
 
   it('should delete by id', () => {
     expect(deleteQuery([query('a'), query('b')], 'a')).toStrictEqual([query('b')])
-  })
-})
-
-describe('folderName', () => {
-  it('should name a folder by the last part of its path', () => {
-    expect(['reports', 'reports/yearly', 'reports/yearly/2026'].map(folderName)).toStrictEqual([
-      'reports',
-      'yearly',
-      '2026',
-    ])
   })
 })
 

@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 
 import { EditKind } from '../core/edits/edit-kind.ts'
-import { EditingState, type ResultTab, type TabEditing } from '../core/results/protocol.ts'
+import type { ResultTab } from '../core/results/protocol.ts'
+import { EditingState, type TabEditing } from '../core/results/tab-editing.ts'
 import type { EditActions } from './edit-messages.ts'
 import { IconName } from './icons.tsx'
 import { ToolButton, ToolGroup } from './tool-buttons.tsx'
@@ -73,22 +74,29 @@ const CELL_EDITS: readonly EditSpec[] = [
     isAdding: false,
   },
 ]
-const SHOWN_STATES: ReadonlySet<string> = new Set([EditingState.Editable, EditingState.Applying])
+const SHOWN_STATES: ReadonlySet<string> = new Set([
+  EditingState.Editable,
+  EditingState.Applying,
+  EditingState.ReadOnly,
+])
+const PREVIEW_TOOLTIP = 'Preview the statements of the changes, then apply them (Ctrl+S)'
+// While the rows cannot change, every tool is off.
+const IDLE_STATES: ReadonlySet<string> = new Set([EditingState.Applying, EditingState.ReadOnly])
 
 // What can be done to the rows of a result that can be edited: preview or revert the changes, add,
 // duplicate and delete rows, and change cells. Each acts on the selection unless it adds a row or
-// takes every change.
+// takes every change. Rows that cannot be edited show the tools off, saying why.
 export const EditTools = ({ tab, hasSelection, actions }: EditToolsProps): ReactElement | null => {
   const { editing } = tab
   if (!SHOWN_STATES.has(editing.state)) {
     return null
   }
-  const isApplying = editing.state === EditingState.Applying
+  const isIdle = IDLE_STATES.has(editing.state)
   const isEnabled = (spec: EditSpec): boolean =>
-    !isApplying &&
+    !isIdle &&
     (!spec.isOnSelection || hasSelection) &&
     (!spec.isAdding || editing.insertProblem === '')
-  const groups = { isEnabled, actions, insertProblem: editing.insertProblem }
+  const groups = { isEnabled, actions, problems: problemsOf(editing) }
   return (
     <>
       <ChangeTools editing={editing} actions={actions} />
@@ -107,20 +115,20 @@ const ChangeTools = ({
   readonly actions: EditActions
 }): ReactElement => {
   const hasChanges = editing.rows.length + editing.newRows.length + editing.hiddenRows > 0
-  const isDisabled = editing.state === EditingState.Applying || !hasChanges
+  const isDisabled = IDLE_STATES.has(editing.state) || !hasChanges
   return (
     <ToolGroup label="Changes">
       <ToolButton
         icon={IconName.Save}
         label="Preview Changes…"
-        tooltip="Preview the statements of the changes, then apply them (Ctrl+S)"
+        tooltip={readOnlyTooltip(editing, PREVIEW_TOOLTIP)}
         isDisabled={isDisabled}
         onClick={actions.preview}
       />
       <ToolButton
         icon={IconName.ClearAll}
         label="Revert All"
-        tooltip="Revert every change"
+        tooltip={readOnlyTooltip(editing, 'Revert every change')}
         isDisabled={isDisabled}
         onClick={() => {
           actions.onResult(EditKind.RevertAll)
@@ -135,8 +143,32 @@ interface EditGroupProps {
   readonly specs: readonly EditSpec[]
   readonly isEnabled: (spec: EditSpec) => boolean
   readonly actions: EditActions
-  // Why rows cannot be added: the tooltip of the buttons that add them.
-  readonly insertProblem: string
+  readonly problems: Problems
+}
+
+// Why the rows cannot be edited, and why rows cannot be added: the tooltips of the buttons they
+// turn off.
+interface Problems {
+  readonly readOnly: string
+  readonly insert: string
+}
+
+function problemsOf(editing: TabEditing): Problems {
+  return {
+    readOnly: editing.state === EditingState.ReadOnly ? editing.problem : '',
+    insert: editing.insertProblem,
+  }
+}
+
+function readOnlyTooltip(editing: TabEditing, tooltip: string): string {
+  return editing.state === EditingState.ReadOnly ? `Read-only: ${editing.problem}` : tooltip
+}
+
+function specTooltip(spec: EditSpec, problems: Problems): string {
+  if (problems.readOnly !== '') {
+    return `Read-only: ${problems.readOnly}`
+  }
+  return spec.isAdding && problems.insert !== '' ? problems.insert : spec.tooltip
 }
 
 const EditGroup = ({
@@ -144,7 +176,7 @@ const EditGroup = ({
   specs,
   isEnabled,
   actions,
-  insertProblem,
+  problems,
 }: EditGroupProps): ReactElement => (
   <ToolGroup label={label}>
     {specs.map((spec) => (
@@ -152,7 +184,7 @@ const EditGroup = ({
         key={spec.kind}
         icon={spec.icon}
         label={spec.label}
-        tooltip={spec.isAdding && insertProblem !== '' ? insertProblem : spec.tooltip}
+        tooltip={specTooltip(spec, problems)}
         isDisabled={!isEnabled(spec)}
         onClick={() => {
           if (spec.isOnSelection) {

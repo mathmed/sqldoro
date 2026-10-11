@@ -1,3 +1,4 @@
+import { projectRow, type Shown } from '../core/grid/column-projection.ts'
 import { RowCache } from '../core/grid/row-cache.ts'
 import type { WireRow } from '../core/results/protocol.ts'
 
@@ -5,10 +6,26 @@ import type { WireRow } from '../core/results/protocol.ts'
 export const WINDOW_ROWS = 200
 const MAX_HELD_ROWS = 4000
 
+// What the grid reads its rows from: the rows of a tab the webview holds, as the grid shows them.
+export interface RowView {
+  readonly subscribe: (listener: () => void) => () => void
+  readonly revision: () => number
+  readonly row: (index: number) => WireRow | undefined
+  // Whether the rows shown are those of the view before, while the new ones are on their way.
+  readonly isStale: () => boolean
+  readonly windowsToFetch: (
+    range: { readonly first: number; readonly last: number },
+    rowCount: number,
+    viewVersion: number,
+  ) => number[]
+}
+
 // The rows of one tab the webview holds, for the view version they belong to. React components
-// subscribe to it (useSyncExternalStore) and re-render when rows arrive.
-export class RowStore {
-  readonly #cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
+// subscribe to it (useSyncExternalStore) and re-render when rows arrive. While the rows of a new
+// version are on their way (a refresh), the grid keeps showing those of the old one.
+export class RowStore implements RowView {
+  #cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
+  #stale: RowCache | undefined
   readonly #listeners = new Set<() => void>()
   #viewVersion = 0
   #revision = 0
@@ -22,32 +39,47 @@ export class RowStore {
 
   readonly revision = (): number => this.#revision
 
-  row(index: number): WireRow | undefined {
-    return this.#cache.get(index)
-  }
+  readonly row = (index: number): WireRow | undefined =>
+    this.#cache.get(index) ?? this.#stale?.get(index)
 
-  // The windows to ask for to show rows first to last; a new view version forgets the old rows.
-  windowsToFetch(
+  readonly isStale = (): boolean => this.#stale !== undefined
+
+  // The windows to ask for to show rows first to last; a new view version puts the old rows aside.
+  readonly windowsToFetch = (
     range: { readonly first: number; readonly last: number },
     rowCount: number,
     viewVersion: number,
-  ): number[] {
+  ): number[] => {
     if (viewVersion !== this.#viewVersion) {
       this.#viewVersion = viewVersion
-      this.#cache.clear()
+      this.#stale = this.#cache.size === 0 ? this.#stale : this.#cache
+      this.#cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
     }
     return this.#cache.windowsToFetch(range.first, range.last, rowCount)
   }
 
-  // Rows of an older view version are dropped: the grid already shows another order.
+  // Rows of an older view version are dropped: the grid already shows another order. The first
+  // rows of the new version replace the old ones.
   store(viewVersion: number, start: number, rows: readonly WireRow[]): void {
     if (viewVersion !== this.#viewVersion) {
       return
     }
+    this.#stale = undefined
     this.#cache.store(start, rows)
     this.#revision += 1
     for (const listener of [...this.#listeners]) {
       listener()
     }
+  }
+}
+
+// The rows of a store as the grid shows them: the columns it shows, in its order.
+export function projectedRows(store: RowView, shown: Shown): RowView {
+  return {
+    ...store,
+    row: (index) => {
+      const row = store.row(index)
+      return row === undefined ? undefined : projectRow(row, shown)
+    },
   }
 }

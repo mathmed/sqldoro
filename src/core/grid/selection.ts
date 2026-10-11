@@ -1,4 +1,12 @@
-import type { CellRange } from '../results/protocol.ts'
+import type { CellBlock } from '../results/protocol.ts'
+
+// Rows and columns of the view, both ends included.
+export interface CellRange {
+  readonly firstRow: number
+  readonly lastRow: number
+  readonly firstColumn: number
+  readonly lastColumn: number
+}
 
 export interface CellPosition {
   readonly row: number
@@ -114,4 +122,14 @@ export function isSelected(range: CellRange, position: CellPosition): boolean {
     position.column >= range.firstColumn &&
     position.column <= range.lastColumn
   )
+}
+
+// The cells of a range as the host takes them: its rows, and its columns one by one.
+export function rangeBlock(range: CellRange): CellBlock {
+  const count = range.lastColumn - range.firstColumn + 1
+  return {
+    firstRow: range.firstRow,
+    lastRow: range.lastRow,
+    columns: Array.from({ length: count }, (...[, index]) => range.firstColumn + index),
+  }
 }

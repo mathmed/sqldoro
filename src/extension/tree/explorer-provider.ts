@@ -3,15 +3,24 @@ import * as vscode from 'vscode'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { Logger } from '../../core/platform.ts'
+import { type GuardPolicy, isProduction } from '../../core/safety/guard.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { SessionManager } from '../sessions/session-manager.ts'
 import { connectionNode } from './connection-node.ts'
 import { type ExplorerNode, messageNode, MessageTone, type NodeContext } from './explorer-node.ts'
+import { foundNodes } from './find-nodes.ts'
+import { folderChildren } from './folder-node.ts'
+import { loadingText } from './loading-text.ts'
+import type { TableIndex } from './table-index.ts'
 
 export interface ExplorerDependencies {
   readonly connections: () => readonly ConnectionConfig[]
   readonly sessions: SessionManager
   readonly engines: EngineRegistry
+  readonly index: Pick<TableIndex, 'objects'>
+  readonly policy: () => GuardPolicy
+  // Resolves after this many milliseconds: the clock of the loading nodes.
+  readonly delay: (milliseconds: number) => Promise<void>
   readonly log: Logger
 }
 
@@ -24,8 +33,14 @@ interface Loaded {
   readonly summaries: Map<string, string>
 }
 
-// The Connections view: children load when a node opens and stay until it is refreshed or its
-// connection changes state. A failure becomes a line in the tree instead of an error dialog.
+// A list that loads in less than this shows no loading node: no flicker for a fast server.
+const LOADING_DELAY_MS = 150
+const FIND_ROOT = { id: 'find', connectionId: '' }
+
+// The Connections view: connections in their folders, and the children of a node, loaded when it
+// opens and kept until it is refreshed or its connection changes state. A list slow to load shows a
+// line that says so; a failure becomes a line in the tree instead of an error dialog. While the user
+// finds a table, the view shows only the tables and views whose name holds the text.
 export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, vscode.Disposable {
   readonly #dependencies: ExplorerDependencies
   readonly #changes = new vscode.EventEmitter<ExplorerNode | undefined>()
@@ -33,6 +48,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   readonly #roots = new Map<string, ExplorerNode>()
   readonly #subscription: vscode.Disposable
   #filter = ''
+  #find = ''
   readonly onDidChangeTreeData = this.#changes.event
 
   constructor(dependencies: ExplorerDependencies) {
@@ -46,9 +62,19 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     return this.#filter
   }
 
+  get find(): string {
+    return this.#find
+  }
+
   setFilter(filter: string): void {
     this.#filter = filter.trim()
     this.refresh()
+  }
+
+  // Shows only the tables and views whose name holds the text; an empty text shows the tree again.
+  setFind(text: string): void {
+    this.#find = text.trim()
+    this.#changes.fire(undefined)
   }
 
   getTreeItem(node: ExplorerNode): vscode.TreeItem {
@@ -57,10 +83,11 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
 
   async getChildren(node?: ExplorerNode): Promise<ExplorerNode[]> {
     if (node === undefined) {
-      return this.#rootNodes()
+      return this.#find === '' ? this.#rootNodes() : this.#foundNodes()
     }
     const loaded = this.#loadedOf(node.connectionId)
-    return [...(await (loaded.children.get(node.id) ?? this.#load(node, loaded)))]
+    const known = loaded.children.get(node.id)
+    return [...(await (known ?? this.#loadSlowly(node, loaded)))]
   }
 
   // A node that shows statistics of the list it comes from has that list read again.
@@ -79,17 +106,45 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   }
 
   #rootNodes(): ExplorerNode[] {
-    const connections = this.#dependencies
-      .connections()
-      .toSorted((left, right) => left.name.localeCompare(right.name))
-    const nodes = connections.map((connection) =>
-      connectionNode(connection, this.#dependencies.engines),
-    )
     this.#roots.clear()
-    for (const node of nodes) {
-      this.#roots.set(node.connectionId, node)
+    const nodeOf = (connection: ConnectionConfig): ExplorerNode => {
+      const node = connectionNode(connection, this.#dependencies.engines)
+      this.#roots.set(connection.id, node)
+      return node
     }
-    return nodes
+    return folderChildren({ connections: this.#dependencies.connections(), nodeOf }, '')
+  }
+
+  async #foundNodes(): Promise<ExplorerNode[]> {
+    const text = this.#find
+    const found = foundNodes(await this.#dependencies.index.objects(), {
+      text,
+      engines: this.#dependencies.engines,
+    })
+    return found.length > 0
+      ? found
+      : [
+          messageNode(FIND_ROOT, {
+            text: `No table or view matches "${text}"`,
+            tone: MessageTone.Info,
+          }),
+        ]
+  }
+
+  // A list that takes a while shows a line that says what loads, and the list once it is here.
+  async #loadSlowly(node: ExplorerNode, loaded: Loaded): Children {
+    const loading = this.#load(node, loaded)
+    const isSlow = await Promise.race([
+      loading.then(() => false),
+      this.#dependencies.delay(LOADING_DELAY_MS).then(() => true),
+    ])
+    if (!isSlow) {
+      return loading
+    }
+    void loading.then(() => {
+      this.#changes.fire(node)
+    })
+    return [messageNode(node, { text: loadingText(node.kind), tone: MessageTone.Progress })]
   }
 
   async #load(node: ExplorerNode, loaded: Loaded): Children {
@@ -135,11 +190,12 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   }
 
   #context(): NodeContext {
-    const { sessions, log } = this.#dependencies
+    const { sessions, log, policy } = this.#dependencies
     return {
       state: (connectionId) => sessions.state(connectionId),
       session: (connectionId) => sessions.session(connectionId)?.engineSession,
       filter: this.#filter,
+      isProduction: (environment) => isProduction(environment, policy()),
       log,
       summaryOf: (node) => this.#loaded.get(node.connectionId)?.summaries.get(node.id),
     }

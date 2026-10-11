@@ -19,6 +19,8 @@ export interface MenuItem {
 interface MenuButtonProps {
   // What the button and its menu are called, and its tooltip.
   readonly label: string
+  // What the menu does, more than its name says.
+  readonly tooltip: string
   readonly icon: IconName
   readonly items: readonly MenuItem[]
   readonly isDisabled: boolean
@@ -79,7 +81,7 @@ export const MenuButton = (props: MenuButtonProps): ReactElement => {
         type="button"
         className={props.hasChevron ? 'tool-button has-chevron' : 'header-action'}
         aria-label={props.label}
-        title={props.label}
+        title={props.tooltip}
         aria-haspopup="menu"
         aria-expanded={menu.place !== undefined}
         disabled={props.isDisabled}
@@ -105,7 +107,7 @@ interface MenuListProps {
 }
 
 // It takes the focus on its first item that can be picked.
-const MenuList = ({ label, items, place, onClose }: MenuListProps): ReactElement => {
+export const MenuList = ({ label, items, place, onClose }: MenuListProps): ReactElement => {
   const listRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     listRef.current?.querySelector<HTMLButtonElement>(ITEM)?.focus()

@@ -45,7 +45,7 @@ beforeEach(() => {
 describe('applyEdits', () => {
   it('should apply the changes in a transaction of their own, then read the rows again', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'birthday' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'birthday' })
 
     await previewAndApply(result)
 
@@ -72,15 +72,15 @@ describe('applyEdits', () => {
   it('should delete, update and insert in that order, confirming the deletions by their number', async () => {
     window.showWarningMessage.mockResolvedValue('Delete 1 Row')
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Delete, range: cell(0, 0) })
-    await edit(result, { kind: EditKind.SetNull, range: cell(1, 2) })
+    await edit(result, { kind: EditKind.Delete, block: cell(0, 0) })
+    await edit(result, { kind: EditKind.SetNull, block: cell(1, 2) })
     await edit(result, { kind: EditKind.Insert })
     await edit(result, {
       kind: EditKind.Set,
-      range: { firstRow: 2, lastRow: 2, firstColumn: 0, lastColumn: 0 },
+      block: { firstRow: 2, lastRow: 2, columns: [0] },
       input: '3',
     })
-    await edit(result, { kind: EditKind.Set, range: cell(2, 1), input: 'A-3' })
+    await edit(result, { kind: EditKind.Set, block: cell(2, 1), input: 'A-3' })
 
     await previewAndApply(result)
 
@@ -101,7 +101,7 @@ describe('applyEdits', () => {
   it('should run nothing when the deletion is not confirmed, and keep the changes', async () => {
     window.showWarningMessage.mockResolvedValue(undefined)
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Delete, range: cell(0, 0) })
+    await edit(result, { kind: EditKind.Delete, block: cell(0, 0) })
 
     await previewAndApply(result)
 
@@ -117,7 +117,7 @@ describe('applyEdits', () => {
     harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
     window.showInputBox.mockResolvedValueOnce('Shop').mockResolvedValueOnce('1')
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Delete, range: cell(1, 0) })
+    await edit(result, { kind: EditKind.Delete, block: cell(1, 0) })
 
     await previewAndApply(result)
 
@@ -131,7 +131,7 @@ describe('applyEdits', () => {
     harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
     window.showInputBox.mockResolvedValue(undefined)
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
 
     await previewAndApply(result)
 
@@ -145,7 +145,7 @@ describe('applyEdits', () => {
 
   it('should let the guard block the changes of a connection made read-only meanwhile', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
     harness.connections.set('shop', { ...SHOP, isReadOnly: true })
 
     await previewAndApply(result)
@@ -163,7 +163,7 @@ describe('applyEdits', () => {
     answerOrders(harness)
     harness.engine.status = TransactionStatus.Open
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
 
     await previewAndApply(result)
 
@@ -195,7 +195,7 @@ describe('applyEdits', () => {
       },
       { category: 'read', isSucceeded: false },
     )
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
 
     await previewAndApply(result)
 
@@ -208,7 +208,7 @@ describe('applyEdits', () => {
   it('should not apply anything where the server could change values silently', async () => {
     harness.engine.writeProblem = 'MySQL is not in strict mode.'
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
 
     await previewAndApply(result)
 
@@ -218,7 +218,7 @@ describe('applyEdits', () => {
 
   it('should apply nothing once the editor is closed', async () => {
     const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'x' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
     for (const document of [...documents]) {
       closeDocument(document)
     }

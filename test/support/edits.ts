@@ -7,8 +7,9 @@ import type * as vscode from 'vscode'
 import { RunScope } from '../../src/core/editor/run-plan.ts'
 import type { EditKind } from '../../src/core/edits/edit-kind.ts'
 import type { QueryRequest, Row } from '../../src/core/engine/query.ts'
-import type { CellRange, TabEditing } from '../../src/core/results/protocol.ts'
+import type { CellBlock } from '../../src/core/results/protocol.ts'
 import type { ResultSet } from '../../src/core/results/result-set.ts'
+import type { TabEditing } from '../../src/core/results/tab-editing.ts'
 import { ORDERS, ORDERS_RESULT, ORDERS_TABLE } from '../fixtures/tables.ts'
 import type { FakeWebviewPanel } from '../vscode.ts'
 import { type QueryHarness, readyPanel, sqlEditor } from './query.ts'
@@ -73,20 +74,20 @@ export function editingOf(tab: ResultSet): TabEditing {
   return tab.toTab().editing
 }
 
-export function cell(row: number, column: number): CellRange {
-  return { firstRow: row, lastRow: row, firstColumn: column, lastColumn: column }
+export function cell(row: number, column: number): CellBlock {
+  return { firstRow: row, lastRow: row, columns: [column] }
 }
 
 // What the result view sends when the user changes cells or rows.
 export async function edit(
   { panel, tab }: GridResult,
-  change: { readonly kind: EditKind; readonly range?: CellRange | null; readonly input?: string },
+  change: { readonly kind: EditKind; readonly block?: CellBlock | null; readonly input?: string },
 ): Promise<void> {
   panel.webview.send({
     type: 'edit',
     tabId: tab.id,
     viewVersion: tab.viewVersion,
-    edit: { range: null, input: '', ...change },
+    edit: { block: null, input: '', ...change },
   })
   await vi.waitFor(() => {
     expect(panel.webview.posted.length).toBeGreaterThan(0)

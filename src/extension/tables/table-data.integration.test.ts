@@ -136,7 +136,7 @@ describe.each(CASES)('the rows of a table on a real $name server', (target) => {
       [2, null],
     ])
 
-    edit(grid, { kind: EditKind.Set, range: cell(1, 1), input: 'second' })
+    edit(grid, { kind: EditKind.Set, block: cell(1, 1), input: 'second' })
     const editing = await previewAndApply(grid)
 
     expect(editing).toMatchObject({ notice: `Applied 1 update on ${target.label}.` })
@@ -157,7 +157,7 @@ describe.each(CASES)('the rows of a table on a real $name server', (target) => {
       tableFilter: 'id > 1 -- the later ones',
     })
     expect(tabRows(grid)).toStrictEqual([[2, null]])
-    edit(grid, { kind: EditKind.Set, range: cell(0, 1), input: 'filtered' })
+    edit(grid, { kind: EditKind.Set, block: cell(0, 1), input: 'filtered' })
     await previewAndApply(grid)
     expect(tabRows(grid)).toStrictEqual([[2, 'filtered']])
 

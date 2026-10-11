@@ -6,9 +6,9 @@ import type { ValueSpec } from '../engine/table.ts'
 import { readValueSpec } from './parse-editing.ts'
 import { parseHostMessage } from './parse-host-message.ts'
 import { parseWebviewMessage } from './parse-webview-message.ts'
-import type { TabEditing } from './protocol.ts'
+import type { TabEditing } from './tab-editing.ts'
 
-const RANGE = { firstRow: 0, lastRow: 2, firstColumn: 1, lastColumn: 1 }
+const RANGE = { firstRow: 0, lastRow: 2, columns: [1, 0] }
 
 const EDITING: TabEditing = {
   state: 'editable',
@@ -120,11 +120,11 @@ describe('the editing of a tab, as the host sends it', () => {
 
 describe('the edits the result view asks for', () => {
   it.each([
-    { kind: 'set', range: RANGE, input: '42' },
-    { kind: 'setNull', range: RANGE, input: '' },
-    { kind: 'insert', range: null, input: '' },
-    { kind: 'revertAll', range: null, input: '' },
-    { kind: 'delete', range: RANGE, input: '' },
+    { kind: 'set', block: RANGE, input: '42' },
+    { kind: 'setNull', block: RANGE, input: '' },
+    { kind: 'insert', block: null, input: '' },
+    { kind: 'revertAll', block: null, input: '' },
+    { kind: 'delete', block: RANGE, input: '' },
   ])('should read an edit: %j', (edit) => {
     expect(parseWebviewMessage({ type: 'edit', tabId: 't', viewVersion: 3, edit })).toStrictEqual({
       type: 'edit',
@@ -135,12 +135,16 @@ describe('the edits the result view asks for', () => {
   })
 
   it.each([
-    [{ kind: 'drop', range: null, input: '' }, '"kind" must be a known value'],
+    [{ kind: 'drop', block: null, input: '' }, '"kind" must be a known value'],
     [
-      { kind: 'set', range: { ...RANGE, firstRow: 3 }, input: '' },
-      '"range" must start before it ends',
+      { kind: 'set', block: { ...RANGE, firstRow: 3 }, input: '' },
+      '"block" must start before it ends',
     ],
-    [{ kind: 'set', range: RANGE }, '"input" must be a string'],
+    [{ kind: 'set', block: RANGE }, '"input" must be a string'],
+    [
+      { kind: 'set', block: { ...RANGE, columns: [-1] }, input: '' },
+      '"0" must be a whole number of 0 or more',
+    ],
   ])('should refuse an edit whose field is wrong: %j', (edit, message) => {
     expect(() => parseWebviewMessage({ type: 'edit', tabId: 't', viewVersion: 3, edit })).toThrow(
       new TypeError(message),

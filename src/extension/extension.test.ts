@@ -147,7 +147,7 @@ describe('activate', () => {
 
   it('should not open the output when the warning is dismissed', async () => {
     const globalState = new FakeMemento()
-    await globalState.update('sqldoro.connections', { version: 2, connections: [] })
+    await globalState.update('sqldoro.connections', { version: 3, connections: [] })
     window.showWarningMessage.mockResolvedValueOnce(undefined)
 
     activateIn(vscode.ExtensionMode.Production, globalState)
@@ -172,11 +172,9 @@ describe('activate', () => {
       vscode.commands.executeCommand(CommandId.EditConnection, 'shop'),
     )
     const ssl = { ...SAVED_CONNECTION.ssl, mode: 'require', caPath: '/missing/sqldoro-ca.pem' }
+    const draft = { ...SAVED_CONNECTION, color: '', folder: '', ssl }
 
-    await fromForm(panel, {
-      type: 'test',
-      draft: { connection: { ...SAVED_CONNECTION, ssl }, secretChanges: [] },
-    })
+    await fromForm(panel, { type: 'test', draft: { connection: draft, secretChanges: [] } })
 
     await vi.waitFor(() => {
       expect(sentToForm(panel, 'tested')).toHaveLength(1)
@@ -186,7 +184,7 @@ describe('activate', () => {
     expect(String(tested?.['message'])).toContain('sqldoro-ca.pem')
     await fromForm(panel, {
       type: 'listDatabases',
-      draft: { connection: { ...SAVED_CONNECTION, ssl }, secretChanges: [] },
+      draft: { connection: draft, secretChanges: [] },
     })
     await vi.waitFor(() => {
       expect(sentToForm(panel, 'databasesFailed')).toHaveLength(1)

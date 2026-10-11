@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import { connectionText } from '../core/results/panel-connection.ts'
 import type { PanelConnection } from '../core/results/protocol.ts'
 
-// Where the results come from, above the tabs: production stands out.
+// Where the statements of the changes run, in their preview: production stands out.
 export const ConnectionBanner = ({
   connection,
 }: {

@@ -62,6 +62,18 @@ beforeEach(() => {
   answerBy()
 })
 
+describe('describeTableAt (MySQL)', () => {
+  it('should describe a table by its database and its name', async () => {
+    answerTable([BASE_TABLE])
+    const sut = await connected()
+
+    await expect(
+      sut.describeTableAt({ database: 'shop', schema: 'shop', name: 'orders' }),
+    ).resolves.toMatchObject({ ref: { database: 'shop', schema: 'shop', name: 'orders' } })
+    expect(mysql.connections[0]?.queries.at(1)?.values).toStrictEqual(ORDERS)
+  })
+})
+
 describe('describeTable (MySQL)', () => {
   it('should describe the table result columns come from, with bound names', async () => {
     answerTable([BASE_TABLE])

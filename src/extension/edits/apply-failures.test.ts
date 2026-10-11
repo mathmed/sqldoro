@@ -24,7 +24,7 @@ async function twoNotes(): Promise<EditableResult> {
   const result = await editableResult(harness)
   await edit(result, {
     kind: EditKind.Set,
-    range: { firstRow: 0, lastRow: 1, firstColumn: 2, lastColumn: 2 },
+    block: { firstRow: 0, lastRow: 1, columns: [2] },
     input: 'x',
   })
   return result

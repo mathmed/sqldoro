@@ -38,6 +38,7 @@ export function fakeSession(overrides: Partial<EngineSession> = {}): EngineSessi
     listColumns: async () => Promise.resolve([]),
     listIndexes: async () => Promise.resolve([]),
     listForeignKeys: async () => Promise.resolve([]),
+    listReferences: async () => Promise.resolve([]),
     objectDdl: async () => Promise.resolve(''),
     useScope: async () => Promise.resolve(),
     execute: () => ({
@@ -46,6 +47,7 @@ export function fakeSession(overrides: Partial<EngineSession> = {}): EngineSessi
     }),
     transactionStatus: async () => Promise.resolve(TransactionStatus.Idle),
     describeTable: async () => Promise.resolve(undefined),
+    describeTableAt: async () => Promise.resolve(undefined),
     writeProblem: async () => Promise.resolve(undefined),
     ...overrides,
   }

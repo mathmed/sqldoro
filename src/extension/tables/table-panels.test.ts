@@ -98,7 +98,7 @@ describe('followTablePanels', () => {
     await vi.waitFor(() => {
       expect(editingOf(result.tab).state).toBe('editable')
     })
-    await edit(result, { kind: EditKind.Set, range: cell(1, 2), input: 'birthday' })
+    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'birthday' })
 
     await harness.sessions.disconnect(SHOP.id)
 

@@ -18,7 +18,7 @@ const NUMBERED_WIDTH = 128
 let view: GridView
 
 function grid(changes: Partial<ResultTab> = {}, selection?: GridSelection): void {
-  view = gridView(changes, selection)
+  view = gridView(changes, { selection })
 }
 
 function rowNumber(row: number): HTMLElement {
@@ -163,5 +163,27 @@ describe('Grid', () => {
     expect(view.api.posted()).toStrictEqual([
       { type: 'fetchRows', tabId: 'tab-1', viewVersion: 0, start: 0, count: 200 },
     ])
+  })
+
+  it('should scroll the rows of a step of a trail back to where they were, and keep where they go', () => {
+    const scrollTo = vi.spyOn(HTMLElement.prototype, 'scrollTo')
+    const scrolls = new Map([[3, 240]])
+    view = gridView({}, { step: 3, scrolls })
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 240 })
+    Object.defineProperty(theGrid(), 'scrollTop', { configurable: true, value: 96 })
+    fireEvent.scroll(theGrid())
+
+    expect(scrolls.get(3)).toBe(96)
+    scrollTo.mockRestore()
+  })
+
+  it('should keep no scroll for rows outside a trail, nor for a step never left', () => {
+    const scrolls = new Map<number, number>()
+    view = gridView({}, { scrolls })
+    fireEvent.scroll(theGrid())
+    gridView({}, { step: 4, scrolls })
+
+    expect(scrolls.size).toBe(0)
   })
 })

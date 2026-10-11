@@ -31,6 +31,7 @@ export const BINDING_FORMAT: ListFormat<StoredBinding> = {
       schema: readString(record, 'schema'),
     }
   },
+  migrations: new Map(),
 }
 
 // Where unqualified names resolve: in MySQL the schema is the database; in PostgreSQL an editor

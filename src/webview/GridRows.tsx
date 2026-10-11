@@ -2,14 +2,19 @@ import type { VirtualItem } from '@tanstack/react-virtual'
 import type { MouseEvent, ReactElement } from 'react'
 
 import type { ResultColumn } from '../core/engine/query.ts'
-import { type CellPosition, isSelected } from '../core/grid/selection.ts'
-import type { CellRange, WireRow } from '../core/results/protocol.ts'
-import { CellEditor, type CellEditorActions } from './CellEditor.tsx'
+import { type CellPosition, type CellRange, isSelected } from '../core/grid/selection.ts'
+import type { WireRow } from '../core/results/protocol.ts'
+import { CellEditor } from './CellEditor.tsx'
 import type { RowEdit } from './edit-overlay.ts'
+import type { CellEditorActions } from './editor-keys.ts'
 import { cellDisplay, cellNote, type CellState, rowClassName } from './grid-cells.ts'
 import { ariaColumnIndex, ariaRowIndex, cellId, HEADER_HEIGHT, ROW_HEIGHT } from './grid-model.ts'
+import { Icon, IconName } from './icons.tsx'
+import { placeAt } from './overlays.ts'
+import type { PopupPlace } from './popup.ts'
 import type { CellEditorView } from './use-cell-editor.ts'
 import type { ColumnWindow } from './use-column-window.ts'
+import type { PeekHover } from './use-peek-hover.ts'
 
 export interface RowLayout {
   readonly tabId: string
@@ -29,6 +34,9 @@ export interface RowLayout {
   readonly rowEdit: (index: number) => RowEdit | undefined
   readonly canEdit: (position: CellPosition) => boolean
   readonly editor: ShownEditor | undefined
+  // Whether a cell points at a row (a foreign key that is not NULL), and whether it opens in place.
+  readonly isLink: (position: CellPosition, value: unknown) => boolean
+  readonly canOpenInPlace: boolean
 }
 
 // The editor of the cell being edited, and what its keys do in the grid.
@@ -42,6 +50,10 @@ export interface CellEvents {
   readonly onCellOpen: (position: CellPosition) => void
   // A click on the number of a row: Shift extends the selection to it.
   readonly onRowDown: (row: number, isExtending: boolean) => void
+  // A link opens the row it points at, in a panel of its own or in place.
+  readonly onLinkOpen: (position: CellPosition, isInPlace: boolean) => void
+  readonly onCellMenu: (position: CellPosition, place: PopupPlace) => void
+  readonly onLinkHover: PeekHover
 }
 
 interface GridRowsProps {
@@ -169,30 +181,109 @@ interface GridCellProps {
 
 const GridCell = ({ cell, name, layout, events }: GridCellProps): ReactElement => {
   const { position } = cell
-  const isInSelection = layout.range !== undefined && isSelected(layout.range, position)
-  const isFocus = layout.focus?.row === position.row && layout.focus.column === position.column
-  const display = cellDisplay(cell, { isInSelection, isFocus })
+  const marks = marksOf(position, layout)
+  const display = cellDisplay(cell, marks)
+  const isLink = layout.isLink(position, cell.row?.cells.at(position.column))
   return (
     <div
       id={cellId(layout.tabId, position.row, position.column)}
-      className={display.className}
+      className={[display.className, ...(isLink ? ['is-link'] : [])].join(' ')}
       role="gridcell"
       aria-colindex={ariaColumnIndex(position.column)}
-      aria-selected={isInSelection}
+      aria-selected={marks.isInSelection}
       aria-readonly={layout.isEditing ? !layout.canEdit(position) : undefined}
       aria-description={cellNote(cell)}
       style={{ width: layout.widths.at(position.column) }}
-      onMouseDown={(event: MouseEvent) => {
-        events.onCellDown(position, event.shiftKey)
-      }}
-      onDoubleClick={() => {
-        events.onCellOpen(position)
-      }}
+      {...cellHandlers(position, { isLink, layout, events })}
     >
       <CellContent cell={cell} text={display.text} name={name} editor={layout.editor} />
+      {isLink ? <LinkArrow position={position} events={events} /> : null}
     </div>
   )
 }
+
+function marksOf(
+  position: CellPosition,
+  layout: RowLayout,
+): { readonly isInSelection: boolean; readonly isFocus: boolean } {
+  return {
+    isInSelection: layout.range !== undefined && isSelected(layout.range, position),
+    isFocus: layout.focus?.row === position.row && layout.focus.column === position.column,
+  }
+}
+
+interface CellSituation {
+  readonly isLink: boolean
+  readonly layout: RowLayout
+  readonly events: CellEvents
+}
+
+// A press selects the cell; on a link, Ctrl (or Cmd) with a click opens the row it points at, and Alt
+// with a click opens it in place where the panel keeps a trail.
+function cellHandlers(
+  position: CellPosition,
+  { isLink, layout, events }: CellSituation,
+): Record<string, (event: MouseEvent) => void> {
+  return {
+    onMouseDown: (event) => {
+      events.onCellDown(position, event.shiftKey)
+    },
+    onClick: (event) => {
+      if (isLink) {
+        openOnModifiedClick(event, position, { layout, events })
+      }
+    },
+    onDoubleClick: () => {
+      events.onCellOpen(position)
+    },
+    onContextMenu: (event) => {
+      event.preventDefault()
+      events.onCellMenu(position, placeAt(event))
+    },
+  }
+}
+
+function openOnModifiedClick(
+  event: MouseEvent,
+  position: CellPosition,
+  { layout, events }: Omit<CellSituation, 'isLink'>,
+): void {
+  const isInPlace = event.altKey && layout.canOpenInPlace
+  if (event.ctrlKey || event.metaKey || isInPlace) {
+    event.preventDefault()
+    events.onLinkOpen(position, isInPlace)
+  }
+}
+
+// The arrow of a link: a click opens the row it points at, the pointer resting on it peeks at it.
+const LinkArrow = ({
+  position,
+  events,
+}: {
+  readonly position: CellPosition
+  readonly events: CellEvents
+}): ReactElement => (
+  <button
+    type="button"
+    className="link-arrow"
+    tabIndex={-1}
+    aria-label="Open the referenced row"
+    title="Open the referenced row (Ctrl+click, or Ctrl+Enter); Alt+Enter peeks at it"
+    onMouseDown={(event) => {
+      event.stopPropagation()
+    }}
+    onClick={(event) => {
+      event.stopPropagation()
+      events.onLinkOpen(position, false)
+    }}
+    onMouseEnter={(event) => {
+      events.onLinkHover.enter(position, event.currentTarget)
+    }}
+    onMouseLeave={events.onLinkHover.leave}
+  >
+    <Icon name={IconName.ArrowLink} />
+  </button>
+)
 
 interface CellContentProps {
   readonly cell: CellState

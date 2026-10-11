@@ -1,12 +1,14 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { resultTab } from '../../test/fixtures/results.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import { StatusLine } from './StatusLine.tsx'
 
 function line(changes: Partial<ResultTab>): string | null {
-  const { unmount } = render(<StatusLine tab={resultTab(changes)} />)
+  const { unmount } = render(
+    <StatusLine tab={resultTab(changes)} hiddenColumns={0} onShowColumns={vi.fn()} />,
+  )
   const text = screen.getByRole('status').textContent
   unmount()
   return text

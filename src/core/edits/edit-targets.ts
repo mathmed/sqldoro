@@ -1,5 +1,5 @@
 import type { Row } from '../engine/query.ts'
-import type { CellRange, EditMessage } from '../results/protocol.ts'
+import type { CellBlock, EditMessage } from '../results/protocol.ts'
 import { groupDigits } from '../results/tabs.ts'
 import { type CellTarget, MAX_CHANGED_ROWS } from './edit-actions.ts'
 import { EditKind } from './edit-kind.ts'
@@ -34,7 +34,7 @@ const TOO_MANY = `Select at most ${groupDigits(MAX_CHANGED_ROWS)} rows to change
 // The cells an edit of the grid acts on: positions of the view are rows of the result, and past them
 // the rows added in the grid. Reverting only looks at the rows that have changes.
 export function editTargets(edit: EditMessage, source: TargetSource): TargetsReading {
-  const { range } = edit
+  const range = edit.block
   if (range === null) {
     return { cells: [] }
   }
@@ -52,15 +52,12 @@ function cellsOf(rows: readonly RowTarget[], columns: readonly number[]): CellTa
   return rows.flatMap((row) => columns.map((column) => ({ row, column })))
 }
 
-function columnsOf(range: CellRange, columnCount: number): number[] {
-  const last = Math.min(range.lastColumn, columnCount - 1)
-  return Array.from(
-    { length: Math.max(last - range.firstColumn + 1, 0) },
-    (...[, offset]) => range.firstColumn + offset,
-  )
+// The columns of the block that the result has, each once, in the order the grid shows them.
+function columnsOf(range: CellBlock, columnCount: number): number[] {
+  return [...new Set(range.columns.filter((column) => column < columnCount))]
 }
 
-function rowsOf(range: CellRange, source: TargetSource): RowTarget[] {
+function rowsOf(range: CellBlock, source: TargetSource): RowTarget[] {
   const count = range.lastRow - range.firstRow + 1
   return Array.from({ length: count }, (...[, offset]) => range.firstRow + offset).flatMap(
     (position) => rowAt(position, source),
@@ -78,7 +75,7 @@ function rowAt(position: number, { rows, edits }: TargetSource): RowTarget[] {
 
 // The rows of the range that have changes: those of the result the view shows there, and the new
 // rows there.
-function changedRows(range: CellRange, { rows, edits }: TargetSource): RowTarget[] {
+function changedRows(range: CellBlock, { rows, edits }: TargetSource): RowTarget[] {
   const isInRange = (position: number): boolean =>
     position >= range.firstRow && position <= range.lastRow
   const positions = rows.viewPositions([...edits.rows.keys()])

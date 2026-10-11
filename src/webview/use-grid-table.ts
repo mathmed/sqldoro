@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-table'
 import { useMemo } from 'react'
 
-import { sortingOf, viewOf } from '../core/grid/view-state.ts'
+import { sortingOf, sortOf } from '../core/grid/view-state.ts'
 import type { ResultTab, WireRow } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { initialWidth } from './grid-model.ts'
@@ -64,10 +64,7 @@ export function useGridTable(tab: ResultTab, onView: (view: ViewSpec) => void): 
     state: { sorting },
     onSortingChange: (updater) => {
       const next: SortingState = functionalUpdate(updater, sorting)
-      const sort = viewOf(
-        next.map((key) => ({ id: key.id, isDescending: key.desc })),
-        [],
-      ).sort
+      const sort = sortOf(next.map((key) => ({ id: key.id, isDescending: key.desc })))
       onView({ sort, filters: tab.view.filters })
     },
   })

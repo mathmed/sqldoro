@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 
-import { folderContents, folderName, type SavedQuery } from '../../core/snippets/saved-queries.ts'
+import { folderContents, type SavedQuery } from '../../core/snippets/saved-queries.ts'
+import { folderName } from '../../core/text/folder-paths.ts'
 import { CommandId } from '../command-id.ts'
 import type { SavedQueryStore } from './saved-query-store.ts'
 

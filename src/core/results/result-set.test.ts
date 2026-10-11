@@ -8,6 +8,7 @@ const SQL = 'SELECT id, name\nFROM orders'
 
 function resultSet(changes: Partial<ConstructorParameters<typeof ResultSet>[0]> = {}): ResultSet {
   const sut = new ResultSet({
+    values: [],
     id: 't1',
     sql: SQL,
     kind: 'rows',
@@ -27,6 +28,7 @@ function resultSet(changes: Partial<ConstructorParameters<typeof ResultSet>[0]> 
 describe('ResultSet', () => {
   it('should start as a running tab of the statement', () => {
     const sut = new ResultSet({
+      values: [],
       id: 't1',
       sql: SQL,
       kind: 'rows',
@@ -40,7 +42,11 @@ describe('ResultSet', () => {
       sql: SQL,
       kind: 'rows',
       status: 'running',
+      progress: 'running',
       columns: [],
+      meta: [],
+      references: [],
+      layout: { order: [], hidden: [] },
       rowCount: 0,
       loadedRows: 0,
       view: { sort: [], filters: [] },
@@ -93,7 +99,7 @@ describe('ResultSet', () => {
     expect(sut.view).toStrictEqual({ sort: [{ column: 0, isDescending: false }], filters: [] })
     expect(sut.toTab()).toMatchObject({ viewVersion: 1, isServerView: false })
 
-    sut.applyView({ sort: [], filters: [{ column: 1, text: 'b' }] })
+    sut.applyView({ sort: [], filters: [{ column: 1, operator: 'contains', values: ['b'] }] })
     expect(sut.rowCount).toBe(1)
     expect(sut.toTab()).toMatchObject({ rowCount: 1, loadedRows: 3 })
 
@@ -127,7 +133,7 @@ describe('ResultSet', () => {
     sut.searchFor('1')
     expect(sut.rows(0, 10)).toStrictEqual([['1', null]])
 
-    sut.applyView({ sort: [], filters: [{ column: 1, text: 'c' }] })
+    sut.applyView({ sort: [], filters: [{ column: 1, operator: 'contains', values: ['c'] }] })
     expect(sut.rowCount).toBe(0)
     sut.applyView({ sort: [], filters: [] })
     expect(sut.rows(0, 10)).toStrictEqual([['1', null]])
@@ -226,44 +232,20 @@ describe('ResultSet', () => {
   it('should read a table with another condition in the same tab', () => {
     const sut = resultSet({ sql: 'SELECT * FROM t', canRefresh: true })
 
-    sut.filterTable("SELECT * FROM t WHERE (a = 'x'\n)", "a = 'x'")
+    sut.readWith({
+      sql: "SELECT * FROM t WHERE (a = 'x'\n) AND b = $1",
+      values: [7],
+      condition: "a = 'x'",
+    })
 
-    expect(sut.sql).toBe("SELECT * FROM t WHERE (a = 'x'\n)")
+    expect(sut.sql).toBe("SELECT * FROM t WHERE (a = 'x'\n) AND b = $1")
+    expect(sut.values).toStrictEqual([7])
     expect(sut.tableFilter).toBe("a = 'x'")
     expect(sut.toTab()).toMatchObject({
-      title: "SELECT * FROM t WHERE (a = 'x' )",
-      sql: "SELECT * FROM t WHERE (a = 'x'\n)",
+      title: "SELECT * FROM t WHERE (a = 'x' ) AND b = $1",
+      sql: "SELECT * FROM t WHERE (a = 'x'\n) AND b = $1",
       tableFilter: "a = 'x'",
     })
-  })
-
-  it('should send windows of rows with long text cut', () => {
-    expect(resultSet().window(1, 2, 4)).toStrictEqual([
-      { cells: ['1', null], truncated: [] },
-      { cells: ['2', 'bbbb'], truncated: [1] },
-    ])
-  })
-
-  it('should give the whole value of a cell, NULL past the end', () => {
-    const sut = resultSet()
-
-    expect(sut.cell(2, 1)).toBe('bbbbbbbbbb')
-    expect(sut.cell(1, 1)).toBeNull()
-    expect(sut.cell(9, 0)).toBeNull()
-    expect(sut.cell(0, 9)).toBeNull()
-  })
-
-  it('should project a range of the view onto its columns', () => {
-    const sut = resultSet()
-    sut.applyView({ sort: [{ column: 0, isDescending: true }], filters: [] })
-
-    expect(sut.project({ firstRow: 0, lastRow: 1, firstColumn: 1, lastColumn: 1 })).toStrictEqual({
-      columns: [RESULT_COLUMNS[1]],
-      rows: [['c'], ['bbbbbbbbbb']],
-    })
-    expect(
-      sut.project({ firstRow: 1, lastRow: 1, firstColumn: 0, lastColumn: 0 }).rows,
-    ).toHaveLength(1)
   })
 
   it('should record how the statement ended', () => {
@@ -297,53 +279,5 @@ describe('ResultSet', () => {
     const withoutPlan = resultSet()
     withoutPlan.succeed({ durationMs: 1, affectedRows: 2, isTruncated: false, autoLimit: null })
     expect(withoutPlan.toTab().plan).toStrictEqual([])
-  })
-
-  it('should start over for a run on the server with the view it applies', () => {
-    const sut = resultSet()
-    sut.applyView({ sort: [{ column: 0, isDescending: false }], filters: [] })
-    sut.fail({ message: 'x', line: null, column: null })
-
-    sut.restart({ sort: [{ column: 1, isDescending: true }], filters: [] })
-
-    expect(sut.toTab()).toMatchObject({
-      status: 'running',
-      rowCount: 0,
-      loadedRows: 0,
-      isServerView: true,
-      viewVersion: 2,
-      error: null,
-      summary: null,
-      view: { sort: [{ column: 1, isDescending: true }], filters: [] },
-    })
-    expect(sut.isServerView).toBe(true)
-    sut.addRows([['9', 'z']])
-    expect(sut.rows(0, 5)).toStrictEqual([['9', 'z']])
-
-    sut.restart({ sort: [], filters: [] })
-    expect(sut.toTab().isServerView).toBe(false)
-    expect(sut.isServerView).toBe(false)
-  })
-
-  it('should not offer the server view for plans or statements that cannot run again', () => {
-    expect(resultSet({ kind: 'plan' }).toTab().canServerView).toBe(false)
-    expect(resultSet({ canServerView: false }).toTab().canServerView).toBe(false)
-  })
-
-  it('should offer to read the rows again only when it was made to', () => {
-    const sut = resultSet({ canRefresh: true })
-
-    expect(sut.canRefresh).toBe(true)
-    expect(sut.toTab().canRefresh).toBe(true)
-    expect(resultSet().canRefresh).toBe(false)
-  })
-
-  it('should cut a long statement in the tab', () => {
-    const sql = `SELECT ${'x'.repeat(3000)}`
-
-    expect(
-      new ResultSet({ id: 't', sql, kind: 'rows', canServerView: false, canRefresh: false }).toTab()
-        .sql,
-    ).toHaveLength(2000)
   })
 })

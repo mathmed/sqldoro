@@ -25,7 +25,7 @@ describe('EditorBindings', () => {
     const sut = new EditorBindings(memento, log)
     const table = { database: 'shop', schema: 'sales', name: 'orders' }
 
-    expect(sut.get(tableUri({ connectionId: 'shop', table }))).toStrictEqual({
+    expect(sut.get(tableUri({ connectionId: 'shop', table, instance: '' }))).toStrictEqual({
       connectionId: 'shop',
       database: 'shop',
       schema: 'sales',

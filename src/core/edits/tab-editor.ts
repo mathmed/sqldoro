@@ -1,4 +1,5 @@
-import { EditingState, type EditMessage, type TabEditing } from '../results/protocol.ts'
+import type { EditMessage } from '../results/protocol.ts'
+import { EditingState, type TabEditing } from '../results/tab-editing.ts'
 import { applyEdit } from './edit-actions.ts'
 import { editTargets, type RowSource } from './edit-targets.ts'
 import { pendingView, previewOf, type PreviewParts } from './edit-wire.ts'

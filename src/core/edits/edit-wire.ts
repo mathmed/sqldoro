@@ -4,7 +4,7 @@ import type {
   PendingCell,
   PendingRow,
   PreviewStatement,
-} from '../results/protocol.ts'
+} from '../results/tab-editing.ts'
 import { groupDigits } from '../results/tabs.ts'
 import type { RowSource } from './edit-targets.ts'
 import type { PendingEdits, PendingValue, RowTarget } from './pending.ts'

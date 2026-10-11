@@ -176,6 +176,38 @@ describe('describeTable (PostgreSQL)', () => {
   })
 })
 
+describe('describeTableAt (PostgreSQL)', () => {
+  it('should find the object id of a table by its schema and name, then describe it', async () => {
+    answerBy([
+      ['SELECT c.oid::text AS id', { rows: [{ id: '16510' }] }],
+      ['SELECT n.nspname', { rows: [RELATION] }],
+      ['SELECT a.attnum', { rows: [columnRow('id')] }],
+      ['SELECT i.indexrelid', { rows: [] }],
+    ])
+    const sut = await connected()
+
+    await expect(
+      sut.describeTableAt({ database: '', schema: 'sales', name: 'orders' }),
+    ).resolves.toMatchObject({ ref: { database: 'shop', schema: 'sales', name: 'orders' } })
+    expect(catalogQueries().map(({ values }) => values)).toStrictEqual([
+      ['sales', 'orders'],
+      ['16510'],
+      ['16510'],
+      ['16510'],
+    ])
+  })
+
+  it('should not know a table that is not there', async () => {
+    answerBy([['SELECT c.oid::text AS id', { rows: [] }]])
+    const sut = await connected()
+
+    await expect(
+      sut.describeTableAt({ database: 'shop', schema: 'sales', name: 'gone' }),
+    ).resolves.toBeUndefined()
+    expect(catalogQueries()).toHaveLength(1)
+  })
+})
+
 describe('writeProblem (PostgreSQL)', () => {
   it('should have none: PostgreSQL refuses what a column cannot hold', async () => {
     const sut = await connected()

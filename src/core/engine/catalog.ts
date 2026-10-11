@@ -87,6 +87,18 @@ export interface ForeignKeyInfo {
   readonly onDelete: string
 }
 
+// A foreign key of another table that points at a table: the rows of that table that reference a
+// row of this one.
+export interface ReferenceInfo {
+  readonly name: string
+  // The table that holds the foreign key, in the namespace of its own (a database in MySQL).
+  readonly schema: string
+  readonly table: string
+  readonly columns: readonly string[]
+  // The columns of the referenced table, in the order of the foreign key.
+  readonly referencedColumns: readonly string[]
+}
+
 // One row per column of an index, in index then key order, as the catalog queries return them.
 export interface IndexColumn {
   readonly index: string
@@ -104,6 +116,15 @@ export interface ForeignKeyColumn {
   readonly referencedColumn: string
   readonly onUpdate: string
   readonly onDelete: string
+}
+
+// One row per column of a foreign key that points at a table, in table, constraint then key order.
+export interface ReferenceColumn {
+  readonly schema: string
+  readonly table: string
+  readonly constraint: string
+  readonly column: string
+  readonly referencedColumn: string
 }
 
 export function groupIndexColumns(rows: readonly IndexColumn[]): IndexInfo[] {
@@ -127,6 +148,29 @@ export function groupForeignKeyColumns(rows: readonly ForeignKeyColumn[]): Forei
     foreignKeys.set(row.constraint, addForeignKeyColumn(foreignKeys.get(row.constraint), row))
   }
   return [...foreignKeys.values()]
+}
+
+// A constraint name is unique in its table only: the table is part of what tells two apart.
+export function groupReferenceColumns(rows: readonly ReferenceColumn[]): ReferenceInfo[] {
+  const references = new Map<string, ReferenceInfo>()
+  for (const row of rows) {
+    const key = JSON.stringify([row.schema, row.table, row.constraint])
+    references.set(key, addReferenceColumn(references.get(key), row))
+  }
+  return [...references.values()]
+}
+
+function addReferenceColumn(
+  reference: ReferenceInfo | undefined,
+  row: ReferenceColumn,
+): ReferenceInfo {
+  return {
+    name: row.constraint,
+    schema: row.schema,
+    table: row.table,
+    columns: [...(reference?.columns ?? []), row.column],
+    referencedColumns: [...(reference?.referencedColumns ?? []), row.referencedColumn],
+  }
 }
 
 function addForeignKeyColumn(

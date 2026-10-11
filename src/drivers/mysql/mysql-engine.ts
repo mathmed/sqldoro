@@ -9,6 +9,7 @@ import {
   listDatabases,
   listForeignKeys,
   listIndexes,
+  listReferences,
   listTables,
   listViews,
   queryRows,
@@ -91,10 +92,12 @@ function createSession(
 type Catalog = Pick<
   EngineSession,
   | 'describeTable'
+  | 'describeTableAt'
   | 'listColumns'
   | 'listDatabases'
   | 'listForeignKeys'
   | 'listIndexes'
+  | 'listReferences'
   | 'listSchemas'
   | 'listTables'
   | 'listViews'
@@ -111,9 +114,12 @@ function catalogOf(connection: Connection): Catalog {
     listColumns: async (object) => listColumns(connection, object),
     listIndexes: async (table) => listIndexes(connection, table),
     listForeignKeys: async (table) => listForeignKeys(connection, table),
+    listReferences: async (table) => listReferences(connection, table),
     objectDdl: async (object, kind) => objectDdl(connection, object, kind),
     // The table key names the database: MySQL reads any database's catalog from this connection.
     describeTable: async (...[, table]) => describeTable(connection, table),
+    // In MySQL a table is named by its database (its schema) and its name, as result columns name it.
+    describeTableAt: async (table) => describeTable(connection, [table.schema, table.name]),
   }
 }
 
