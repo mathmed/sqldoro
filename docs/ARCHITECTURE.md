@@ -17,7 +17,7 @@ flowchart TB
     tunnel["src/tunnel<br/>SSH tunnel (ssh2)"]
   end
   subgraph browser["Webviews (browser sandbox, strict CSP)"]
-    webview["src/webview<br/>React: the result grid (TanStack Table and Virtual)<br/>and the connection form (connection-form/)"]
+    webview["src/webview<br/>React: the result grid (TanStack Table and Virtual),<br/>the connection form (connection-form/)<br/>and the table search box (table-search/)"]
   end
   core["src/core<br/>engine and tunnel interfaces, connection model,<br/>SQL lexing, safety guards, edits, result model,<br/>message protocol: pure TypeScript"]
 
@@ -45,8 +45,9 @@ flowchart TB
   only `src/extension/factories/` instantiates the drivers and the tunnel, so supporting another
   engine is writing its driver and registering it there (see
   [CONTRIBUTING.md](../CONTRIBUTING.md#adding-a-database-engine)).
-- **`src/webview`** holds the two webviews, each a browser bundle of its own (Vite): the result grid
-  and the connection form. They never import the extension host. The grid holds no rows of its own
+- **`src/webview`** holds the three webviews, each a browser bundle of its own (Vite): the result
+  grid, the connection form and the table search box above the Connections view. They never import
+  the extension host. The grid holds no rows of its own
   beyond a bounded cache: the host keeps the rows, and sorts, filters, copies and exports them.
 
 ## Opening a session
@@ -248,10 +249,46 @@ the editor in front; with none in front, the default database of each connection
 moved. `DatabaseSelection` follows the editor in front, its binding and the connections, and tells
 which marks changed: the decorations fire for their URIs only (the green label and the `●`), and the
 provider draws again only the database and schema nodes it drew whose mark changed (their icon and
-tooltip), keeping their children. These redraws do not reach `onDidChangeContents`, the event the
-schema cache follows, so moving between editors never reads the catalog again. Finding a table (`TableIndex`, `find-nodes.ts`) lists the tables and views of
-the connected connections through the schema cache and shows the matches as a tree of its own,
-opened down to them, under ids of their own so that VS Code gives the tree back as it was.
+tooltip), keeping their children, in the explorer and in the tree of a find alike. These redraws
+are not refreshes: the schema cache and the table index forget a catalog only on
+`ExplorerProvider.onDidRefresh` (Refresh, a connection that connects or disconnects, a statement
+that changes the schema), so moving between editors, or typing in the search box, never reads the
+catalog again.
+
+## Finding a table
+
+The search box above the Connections view (`sqldoro.tableSearch`) is a webview view with a bundle
+of its own (`src/webview/table-search/`), the same page and policy as the other webviews, and a
+message protocol in the core (`src/core/table-search/protocol.ts`) checked on both sides. Every
+keystroke goes to the host (`src/extension/search/table-search-view.ts`), which filters the
+explorer at once; Enter opens the table that matches best, the down arrow reveals it in the explorer, and
+Escape clears the text. **Find Table in Explorer** puts the focus in the box.
+
+Nothing reaches the server while typing. `TableIndex` loads the tables and views of the connected
+connections once, through the schema cache, when the box gets the focus or the first character is
+typed; each namespace shows as soon as it arrives, and the box says what still loads. A refresh of
+the explorer (`ExplorerProvider.onDidRefresh`: Refresh, a connection that connects or disconnects,
+a statement that changes the schema) makes the schema cache and the index read them again. The
+search itself is a pure function of the core (`findTables`, in `src/core/table-search/found.ts`).
+Names match like in VS Code (`matchName`, in `src/core/text/fuzzy.ts`): the text whole in the name,
+then over the starts of its words (camelCase, `_`, `-`, `.`), then its characters in order, whatever
+the case; a group lists its best matches first, every run of matched characters is highlighted, and
+Enter opens the best match of the whole tree. Go to Table filters its quick pick with the same
+matcher. A few thousand tables filter, and the changes of the tree are worked out, in a few
+milliseconds.
+
+The explorer shows what is found as a tree of its own (`FindMode`, `FindTree`), drawn like
+the explorer (the same icons and colors, and the mark of the database in front): the ids of its nodes
+are those of the same nodes in the explorer, marked (`#find`), and stay the same whatever the
+text, and so do the node objects. VS Code therefore updates them in place: the core says which
+branches changed between two texts (`foundChanges`, in `changes.ts`), and only those are drawn
+again, never the whole tree, except when the find starts or stops or its connections change.
+VS Code draws a change of a tree at once only when it was told of none in the last 200 ms, and
+otherwise waits for a pause, so the find tells it at most once every 220 ms and gathers what changed
+meanwhile: the tree follows the typing instead of waiting for a pause. A branch shows open the
+first time; VS Code keeps it as the user leaves it. The provider remembers what the user opens and
+closes (`onDidExpandElement`, `onDidCollapseElement`), so the explorer comes back as it was left
+when the text is cleared.
 
 ## Table data
 

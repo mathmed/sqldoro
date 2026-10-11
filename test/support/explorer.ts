@@ -46,6 +46,7 @@ export interface Explorer {
   readonly sut: ExplorerProvider
   readonly sessions: SessionManager
   readonly selection: DatabaseSelection
+  readonly index: TableIndex
   readonly log: ReturnType<typeof recordingLogger>
 }
 
@@ -63,6 +64,34 @@ export const EXTENSION_URI = Uri.file('/extension') as unknown as vscode.Uri
 // A delay that never ends: no list takes long enough to show a loading node.
 export async function never(): Promise<void> {
   return new Promise(() => undefined)
+}
+
+export interface ManualClock {
+  readonly delay: (milliseconds: number) => Promise<void>
+  // Ends the delays started so far.
+  readonly elapse: () => Promise<void>
+  readonly waiting: () => number
+}
+
+// A clock whose delays end when the test says so.
+export function manualClock(): ManualClock {
+  const pending: (() => void)[] = []
+  return {
+    delay: async () =>
+      new Promise((resolve) => {
+        pending.push(resolve)
+      }),
+    elapse: async () => {
+      for (const resolve of pending.splice(0)) {
+        resolve()
+      }
+      // What waited on the delays runs before the test goes on.
+      await new Promise((resolve) => {
+        setImmediate(resolve)
+      })
+    },
+    waiting: () => pending.length,
+  }
 }
 
 export function explorer(
@@ -85,24 +114,25 @@ export function explorer(
   })
   const engines = new EngineRegistry([POSTGRES, MYSQL])
   const selection = new DatabaseSelection({ connections: () => connections, engines })
+  const cache = new SchemaCache(log)
+  const index = new TableIndex({ cache, connections: () => connections, sessions, engines, log })
   const sut = new ExplorerProvider({
     connections: () => connections,
     sessions,
     engines,
-    index: new TableIndex({
-      cache: new SchemaCache(log),
-      connections: () => connections,
-      sessions,
-      engines,
-      log,
-    }),
+    index,
     policy: () => ({ productionEnvironments: new Set(['prod']) }),
     delay,
     selection,
     extensionUri: EXTENSION_URI,
     log,
   })
-  return { sut, sessions, selection, log }
+  // As the extension wires them: what the explorer reads again is read again by the index.
+  sut.onDidRefresh((connectionId) => {
+    cache.invalidate(connectionId)
+    index.forget(connectionId)
+  })
+  return { sut, sessions, selection, index, log }
 }
 
 export async function childrenOf(

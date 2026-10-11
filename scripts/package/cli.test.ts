@@ -62,7 +62,7 @@ describe('package command line', () => {
 
     expect(sut.pack).toHaveBeenCalledWith(join(root, 'sqldoro-1.2.3.vsix'), '1760000000')
     expect(printed()).toMatch(
-      /^>> package sqldoro-1\.2\.3\.vsix: [\d.]+kb, 22 files, sha256 [0-9a-f]{64}\n>> package file \[Content_Types\]\.xml 19b\n/u,
+      /^>> package sqldoro-1\.2\.3\.vsix: [\d.]+kb, 24 files, sha256 [0-9a-f]{64}\n>> package file \[Content_Types\]\.xml 19b\n/u,
     )
     expect(printed()).toContain(
       `>> package file extension/package.json ${String(JSON.stringify(MANIFEST).length)}b`,

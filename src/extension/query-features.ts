@@ -166,17 +166,13 @@ function updateStatus(query: QueryServices): void {
   query.transactionStatus.update()
 }
 
-// Editors leave a connection that is disconnected, edited or deleted; the autocomplete forgets
-// what the explorer refreshes.
+// Editors leave a connection that is disconnected, edited or deleted.
 function followConnections(base: Services, query: QueryServices, log: Logger): vscode.Disposable[] {
   return [
     base.sessions.onDidChange((connectionId) => {
       if (!LIVE_STATES.has(base.sessions.state(connectionId).status)) {
         void query.editorSessions.releaseConnection(connectionId)
       }
-    }),
-    base.explorer.onDidChangeContents((node) => {
-      query.schemaCache.invalidate(node?.connectionId)
     }),
     base.store.onDidChange(() => {
       updateStatus(query)

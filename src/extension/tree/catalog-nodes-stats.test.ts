@@ -14,6 +14,7 @@ import { newConnection } from '../../core/connection/connection.ts'
 import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { ExplorerNode } from './explorer-node.ts'
+import type { Changed } from './explorer-provider.ts'
 
 const TABLES = [
   { name: 'orders', stats: { estimatedRows: 27_412n, sizeBytes: 33_554_432n } },
@@ -113,7 +114,7 @@ describe('the statistics in the explorer', () => {
 
   it('should count the tables and the views of a group once they load, and redraw it', async () => {
     const { sut } = await connected()
-    const fired: (ExplorerNode | undefined)[] = []
+    const fired: Changed[] = []
     sut.onDidChangeTreeData((node) => fired.push(node))
     const groups = await open(sut, 'Shop', 'shop', 'public')
     const [tables, views] = groups
@@ -182,7 +183,7 @@ describe('the statistics in the explorer', () => {
     const databases = await childrenOf(sut, root)
     const groups = await open(sut, 'Shop', 'shop', 'public')
     const tables = await childrenOf(sut, groups[0])
-    const fired: (ExplorerNode | undefined)[] = []
+    const fired: Changed[] = []
     sut.onDidChangeTreeData((node) => fired.push(node))
 
     sut.refresh(find(sut, tables, 'orders'))

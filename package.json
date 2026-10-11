@@ -363,6 +363,14 @@
     "views": {
       "sqldoro": [
         {
+          "type": "webview",
+          "id": "sqldoro.tableSearch",
+          "name": "Find Table",
+          "icon": "media/sqldoro.svg",
+          "contextualTitle": "sqldoro",
+          "initialSize": 1
+        },
+        {
           "id": "sqldoro.connections",
           "name": "Connections",
           "icon": "media/sqldoro.svg",

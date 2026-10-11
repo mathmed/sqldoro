@@ -7,6 +7,7 @@ import type { SecretKind } from '../../src/core/connection/secrets.ts'
 import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { EngineSession } from '../../src/core/engine/engine.ts'
 import type { SessionRequest } from '../../src/core/session/open-session.ts'
+import { ViewId } from '../../src/extension/command-id.ts'
 import {
   type ConnectionCommandContext,
   registerConnectionCommands,
@@ -18,6 +19,7 @@ import { SchemaCache } from '../../src/extension/completion/schema-cache.ts'
 import { ConnectionService } from '../../src/extension/connections/connection-service.ts'
 import { listServerDatabases, pingServer } from '../../src/extension/connections/server-test.ts'
 import { ConnectionForms } from '../../src/extension/form/connection-forms.ts'
+import { TableSearchView } from '../../src/extension/search/table-search-view.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
 import { readSettings } from '../../src/extension/settings.ts'
 import { ConnectionStore } from '../../src/extension/storage/connection-store.ts'
@@ -28,7 +30,7 @@ import { TableIndex } from '../../src/extension/tree/table-index.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { FakeMemento, FakeSecretStorage } from '../fakes/extension-context.ts'
 import { recordingLogger } from '../fakes/logger.ts'
-import { Uri } from '../vscode.ts'
+import { Uri, window } from '../vscode.ts'
 import { never } from './explorer.ts'
 
 const MYSQL = fakeEngine({
@@ -111,8 +113,15 @@ export function commandHarness({
     log,
   })
   const viewMessages: string[] = []
+  const extensionUri = Uri.file('/ext') as unknown as vscode.Uri
+  const tableSearch = new TableSearchView({
+    extensionUri,
+    explorer,
+    tree: window.createTreeView(ViewId.Connections, { treeDataProvider: explorer }),
+    log,
+  })
   const forms = new ConnectionForms({
-    extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
+    extensionUri,
     service,
     secrets,
     test: async (connection, typed) => pingServer({ open, log }, connection, typed),
@@ -130,10 +139,13 @@ export function commandHarness({
     index,
     log,
     forms,
+    tableSearch,
     setViewMessage: (message) => viewMessages.push(message),
   }
   const disposables: vscode.Disposable[] = [
     forms,
+    tableSearch,
+    window.registerWebviewViewProvider(ViewId.TableSearch, tableSearch as never),
     ...registerConnectionCommands(context),
     ...registerExplorerCommands(context),
     ...registerFolderCommands(context),

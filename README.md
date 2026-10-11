@@ -56,10 +56,17 @@ built to make the dangerous queries hard and the everyday ones quick.
   or `3 of 142` under a filter), and the estimated rows and size of each table (`~27k rows · 32 MB`,
   exact numbers in its tooltip), read from the catalog statistics in the same query that lists them.
   **Refresh** reads them again. A node that takes a moment to load says so (`Loading tables…`).
-  **Find Table in Explorer** filters the explorer as you type, across every connected connection:
-  the tables and views whose name holds the text show opened down to them, the match highlighted;
-  `Enter` keeps the filter, `Escape` gives the tree back. **Go to Table…** (`Ctrl+Alt+T`) lists the
-  tables and views of the connected connections in a quick pick and opens the one you choose.
+  **The search box above the explorer** filters it as you type, on every keystroke, across every
+  connected connection: the tables and views whose name matches show opened down to them, the
+  matched characters highlighted, and the box counts them. Matching is like VS Code's: the text
+  whole in the name first, then over the starts of its words (`trst` finds `transaction_status`
+  and `TransactionStatus`), then its characters in order (`trsa` finds `Transaction`), the best
+  matches first. The names load once, each database as it arrives, so typing never waits for the
+  server. `Enter` opens the table that matches best, `↓` moves to it in the explorer, `Escape` (or
+  the `✕`) gives the tree back as you left it. **Find Table in Explorer** puts the focus in the
+  box. **Go to Table…** (`Ctrl+Alt+T`) lists the
+  tables and views of the connected connections in a quick pick, filtered the same way, and opens
+  the one you choose.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
@@ -145,7 +152,7 @@ editor where it applies.
 | **Make Read-Only**                     |                                                | Makes a connection read-only again.                                                                |
 | **Refresh**                            |                                                | Reloads a node of the explorer, or all of it.                                                      |
 | **Filter Tables and Views**            |                                                | Shows only the tables and views whose name contains some text.                                     |
-| **Find Table in Explorer**             |                                                | Filters the explorer as you type across the connected connections; `Escape` gives the tree back.   |
+| **Find Table in Explorer**             |                                                | Puts the focus in the search box above the explorer, which filters it as you type.                 |
 | **Go to Table…**                       | `Ctrl+Alt+T` (`Cmd+Alt+T`)                     | Lists the tables and views of the connected connections; the one picked opens its rows.            |
 | **Move to Folder…**                    |                                                | Puts a connection in a folder (`clients/acme` nests folders), or takes it out of one.              |
 | **Rename Folder…**                     |                                                | Renames a folder; its connections move with it.                                                    |

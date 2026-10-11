@@ -19,6 +19,14 @@ All notable changes to sqldoro are documented in this file. The format is based 
   longer hidden behind the skeleton. Respects reduced motion.
 - **Quick search** applies after its pause even when the view is drawn again while you type (it
   used to start the pause over).
+- **Finding a table** happens in a search box above the Connections view: the explorer follows
+  every keystroke, without a delay and without flickering, the box counts the matches, `Enter`
+  opens the table that matches best, `↓` moves to it and `Escape` gives the tree back as it was
+  left. The names of the tables load once, each database as it arrives, so typing never queries
+  the server. **Find Table in Explorer** puts the focus in the box.
+- **Fuzzy matching** of table names, like VS Code's, in the search box and **Go to Table…**: the
+  text whole first, then over the starts of the words (`trst` finds `TransactionStatus`), then its
+  characters in order (`trsa` finds `Transaction`), every matched character highlighted.
 - **Filters of the columns** take operators that suit the kind of the column (`=`, `≠`, `is null`
   and `is not null` for all; `contains`, `does not contain`, `starts with`, `ends with` for text;
   `<`, `≤`, `>`, `≥`, `between` for numbers and dates; `in` a list picked from the values of the
