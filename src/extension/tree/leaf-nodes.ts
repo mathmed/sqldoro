@@ -1,7 +1,6 @@
-import * as vscode from 'vscode'
-
 import type { ColumnInfo, ForeignKeyInfo, IndexInfo, ObjectRef } from '../../core/engine/catalog.ts'
 import { type ExplorerNode, NO_CHILDREN, nodeId, NodeKind, treeItem } from './explorer-node.ts'
+import { NodeIcon, themeIcon } from './node-icons.ts'
 
 function pathOf(object: ObjectRef, name: string): readonly string[] {
   return [object.database, object.schema, object.name, name]
@@ -38,7 +37,7 @@ export function columnNode(
         label: column.name,
         description: columnTraits(column),
         tooltip: columnTooltip(column),
-        icon: new vscode.ThemeIcon(column.isPrimaryKey ? 'key' : 'symbol-field'),
+        icon: themeIcon(column.isPrimaryKey ? NodeIcon.PrimaryKey : NodeIcon.Column),
         isExpandable: false,
       }),
     children: NO_CHILDREN,
@@ -64,7 +63,7 @@ export function indexNode(connectionId: string, object: ObjectRef, index: IndexI
       treeItem(node, {
         label: index.name,
         description: [index.columns.join(', '), ...indexTrait(index)].join(' · '),
-        icon: new vscode.ThemeIcon('list-ordered'),
+        icon: themeIcon(NodeIcon.Index),
         isExpandable: false,
       }),
     children: NO_CHILDREN,
@@ -94,7 +93,7 @@ export function foreignKeyNode(
           `On update: ${foreignKey.onUpdate}`,
           `On delete: ${foreignKey.onDelete}`,
         ].join('\n'),
-        icon: new vscode.ThemeIcon('references'),
+        icon: themeIcon(NodeIcon.ForeignKey),
         isExpandable: false,
       }),
     children: NO_CHILDREN,

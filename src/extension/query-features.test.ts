@@ -9,6 +9,7 @@ import {
   contentProviders,
   diagnosticCollections,
   type FakeTextDocument,
+  type FakeUri,
   type FakeWebviewPanel,
   fileDecorationProviders,
   outputChannels,
@@ -23,6 +24,7 @@ import {
 } from '../../test/vscode.ts'
 import { CommandId } from './command-id.ts'
 import { activate, deactivate } from './extension.ts'
+import { databaseUri } from './tree/node-uris.ts'
 
 vi.mock('pg', async (importOriginal) => {
   const original = await importOriginal<{ default: object }>()
@@ -259,6 +261,20 @@ describe('the SQL editor features', () => {
     const decoration = fileDecorationProviders.at(-1)?.provideFileDecoration(document.uri)
 
     expect(decoration).toMatchObject({ badge: 'S', tooltip: 'Runs on "Shop" (Staging)' })
+  })
+
+  it('should mark in the explorer the database the SQL editor in front runs on', async () => {
+    await activated()
+    const [explorerDecorations] = fileDecorationProviders
+    const shop = databaseUri('shop', 'shop') as unknown as FakeUri
+    const markOf = (): unknown => explorerDecorations?.provideFileDecoration(shop)
+    expect(markOf()).toMatchObject({ badge: undefined, color: { id: 'charts.green' } })
+
+    await newQueryEditor()
+    expect(markOf()).toMatchObject({ badge: '●', tooltip: 'The SQL editor in front runs here' })
+
+    showEditor(await workspace.openTextDocument({ language: 'plaintext', content: '' }))
+    expect(markOf()).toMatchObject({ badge: undefined })
   })
 
   it('should ask to allow writes from the results of an editor and of a table', async () => {

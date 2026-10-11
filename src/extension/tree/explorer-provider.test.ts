@@ -17,12 +17,20 @@ import {
   SslMode,
 } from '../../core/connection/connection.ts'
 import type { ExplorerNode } from './explorer-node.ts'
+import { connectionUri } from './node-uris.ts'
 
 const LOCAL = {
   ...newConnection('local', MYSQL),
   name: 'local db',
   user: 'root',
   environment: EnvironmentTag.None,
+}
+
+// The light and dark files of a glyph of the media folder.
+function glyph(name: string): { readonly light: vscode.Uri; readonly dark: vscode.Uri } {
+  const file = (theme: string): vscode.Uri =>
+    vscode.Uri.file(`/extension/media/explorer/${name}-${theme}.svg`)
+  return { light: file('light'), dark: file('dark') }
 }
 
 describe('ExplorerProvider', () => {
@@ -45,11 +53,41 @@ describe('ExplorerProvider', () => {
         contextValue: 'connection.disconnected.readOnly',
         collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
       })
-      expect(shop.iconPath).toStrictEqual(
+      expect(shop.iconPath).toStrictEqual(glyph('postgres-disconnected'))
+      expect(shop.resourceUri).toStrictEqual(connectionUri('shop'))
+      expect(local.description).toBe('🔒')
+      expect(local.iconPath).toStrictEqual(glyph('mysql-disconnected'))
+    })
+
+    it('should show the glyph of the engine with its dot once connected, and a spinner while it connects', async () => {
+      const { sut, sessions } = explorer([SHOP, LOCAL])
+      const connecting = Promise.all([sessions.connect(SHOP), sessions.connect(LOCAL)])
+      const roots = await childrenOf(sut)
+
+      expect(itemOf(sut, roots, 'Shop').iconPath).toStrictEqual(
+        new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.red')),
+      )
+      expect(itemOf(sut, roots, 'local db').iconPath).toStrictEqual(
+        new vscode.ThemeIcon('loading~spin', undefined),
+      )
+      await connecting
+      expect(itemOf(sut, await childrenOf(sut), 'Shop').iconPath).toStrictEqual(
+        glyph('postgres-connected'),
+      )
+    })
+
+    it('should show an engine without a glyph with a codicon in the color of the connection', async () => {
+      const oracle = { ...SHOP, engine: 'oracle' }
+      const { sut, sessions } = explorer([oracle])
+      expect(itemOf(sut, await childrenOf(sut), 'Shop').iconPath).toStrictEqual(
         new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('charts.red')),
       )
-      expect(local.description).toBe('🔒')
-      expect(local.iconPath).toStrictEqual(new vscode.ThemeIcon('debug-disconnect', undefined))
+
+      await sessions.connect(oracle)
+
+      expect(itemOf(sut, await childrenOf(sut), 'Shop').iconPath).toStrictEqual(
+        new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.red')),
+      )
     })
 
     it('should say when a connection may write', async () => {

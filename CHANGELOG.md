@@ -16,6 +16,11 @@ All notable changes to sqldoro are documented in this file. The format is based 
   always sorted and filtered on the server.
 - **Connections in the explorer** show the environment, a lock when read-only and the server
   version; the host, user and database moved to the tooltip.
+- **A colorful explorer**: each kind of node has an icon in a color of its own that follows the
+  light, dark and high-contrast themes (databases gold, schemas purple, tables blue, views orange,
+  columns in the color of fields, primary keys gold, indexes purple, foreign keys orange), and a
+  failed list shows its error in red. A connection shows the glyph of its engine, with a green dot
+  once connected; its color (production in red) now colors its name rather than its icon.
 - **Read-only connections** are said once, by a lock beside the connection above the results, which
   offers **Allow Writes…**; the edit tools stay in the toolbar, off, saying why.
 - The saved connections are written in a new version of their format (with their color and folder);
@@ -39,6 +44,10 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ### Added
 
+- **The database the SQL editor in front runs on** stands out in the explorer: its icon and its name
+  in green, with a `●` (in PostgreSQL its schema too), following the editor in front and its
+  connection at once. With no SQL editor in front, each connection's default database is in green.
+- **Refresh** as an inline button on database and schema rows, beside **New Query**.
 - **Foreign key navigation**: a cell whose column is in a foreign key is a link. `Ctrl+click`
   (`Cmd+click`), its arrow or `Ctrl+Enter` opens the row it points at in a panel of its own;
   `Alt+click` opens it in place in a table panel, which keeps a trail of the steps as breadcrumbs,

@@ -22,6 +22,7 @@ import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
 import { readSettings } from '../../src/extension/settings.ts'
 import { ConnectionStore } from '../../src/extension/storage/connection-store.ts'
 import { SecretStore } from '../../src/extension/storage/secret-store.ts'
+import { DatabaseSelection } from '../../src/extension/tree/database-selection.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
 import { TableIndex } from '../../src/extension/tree/table-index.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
@@ -105,6 +106,8 @@ export function commandHarness({
     index,
     policy: () => readSettings().policy,
     delay: never,
+    selection: new DatabaseSelection({ connections: () => store.list(), engines }),
+    extensionUri: Uri.file('/ext') as unknown as vscode.Uri,
     log,
   })
   const viewMessages: string[] = []

@@ -70,6 +70,28 @@ describe('finding a table in the explorer', () => {
     expect(roots[0]?.id).toContain('#find:ord')
   })
 
+  it('should paint the branches found like those of the tree', async () => {
+    const { sut, sessions } = explorer([SHOP], { session: catalog(['shop']) })
+    await sessions.connect(SHOP)
+    sut.setFind('ord')
+
+    const [shop] = await childrenOf(sut)
+    const [database] = await childrenOf(sut, shop)
+    const [schema] = await childrenOf(sut, database)
+    const groups = await childrenOf(sut, schema)
+    const iconOf = (node: ExplorerNode | undefined): unknown =>
+      node === undefined ? undefined : sut.getTreeItem(node).iconPath
+    const icon = (id: string, color: string): vscode.ThemeIcon =>
+      new vscode.ThemeIcon(id, new vscode.ThemeColor(color))
+
+    expect(iconOf(database)).toStrictEqual(icon('database', 'charts.yellow'))
+    expect(iconOf(schema)).toStrictEqual(icon('symbol-namespace', 'charts.purple'))
+    expect(groups.map(iconOf)).toStrictEqual([
+      icon('table', 'charts.blue'),
+      icon('eye', 'charts.orange'),
+    ])
+  })
+
   it('should highlight the text in the names found', async () => {
     const { sut, sessions } = explorer([SHOP], { session: catalog(['shop']) })
     await sessions.connect(SHOP)

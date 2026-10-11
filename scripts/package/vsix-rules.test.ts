@@ -48,6 +48,19 @@ describe('vsixProblems', () => {
     ])
   })
 
+  it('should need every glyph of the engines the Connections view shows', () => {
+    const names = VSIX_FILES.filter(
+      (name) => name !== 'extension/media/explorer/postgres-connected-dark.svg',
+    )
+
+    expect(vsixProblems({ names, manifest: MANIFEST, bytes: 1 })).toStrictEqual([
+      'the package misses extension/media/explorer/postgres-connected-dark.svg',
+    ])
+    expect(VSIX_FILES.filter((name) => name.startsWith('extension/media/explorer/'))).toHaveLength(
+      8,
+    )
+  })
+
   it('should refuse a package over its budget', () => {
     expect(
       vsixProblems({ names: VSIX_FILES, manifest: MANIFEST, bytes: VSIX_BUDGET_BYTES + 1 }),

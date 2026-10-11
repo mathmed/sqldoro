@@ -1,9 +1,11 @@
 import { createServer } from 'node:net'
 
 import { describe, expect, it } from 'vitest'
+import type * as vscode from 'vscode'
 
 import { FakeMemento, FakeSecretStorage } from '../../test/fakes/extension-context.ts'
 import { recordingLogger } from '../../test/fakes/logger.ts'
+import { Uri } from '../../test/vscode.ts'
 import { type ConnectionConfig, newConnection } from '../core/connection/connection.ts'
 import { SecretKind } from '../core/connection/secrets.ts'
 import { createServices } from './services.ts'
@@ -21,7 +23,11 @@ async function closedPort(): Promise<number> {
 describe('createServices', () => {
   it('should wire the real engines, the saved connections and their secrets', async () => {
     const services = createServices(
-      { globalState: new FakeMemento(), secrets: new FakeSecretStorage() },
+      {
+        globalState: new FakeMemento(),
+        secrets: new FakeSecretStorage(),
+        extensionUri: Uri.file('/extension') as unknown as vscode.Uri,
+      },
       recordingLogger(),
     )
     const connection: ConnectionConfig = {

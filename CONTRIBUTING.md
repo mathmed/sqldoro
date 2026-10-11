@@ -134,6 +134,11 @@ request and on `main`. Releases are described in [`docs/RELEASING.md`](docs/RELE
 The icon, `media/icon.png`, is rendered from `media/icon.svg` at 256×256 pixels with any SVG renderer
 (for example a headless Chromium): keep both in sync.
 
+The glyphs of the engines in the Connections view, `media/explorer/*.svg`, are drawn for sqldoro (no
+logo of any engine): one per engine, connected (with the green dot) or not, for light and dark
+themes. A new engine needs its four files, their names in `scripts/package/vsix-rules.ts` and the
+engine in `ENGINES_WITH_GLYPHS` (`src/extension/tree/node-icons.ts`); without them it shows a codicon.
+
 ### Extension smoke test (`make smoke`)
 
 `scripts/smoke.ts` downloads VS Code (latest stable, or `SMOKE_VSCODE_VERSION`) with

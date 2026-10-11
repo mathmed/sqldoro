@@ -118,13 +118,18 @@ export async function deactivate(): Promise<void> {
 }
 
 // The services that go with the extension, and the explorer following the saved connections.
-function disposablesOf({ explorer, sessions, store }: Services): vscode.Disposable[] {
+function disposablesOf(services: Services): vscode.Disposable[] {
+  const { explorer, explorerDecorations, selection, sessions, store } = services
   return [
     explorer,
+    explorerDecorations,
+    selection,
     sessions,
     store,
+    vscode.window.registerFileDecorationProvider(explorerDecorations),
     store.onDidChange(() => {
       explorer.refresh()
+      explorerDecorations.refresh()
     }),
   ]
 }

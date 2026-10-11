@@ -28,16 +28,19 @@ built to make the dangerous queries hard and the everyday ones quick.
   URL**) reads a `mysql://`, `postgres://` or `postgresql://` URL into the fields, keeping the name you
   typed, the environment, the read-only switch and the tunnel. Tag each connection with its
   environment (`local`, `dev`, `staging`, `prod`): it shows everywhere, production in red. Give a
-  connection a color (its icon in the explorer, the badge of its editors and the chip of its result
+  connection a color (its name in the explorer, the badge of its editors and the chip of its result
   panels take it; production is red whatever it is) and a folder (`clients/acme` nests folders):
   folders show as collapsible nodes, **Move to Folder…** moves a connection, and renaming or deleting a
-  folder only moves the connections inside it. The explorer shows the environment, a lock for a
-  read-only connection and the server version beside each connection; the host, user and database
-  are in its tooltip.
+  folder only moves the connections inside it. The explorer shows each connection with the glyph of
+  its engine (a green dot once connected), the environment, a lock for a read-only connection and the
+  server version; the host, user and database are in its tooltip.
 - **Read-only by default**: a new connection refuses anything that may write, in sqldoro and in the
   database session, until you allow writes on it.
 - **Schema explorer**: databases, schemas, tables and views, columns, indexes and foreign keys,
-  loaded as you open them, with a filter by name. Click a table or view to open its rows in a result
+  loaded as you open them, with a filter by name, each kind with an icon in a color of its own that
+  follows the theme. The database (and schema) the SQL editor in front runs on stands out in green,
+  with a `●`; with no SQL editor in front, each connection's default database is in green. Database
+  and schema rows offer **New Query** and **Refresh** as inline buttons. Click a table or view to open its rows in a result
   panel of their own (**Open Table Data**, also an inline button and the first entry of its context
   menu), named `connection/database/table` (`connection/database/schema.table` in PostgreSQL),
   without writing a query: sqldoro reads `SELECT * FROM` the table through the guards, with the

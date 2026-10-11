@@ -12,6 +12,7 @@ import {
 } from '../../../test/support/explorer.ts'
 import { EnvironmentTag, newConnection } from '../../core/connection/connection.ts'
 import { isFolderNode } from './explorer-node.ts'
+import { connectionUri } from './node-uris.ts'
 
 const ACME = {
   ...newConnection('acme', MYSQL),
@@ -33,7 +34,10 @@ describe('the folders of the Connections view', () => {
       contextValue: 'folder',
       tooltip: 'clients',
       collapsibleState: vscode.TreeItemCollapsibleState.Expanded,
-      iconPath: new vscode.ThemeIcon('folder'),
+      iconPath: new vscode.ThemeIcon(
+        'folder',
+        new vscode.ThemeColor('symbolIcon.folderForeground'),
+      ),
     })
     expect(isFolderNode(roots[0])).toBe(true)
     expect(isFolderNode(roots[1])).toBe(false)
@@ -47,14 +51,12 @@ describe('the folders of the Connections view', () => {
     expect(labelsOf(sut, await open(sut, 'clients', 'acme'))).toStrictEqual(['Acme'])
   })
 
-  it('should tint a connection with its color, and say its folder and color in its tooltip', async () => {
+  it('should color the label of a connection through its URI, and say its folder and color in its tooltip', async () => {
     const { sut } = explorer([ACME])
 
     const acme = itemOf(sut, await open(sut, 'clients', 'acme'), 'Acme')
 
-    expect(acme.iconPath).toStrictEqual(
-      new vscode.ThemeIcon('debug-disconnect', new vscode.ThemeColor('charts.blue')),
-    )
+    expect(acme.resourceUri).toStrictEqual(connectionUri('acme'))
     expect(acme.tooltip).toEqual(expect.stringContaining('Folder: clients/acme\nColor: Blue'))
   })
 })

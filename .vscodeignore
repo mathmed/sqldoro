@@ -9,6 +9,7 @@
 !dist/webview/connection-form.css
 !media/icon.png
 !media/sqldoro.svg
+!media/explorer/*.svg
 !media/walkthrough/**
 !LICENSE
 !README.md

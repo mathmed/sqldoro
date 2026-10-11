@@ -1,10 +1,12 @@
 import * as vscode from 'vscode'
 
+import type { SelectedScope } from '../../core/editor/selection.ts'
 import { CatalogDetail } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Logger } from '../../core/platform.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { ConnectionState } from '../sessions/session-manager.ts'
+import type { Glyph } from './node-icons.ts'
 
 export const NodeKind = {
   Folder: 'folder',
@@ -36,6 +38,10 @@ export interface NodeContext {
   readonly log: Logger
   // What a node said of its children when they loaded (how many tables), until the next refresh.
   readonly summaryOf: (node: Pick<ExplorerNode, 'connectionId' | 'id'>) => string | undefined
+  // The database (and schema) a connection marks: where the SQL editor in front runs.
+  readonly selected: (connectionId: string) => SelectedScope | undefined
+  // Where the glyphs of the engines are.
+  readonly extensionUri: vscode.Uri
 }
 
 // What a node gets while its children load.
@@ -66,8 +72,10 @@ export interface ExplorerNode {
 
 export interface ItemLook {
   readonly label: string
-  readonly icon: vscode.ThemeIcon
+  readonly icon: vscode.ThemeIcon | Glyph
   readonly isExpandable: boolean
+  // What the decorations of the node (the color of its label) are attached to.
+  readonly resourceUri?: vscode.Uri
   readonly description?: string
   readonly tooltip?: string
   readonly command?: vscode.Command
@@ -106,10 +114,15 @@ export function treeItem(node: Pick<ExplorerNode, 'id' | 'kind'>, look: ItemLook
   item.iconPath = look.icon
   item.description = look.description ?? ''
   item.tooltip = look.tooltip ?? look.label
-  if (look.command !== undefined) {
-    item.command = look.command
+  return Object.assign(item, optionalParts(look))
+}
+
+// What a look only sometimes has: a command on a click, a URI for the decorations.
+function optionalParts(look: ItemLook): Pick<vscode.TreeItem, 'command' | 'resourceUri'> {
+  return {
+    ...(look.command === undefined ? {} : { command: look.command }),
+    ...(look.resourceUri === undefined ? {} : { resourceUri: look.resourceUri }),
   }
-  return item
 }
 
 export const MessageTone = {
@@ -119,6 +132,11 @@ export const MessageTone = {
 } as const
 
 export type MessageTone = (typeof MessageTone)[keyof typeof MessageTone]
+
+// Why a list failed shows in the color of errors.
+const TONE_COLORS: ReadonlyMap<MessageTone, string> = new Map([
+  [MessageTone.Error, 'errorForeground'],
+])
 
 export interface Message {
   readonly text: string
@@ -138,7 +156,7 @@ export function messageNode(
   }
   const look = {
     label: message.text,
-    icon: new vscode.ThemeIcon(message.tone),
+    icon: toneIcon(message.tone),
     isExpandable: false,
   }
   return {
@@ -147,6 +165,11 @@ export function messageNode(
       treeItem(node, message.command === undefined ? look : { ...look, command: message.command }),
     children: NO_CHILDREN,
   }
+}
+
+function toneIcon(tone: MessageTone): vscode.ThemeIcon {
+  const color = TONE_COLORS.get(tone)
+  return new vscode.ThemeIcon(tone, color === undefined ? undefined : new vscode.ThemeColor(color))
 }
 
 export function sessionOf(context: NodeContext, connectionId: string): EngineSession {

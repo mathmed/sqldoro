@@ -551,6 +551,11 @@
           "group": "inline@1"
         },
         {
+          "command": "sqldoro.refresh",
+          "when": "view == sqldoro.connections && viewItem =~ /^(database|schema)$/",
+          "group": "inline@2"
+        },
+        {
           "command": "sqldoro.newQuery",
           "when": "view == sqldoro.connections && viewItem =~ /^(connection\\..*|database|schema)$/",
           "group": "0_query@1"

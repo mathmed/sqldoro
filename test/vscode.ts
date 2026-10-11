@@ -8,6 +8,7 @@ import {
   diagnosticCollections,
   type MarkdownString,
 } from './vscode/languages.ts'
+import type { FakeUri } from './vscode/uri.ts'
 import { type Disposable, resetWorkbench } from './vscode/workbench.ts'
 
 export * from './vscode/languages.ts'
@@ -91,7 +92,8 @@ export class TreeItem {
   id?: string
   description?: string
   tooltip?: string | MarkdownString
-  iconPath?: ThemeIcon
+  iconPath?: ThemeIcon | { readonly light: FakeUri; readonly dark: FakeUri }
+  resourceUri?: FakeUri
   contextValue?: string
   command?: { command: string; title: string; arguments?: unknown[] }
 

@@ -26,6 +26,8 @@ import {
   sessionOf,
   treeItem,
 } from './explorer-node.ts'
+import { engineGlyph, type Glyph } from './node-icons.ts'
+import { connectionUri } from './node-uris.ts'
 
 const STATUS_ICONS: ReadonlyMap<string, string> = new Map([
   [ConnectionStatus.Disconnected, 'debug-disconnect'],
@@ -50,6 +52,7 @@ export function connectionNode(
         state: context.state(connection.id),
         engines,
         isProduction: context.isProduction(connection.environment),
+        extensionUri: context.extensionUri,
       }),
     children: async (context) => connectionChildren(node, connection, { context, engines }),
   }
@@ -60,6 +63,7 @@ interface Display {
   readonly state: ConnectionState
   readonly engines: EngineRegistry
   readonly isProduction: boolean
+  readonly extensionUri: vscode.Uri
 }
 
 function connectionItem(
@@ -74,6 +78,7 @@ function connectionItem(
     tooltip: tooltipOf(connection, display),
     icon: statusIcon(connection, display),
     isExpandable: true,
+    resourceUri: connectionUri(connection.id),
   })
   item.contextValue = `${NodeKind.Connection}.${state.status}.${connection.isReadOnly ? 'readOnly' : 'writable'}`
   return item
@@ -90,9 +95,22 @@ function descriptionOf(connection: ConnectionConfig, state: ConnectionState): st
     .join(' · ')
 }
 
+// A connection that is up or down shows the glyph of its engine, with a green dot once connected;
+// its color goes to its label. An engine without a glyph, and a connection that connects or failed,
+// show a codicon.
+function statusIcon(connection: ConnectionConfig, display: Display): vscode.ThemeIcon | Glyph {
+  const { status } = display.state
+  const isSettled =
+    status === ConnectionStatus.Connected || status === ConnectionStatus.Disconnected
+  const glyph = isSettled
+    ? engineGlyph(display.extensionUri, connection.engine, status === ConnectionStatus.Connected)
+    : undefined
+  return glyph ?? statusCodicon(connection, display)
+}
+
 // Failures are painted as errors; otherwise production in red, then the color of the connection,
 // then the color of its environment.
-function statusIcon(connection: ConnectionConfig, display: Display): vscode.ThemeIcon {
+function statusCodicon(connection: ConnectionConfig, display: Display): vscode.ThemeIcon {
   const { status } = display.state
   const tint =
     status === ConnectionStatus.Failed

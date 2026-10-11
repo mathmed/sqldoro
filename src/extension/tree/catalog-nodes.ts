@@ -1,5 +1,3 @@
-import * as vscode from 'vscode'
-
 import {
   databaseStatsDetails,
   databaseStatsSummary,
@@ -26,6 +24,8 @@ import {
   treeItem,
 } from './explorer-node.ts'
 import { columnNode, foreignKeyNode, indexNode } from './leaf-nodes.ts'
+import { type IconLook, NodeIcon, themeIcon } from './node-icons.ts'
+import { markOf } from './scope-mark.ts'
 
 type Children = (context: LoadContext) => Promise<readonly ExplorerNode[]>
 
@@ -37,8 +37,12 @@ interface Branch {
   readonly path: readonly string[]
   readonly place?: NodePlace
   readonly listedBy?: ExplorerNode
-  readonly look: Omit<ItemLook, 'isExpandable'>
+  readonly look: BranchLook
   readonly children: (node: ExplorerNode) => Children
+}
+
+interface BranchLook extends Omit<ItemLook, 'icon' | 'isExpandable'> {
+  readonly icon: IconLook
 }
 
 // What a branch said of its children once they loaded shows beside its label.
@@ -60,8 +64,10 @@ function branch({
     treeItem: (context) =>
       treeItem(node, {
         ...look,
+        icon: themeIcon(look.icon),
         description: context.summaryOf(node) ?? look.description ?? '',
         isExpandable: true,
+        ...markOf(node, look, context),
       }),
     children: async (context) => children(node)(context),
   }
@@ -111,7 +117,7 @@ export function databaseNode(
     listedBy: parent,
     look: {
       label: name,
-      icon: new vscode.ThemeIcon('database'),
+      icon: NodeIcon.Database,
       description: databaseStatsSummary(stats),
       tooltip: tooltipOf(name, databaseStatsDetails(stats)),
     },
@@ -145,7 +151,7 @@ function schemaNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     connectionId,
     path: [scope.database, scope.schema],
     place: { ...scope, name: '' },
-    look: { label: scope.schema, icon: new vscode.ThemeIcon('symbol-namespace') },
+    look: { label: scope.schema, icon: NodeIcon.Schema },
     children: () => async () => Promise.resolve(objectGroups(connectionId, scope)),
   })
 }
@@ -159,7 +165,7 @@ function tablesNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     kind: NodeKind.Tables,
     connectionId,
     path: [scope.database, scope.schema],
-    look: { label: 'Tables', icon: new vscode.ThemeIcon('table') },
+    look: { label: 'Tables', icon: NodeIcon.Tables },
     children: (node) => async (context) => {
       const session = sessionOf(context, connectionId)
       const tables = await listWithStats(context, node.id, async (detail) =>
@@ -176,7 +182,7 @@ function viewsNode(connectionId: string, scope: ObjectScope): ExplorerNode {
     kind: NodeKind.Views,
     connectionId,
     path: [scope.database, scope.schema],
-    look: { label: 'Views', icon: new vscode.ThemeIcon('eye') },
+    look: { label: 'Views', icon: NodeIcon.Views },
     children: (node) => async (context) => {
       const views = await sessionOf(context, connectionId).listViews(scope)
       const nodes = shown(views, context).map((view) =>
@@ -220,7 +226,7 @@ export function tableNode(
       listedBy: group,
       look: {
         label: name,
-        icon: new vscode.ThemeIcon('table'),
+        icon: NodeIcon.Table,
         description: tableStatsSummary(stats),
         tooltip: tooltipOf(name, tableStatsDetails(stats)),
       },
@@ -247,7 +253,7 @@ export function viewNode(
       place: view,
       look: {
         label: view.name,
-        icon: new vscode.ThemeIcon('eye'),
+        icon: NodeIcon.View,
         description: isMaterialized ? 'materialized' : '',
       },
       children: (node) => async (context) => columnChildren(node, view, context),
@@ -273,7 +279,7 @@ function columnsNode(connectionId: string, table: ObjectRef): ExplorerNode {
     kind: NodeKind.Columns,
     connectionId,
     path: objectPath(table),
-    look: { label: 'Columns', icon: new vscode.ThemeIcon('symbol-field') },
+    look: { label: 'Columns', icon: NodeIcon.Columns },
     children: (node) => async (context) => columnChildren(node, table, context),
   })
 }
@@ -283,7 +289,7 @@ function indexesNode(connectionId: string, table: ObjectRef): ExplorerNode {
     kind: NodeKind.Indexes,
     connectionId,
     path: objectPath(table),
-    look: { label: 'Indexes', icon: new vscode.ThemeIcon('list-ordered') },
+    look: { label: 'Indexes', icon: NodeIcon.Indexes },
     children: (node) => async (context) => {
       const indexes = await sessionOf(context, connectionId).listIndexes(table)
       return orMessage(
@@ -300,7 +306,7 @@ function foreignKeysNode(connectionId: string, table: ObjectRef): ExplorerNode {
     kind: NodeKind.ForeignKeys,
     connectionId,
     path: objectPath(table),
-    look: { label: 'Foreign Keys', icon: new vscode.ThemeIcon('references') },
+    look: { label: 'Foreign Keys', icon: NodeIcon.ForeignKeys },
     children: (node) => async (context) => {
       const foreignKeys = await sessionOf(context, connectionId).listForeignKeys(table)
       return orMessage(

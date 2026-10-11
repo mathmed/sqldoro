@@ -129,14 +129,17 @@ describe('the catalog nodes', () => {
     expect(itemOf(sut, columns, 'id')).toMatchObject({
       description: 'bigint · primary key · not null',
       tooltip: 'id bigint\nNot null\nDefault: none',
-      iconPath: new vscode.ThemeIcon('key'),
+      iconPath: new vscode.ThemeIcon('key', new vscode.ThemeColor('charts.yellow')),
       contextValue: 'column',
       collapsibleState: vscode.TreeItemCollapsibleState.None,
     })
     expect(itemOf(sut, columns, 'note')).toMatchObject({
       description: 'text',
       tooltip: "note text\nNullable\nDefault: 'none'",
-      iconPath: new vscode.ThemeIcon('symbol-field'),
+      iconPath: new vscode.ThemeIcon(
+        'symbol-field',
+        new vscode.ThemeColor('symbolIcon.fieldForeground'),
+      ),
     })
   })
 
@@ -163,7 +166,7 @@ describe('the catalog nodes', () => {
       label: 'orders_customer',
       description: 'customer_id → public.customers (id)',
       tooltip: 'customer_id → public.customers (id)\nOn update: NO ACTION\nOn delete: CASCADE',
-      iconPath: new vscode.ThemeIcon('references'),
+      iconPath: new vscode.ThemeIcon('references', new vscode.ThemeColor('charts.orange')),
     })
   })
 
@@ -237,7 +240,7 @@ describe('the catalog nodes', () => {
 
     expect(labelsOf(sut, failed)).toStrictEqual(['permission denied for schema public'])
     expect(failed[0] === undefined ? undefined : sut.getTreeItem(failed[0]).iconPath).toStrictEqual(
-      new vscode.ThemeIcon('error'),
+      new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground')),
     )
     expect(log.warn).toHaveBeenCalledWith(
       expect.stringMatching(

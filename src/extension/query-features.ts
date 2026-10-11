@@ -8,6 +8,7 @@ import { SQL_LANGUAGE, ViewId } from './command-id.ts'
 import { TRIGGER_CHARACTERS } from './completion/completion-provider.ts'
 import { registerDdlCommands } from './ddl/ddl-commands.ts'
 import { DDL_SCHEME } from './ddl/ddl-documents.ts'
+import { frontBinding } from './editor/active-editor.ts'
 import { registerEditorCommands } from './editor/editor-commands.ts'
 import { registerHistoryCommands } from './history/history-commands.ts'
 import { systemClock } from './platform/clock.ts'
@@ -48,7 +49,21 @@ export function registerQueryFeatures(
     ...registerCommands(base, query, log),
     ...followDocuments(query, log),
     ...followConnections(base, query, log),
+    ...followSelection(base, query),
     ...registerTables(base, query),
+  ]
+}
+
+// The explorer marks the database the SQL editor in front runs on, from the start.
+function followSelection(base: Services, query: QueryServices): vscode.Disposable[] {
+  const follow = (): void => {
+    base.selection.follow(frontBinding(query.bindings))
+  }
+  follow()
+  return [
+    vscode.window.onDidChangeActiveTextEditor(follow),
+    query.bindings.onDidChange(follow),
+    base.store.onDidChange(follow),
   ]
 }
 
@@ -160,7 +175,7 @@ function followConnections(base: Services, query: QueryServices, log: Logger): v
         void query.editorSessions.releaseConnection(connectionId)
       }
     }),
-    base.explorer.onDidChangeTreeData((node) => {
+    base.explorer.onDidChangeContents((node) => {
       query.schemaCache.invalidate(node?.connectionId)
     }),
     base.store.onDidChange(() => {
