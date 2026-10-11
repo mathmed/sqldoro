@@ -1,13 +1,14 @@
 import { type ResultTab, TabKind, TabStatus } from '../results/protocol.ts'
 import { activeTab, type ResultsState } from './results-state.ts'
 
-// Whether the result of a tab can replace what the view showed before: the first rows of its view
-// are here, or it ended with none to fetch (no rows, an error, a plan).
+// Whether the result of a tab can replace what the view showed before: its statement ended, and
+// the first rows of its view are here or it has none to fetch (no rows, an error, a plan). A result
+// shows once, whole, not while its rows still stream in.
 export function isViewReady(
   tab: Pick<ResultTab, 'kind' | 'rowCount' | 'status'>,
   hasRows: boolean,
 ): boolean {
-  return hasRows || (tab.status !== TabStatus.Running && hasNothingToFetch(tab))
+  return tab.status !== TabStatus.Running && (hasRows || hasNothingToFetch(tab))
 }
 
 function hasNothingToFetch(tab: Pick<ResultTab, 'kind' | 'rowCount'>): boolean {

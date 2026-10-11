@@ -20,7 +20,7 @@ import { Toolbar } from './Toolbar.tsx'
 import { type CellEditing, useCellEditor } from './use-cell-editor.ts'
 import { useEditorShortcut } from './use-editor-shortcut.ts'
 import type { ViewContext } from './view-context.ts'
-import { isPending, useWaiting } from './waiting.ts'
+import { useWaiting, viewClassName } from './waiting.ts'
 
 interface ResultViewProps {
   readonly tab: ResultTab
@@ -52,7 +52,7 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
     <section
       {...panelRole(tab, props.hasTabs)}
       id="result-panel"
-      className={isPending(waiting) ? 'result-view is-pending' : 'result-view'}
+      className={viewClassName(waiting)}
     >
       <ResultToolbar model={model} />
       <div className="result-body">

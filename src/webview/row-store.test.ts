@@ -15,7 +15,7 @@ describe('RowStore', () => {
     expect(sut.windowsToFetch({ first: 0, last: 10 }, 500, 0)).toStrictEqual([0])
     sut.store(0, 0, [ROW])
 
-    expect(sut.row(0)).toBe(ROW)
+    expect(sut.row(0, 0)).toBe(ROW)
     expect(sut.revision()).toBe(1)
     expect(listener).toHaveBeenCalledOnce()
     expect(WINDOW_ROWS).toBe(200)
@@ -28,14 +28,17 @@ describe('RowStore', () => {
     expect(sut.holds(0)).toBe(true)
 
     expect(sut.windowsToFetch({ first: 0, last: 10 }, 500, 1)).toStrictEqual([0])
-    expect(sut.row(0)).toBe(ROW)
+    expect(sut.row(0, 0)).toBe(ROW)
+    expect(sut.row(0, 1)).toBeUndefined()
     expect(sut.holds(1)).toBe(false)
     sut.store(0, 0, [NEW_ROW])
-    expect(sut.row(0)).toBe(ROW)
+    expect(sut.row(0, 0)).toBe(ROW)
     expect(sut.revision()).toBe(1)
 
     sut.store(1, 0, [NEW_ROW])
-    expect(sut.row(0)).toBe(NEW_ROW)
+    expect(sut.row(0, 1)).toBe(NEW_ROW)
+    expect(sut.row(0, 0)).toBe(ROW)
+    expect(sut.row(0, 7)).toBeUndefined()
     expect(sut.holds(1)).toBe(true)
     expect(sut.holds(0)).toBe(false)
   })
@@ -48,7 +51,7 @@ describe('RowStore', () => {
     sut.windowsToFetch({ first: 0, last: 10 }, 500, 1)
     sut.windowsToFetch({ first: 0, last: 10 }, 500, 2)
 
-    expect(sut.row(0)).toBe(ROW)
+    expect(sut.row(0, 0)).toBe(ROW)
     expect(sut.holds(2)).toBe(false)
   })
 
@@ -59,7 +62,7 @@ describe('RowStore', () => {
 
     expect(sut.windowsToFetch({ first: 300, last: 310 }, 500, 1)).toStrictEqual([])
     expect(sut.holds(2)).toBe(true)
-    expect(sut.row(0)).toBe(NEW_ROW)
+    expect(sut.row(0, 2)).toBe(NEW_ROW)
   })
 
   it('should hold nothing before rows come', () => {
@@ -84,8 +87,8 @@ describe('projectedRows', () => {
 
     const sut = projectedRows(store, [2, 0])
 
-    expect(sut.row(0)).toStrictEqual({ cells: ['c', 'a'], truncated: [1, 0] })
-    expect(sut.row(1)).toBeUndefined()
+    expect(sut.row(0, 0)).toStrictEqual({ cells: ['c', 'a'], truncated: [1, 0] })
+    expect(sut.row(1, 0)).toBeUndefined()
     expect(sut.holds(0)).toBe(true)
   })
 })

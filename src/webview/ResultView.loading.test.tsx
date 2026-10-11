@@ -153,21 +153,40 @@ describe('a result without rows yet', () => {
 
     wait(SHOW_DELAY_MS)
 
-    expect(classOf('.result-view')).toBe('result-view')
+    expect(classOf('.result-view')).toBe('result-view is-empty')
     expect(document.querySelectorAll('.skeleton-row').length).toBeGreaterThan(0)
     expect(classOf('.result-main')).toBe('result-main')
   })
 
-  it('should show at once, whole, when its first rows come before the delay', () => {
+  it('should put the rows that stream in where the skeleton was, and show the rest at the end', () => {
     view = shownView({ changes: { ...RUNNING, viewVersion: 1, rowCount: 4 } })
+    wait(SHOW_DELAY_MS)
+    expect(document.querySelector('.skeleton')).not.toBeNull()
+
+    streamZoe()
+    expect(document.querySelector('.skeleton')).toBeNull()
+    expect(cellAt(0, 1).textContent).toBe('zoe')
+    expect(classOf('.result-view')).toBe('result-view is-empty')
+    view.rerender({ changes: { viewVersion: 1, rowCount: 4 } })
+
+    expect(classOf('.result-view')).toBe('result-view')
+  })
+
+  it('should show at once, whole, when it ends with its first rows before the delay', () => {
+    view = shownView({ changes: { ...RUNNING, viewVersion: 1, rowCount: 4 } })
+    streamZoe()
     expect(classOf('.result-view')).toBe('result-view is-pending')
 
-    act(() => {
-      view.store.windowsToFetch({ first: 0, last: 3 }, 4, 1)
-      view.store.store(1, 0, [{ cells: ['7', 'zoe'], truncated: [] }])
-    })
+    view.rerender({ changes: { viewVersion: 1, rowCount: 4 } })
 
     expect(classOf('.result-view')).toBe('result-view')
     expect(cellAt(0, 1).textContent).toBe('zoe')
   })
 })
+
+function streamZoe(): void {
+  act(() => {
+    view.store.windowsToFetch({ first: 0, last: 3 }, 4, 1)
+    view.store.store(1, 0, [{ cells: ['7', 'zoe'], truncated: [] }])
+  })
+}

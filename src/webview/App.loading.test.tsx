@@ -70,6 +70,17 @@ describe('App, while the rows of a tab are read again', () => {
     expect(theGrid()).toBe(grid)
   })
 
+  it('should keep the rows of before while the new ones still stream in', () => {
+    shownOrders()
+
+    tab({ status: 'running', progress: 'fetching', viewVersion: 1, rowCount: 1, summary: null })
+    rowsOf('tab-1', 1, ZOE)
+    expect(cellAt(0, 1).textContent).toBe('ann')
+    tab({ viewVersion: 1, rowCount: 1, loadedRows: 1 })
+
+    expect(cellAt(0, 1).textContent).toBe('zoe')
+  })
+
   it('should show a read again that ends without rows at once', () => {
     shownOrders()
 

@@ -190,11 +190,14 @@ view never goes blank or flashes in between: what is on screen stays, whole (gri
 until the next result can replace it in one frame. `tabToShow` (`src/core/grid/shown-tab.ts`) keeps
 the tab shown ready last while a new view of it (a refresh, a sort, a filter) or a new run that
 replaced it (a navigation in place, a step of the trail) is on its way, and shows the new one once
-`isViewReady`: its first rows are here, or it ended with none to fetch. The rows of the incoming view
-are asked for before it shows: by the grid on screen for a new view of its tab, by the App for the
-tab of a new run (from where the grid of its step was scrolled); the `RowStore` keeps the rows of
-before beside them, and its view version only moves forward. The first result of a panel stays out
-of sight, in its place, until its rows come.
+`isViewReady`: its statement ended, and its first rows are here or it has none to fetch. The rows of
+the incoming view are asked for before it shows: by the grid on screen for a new view of its tab, by
+the App for the tab of a new run (from where the grid of its step was scrolled); the `RowStore`
+keeps the rows of before beside them and each grid reads the rows of its own view version, which
+only moves forward. The first result of a panel stays out of sight, in its place, until it is ready
+or the wait shows; then only its skeleton (laid out like the grid, which takes its place without
+moving it), the rows that stream in and the card show, and its toolbar and status appear once, when
+it is ready.
 
 A wait long enough to notice shows: `stepIndicator` (`src/core/grid/loading-indicator.ts`) decides
 when, as a pure state machine over the time: nothing for a wait under 300 ms, then a card with the

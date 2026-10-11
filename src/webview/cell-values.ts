@@ -10,15 +10,15 @@ export interface CellPlace {
 }
 
 // What the grid holds of a cell, unless it was cut (or is not here): then only the host has it.
-function heldValue({ store, position }: CellPlace): CellValue | undefined {
-  const row = store.row(position.row)
+function heldValue({ store, position }: CellPlace, viewVersion: number): CellValue | undefined {
+  const row = store.row(position.row, viewVersion)
   return row === undefined || row.truncated.includes(position.column)
     ? undefined
     : row.cells.at(position.column)
 }
 
 export function requestCell(api: ResultsApi, tab: ResultTab, place: CellPlace): void {
-  if (heldValue(place) === undefined) {
+  if (heldValue(place, tab.viewVersion) === undefined) {
     const { id: tabId, viewVersion } = tab
     api.postMessage({ type: WebviewMessageType.FetchCell, tabId, viewVersion, ...place.position })
   }
@@ -39,7 +39,7 @@ export function wholeValue(
   place: CellPlace,
   { cell, tab }: { readonly cell: CellMessage | undefined; readonly tab: ResultTab },
 ): CellValue | undefined {
-  const held = heldValue(place)
+  const held = heldValue(place, tab.viewVersion)
   if (held !== undefined || cell === undefined) {
     return held
   }

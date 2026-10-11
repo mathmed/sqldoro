@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 
 import { withNoneHidden } from '../core/grid/column-layout.ts'
-import { IndicatorLook } from '../core/grid/loading-indicator.ts'
 import { TabKind, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { requestCell } from './cell-values.ts'
@@ -11,7 +10,7 @@ import { LoadingOverlay, Skeleton } from './LoadingCard.tsx'
 import { PlanView } from './PlanView.tsx'
 import { gridColumns, gridLinks, type ResultModel } from './result-model.ts'
 import type { ViewContext } from './view-context.ts'
-import { isDimmed, type Waiting } from './waiting.ts'
+import { hasSkeleton, isDimmed, type Waiting } from './waiting.ts'
 
 interface ResultMainProps {
   readonly model: ResultModel
@@ -32,7 +31,7 @@ export const ResultMain = (props: ResultMainProps): ReactElement => {
       className={isDimmed(waiting) ? 'result-main is-dimmed' : 'result-main'}
       aria-busy={waiting.isWaiting}
     >
-      {waiting.isEmpty && indicator.look !== IndicatorLook.Hidden ? <Skeleton /> : null}
+      {hasSkeleton(waiting) ? <Skeleton /> : null}
       <div
         className="result-content"
         inert={incoming !== undefined && incoming.id !== model.projection.tab.id}

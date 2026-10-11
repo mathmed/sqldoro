@@ -10,7 +10,8 @@ const MAX_HELD_ROWS = 4000
 export interface RowView {
   readonly subscribe: (listener: () => void) => () => void
   readonly revision: () => number
-  readonly row: (index: number) => WireRow | undefined
+  // A row of a view version: the one held now, or the one before while the new one comes.
+  readonly row: (index: number, viewVersion: number) => WireRow | undefined
   // Whether rows of this view version are here.
   readonly holds: (viewVersion: number) => boolean
   readonly windowsToFetch: (
@@ -27,6 +28,7 @@ export interface RowView {
 export class RowStore implements RowView {
   #cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
   #stale: RowCache | undefined
+  #staleVersion = 0
   readonly #listeners = new Set<() => void>()
   #viewVersion = 0
   #revision = 0
@@ -40,8 +42,12 @@ export class RowStore implements RowView {
 
   readonly revision = (): number => this.#revision
 
-  readonly row = (index: number): WireRow | undefined =>
-    this.#cache.get(index) ?? this.#stale?.get(index)
+  readonly row = (index: number, viewVersion: number): WireRow | undefined => {
+    if (viewVersion === this.#viewVersion) {
+      return this.#cache.get(index)
+    }
+    return viewVersion === this.#staleVersion ? this.#stale?.get(index) : undefined
+  }
 
   readonly holds = (viewVersion: number): boolean =>
     viewVersion === this.#viewVersion && this.#cache.size > 0
@@ -57,20 +63,28 @@ export class RowStore implements RowView {
       return []
     }
     if (viewVersion > this.#viewVersion) {
+      this.#putAside()
       this.#viewVersion = viewVersion
-      this.#stale = this.#cache.size === 0 ? this.#stale : this.#cache
-      this.#cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
     }
     return this.#cache.windowsToFetch(range.first, range.last, rowCount)
   }
 
-  // Rows of an older view version are dropped: the grid already shows another order. The first
-  // rows of the new version replace the old ones.
+  // The rows of the version held go aside while those of a newer one come; a version without rows
+  // leaves the last ones with rows there.
+  #putAside(): void {
+    if (this.#cache.size > 0) {
+      this.#stale = this.#cache
+      this.#staleVersion = this.#viewVersion
+    }
+    this.#cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
+  }
+
+  // Rows of an older view version are dropped: the grid already shows another order. The rows put
+  // aside stay until the view shows the new ones (the grid of before reads them by their version).
   store(viewVersion: number, start: number, rows: readonly WireRow[]): void {
     if (viewVersion !== this.#viewVersion) {
       return
     }
-    this.#stale = undefined
     this.#cache.store(start, rows)
     this.#revision += 1
     for (const listener of [...this.#listeners]) {
@@ -83,8 +97,8 @@ export class RowStore implements RowView {
 export function projectedRows(store: RowView, shown: Shown): RowView {
   return {
     ...store,
-    row: (index) => {
-      const row = store.row(index)
+    row: (index, viewVersion) => {
+      const row = store.row(index, viewVersion)
       return row === undefined ? undefined : projectRow(row, shown)
     },
   }

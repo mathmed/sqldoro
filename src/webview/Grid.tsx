@@ -62,7 +62,7 @@ export const Grid = (props: GridProps): ReactElement => {
       <GridRows
         items={virtualizer.getVirtualItems()}
         totalSize={virtualizer.getTotalSize() + HEADER_HEIGHT}
-        rowAt={(index) => (index < tab.rowCount ? store.row(index) : undefined)}
+        rowAt={(index) => (index < tab.rowCount ? store.row(index, tab.viewVersion) : undefined)}
         layout={layoutOf(props, { widths, shown, gutter, totalWidth, select })}
         events={eventsOf(props, { select, hover })}
       />

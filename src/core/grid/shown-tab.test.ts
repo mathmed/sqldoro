@@ -8,9 +8,13 @@ import { isViewReady, tabToShow } from './shown-tab.ts'
 const RUNNING = TabStatus.Running
 
 describe('isViewReady', () => {
-  it('should be ready once the first rows of the view are here, even while they still come', () => {
-    expect(isViewReady(resultTab({ status: RUNNING, rowCount: 50 }), true)).toBe(true)
+  it('should be ready once the statement ended and the first rows of the view are here', () => {
     expect(isViewReady(resultTab({ rowCount: 50 }), true)).toBe(true)
+    expect(isViewReady(resultTab({ status: TabStatus.Cancelled, rowCount: 50 }), true)).toBe(true)
+  })
+
+  it('should wait for the end of a statement whose rows still come', () => {
+    expect(isViewReady(resultTab({ status: RUNNING, rowCount: 50 }), true)).toBe(false)
   })
 
   it('should wait for the rows of a view that has some', () => {
