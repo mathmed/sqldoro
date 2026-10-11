@@ -11,8 +11,8 @@ export interface RowView {
   readonly subscribe: (listener: () => void) => () => void
   readonly revision: () => number
   readonly row: (index: number) => WireRow | undefined
-  // Whether the rows shown are those of the view before, while the new ones are on their way.
-  readonly isStale: () => boolean
+  // Whether rows of this view version are here.
+  readonly holds: (viewVersion: number) => boolean
   readonly windowsToFetch: (
     range: { readonly first: number; readonly last: number },
     rowCount: number,
@@ -22,7 +22,8 @@ export interface RowView {
 
 // The rows of one tab the webview holds, for the view version they belong to. React components
 // subscribe to it (useSyncExternalStore) and re-render when rows arrive. While the rows of a new
-// version are on their way (a refresh), the grid keeps showing those of the old one.
+// version are on their way (a refresh), the grid keeps showing those of the old one; a version
+// only ever moves forward, so a grid still showing the old one asks for nothing.
 export class RowStore implements RowView {
   #cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)
   #stale: RowCache | undefined
@@ -42,15 +43,20 @@ export class RowStore implements RowView {
   readonly row = (index: number): WireRow | undefined =>
     this.#cache.get(index) ?? this.#stale?.get(index)
 
-  readonly isStale = (): boolean => this.#stale !== undefined
+  readonly holds = (viewVersion: number): boolean =>
+    viewVersion === this.#viewVersion && this.#cache.size > 0
 
-  // The windows to ask for to show rows first to last; a new view version puts the old rows aside.
+  // The windows to ask for to show rows first to last; a new view version puts the old rows aside,
+  // and an older one has nothing left to ask for.
   readonly windowsToFetch = (
     range: { readonly first: number; readonly last: number },
     rowCount: number,
     viewVersion: number,
   ): number[] => {
-    if (viewVersion !== this.#viewVersion) {
+    if (viewVersion < this.#viewVersion) {
+      return []
+    }
+    if (viewVersion > this.#viewVersion) {
       this.#viewVersion = viewVersion
       this.#stale = this.#cache.size === 0 ? this.#stale : this.#cache
       this.#cache = new RowCache(WINDOW_ROWS, MAX_HELD_ROWS)

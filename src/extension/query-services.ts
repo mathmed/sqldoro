@@ -232,6 +232,7 @@ function createTables(context: WorkbenchContext, parts: TableParts): PanelWiring
     connectionOf: (uri) =>
       tableTargetOf(uri)?.connectionId ?? editors.bindings.get(uri)?.connectionId,
     createId: randomUUID,
+    policy: () => readSettings().policy,
     log: access.log,
   }
 }

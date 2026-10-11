@@ -233,6 +233,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
       tabIds.push(`table-${String(tabIds.length + 1)}`)
       return tabIds.at(-1) ?? ''
     },
+    policy: () => policy,
     log,
   }
   const wiring: PanelWiring = {

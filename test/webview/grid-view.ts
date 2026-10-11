@@ -84,6 +84,7 @@ export function gridView(changes: Partial<ResultTab> = {}, options: GridOptions 
       api,
       tab,
       store,
+      fetching: tab,
       selection: options.selection,
       edit: NO_EDIT,
       ...handlers,

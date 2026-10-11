@@ -5,12 +5,11 @@ import {
   type RefObject,
   useEffect,
   useRef,
-  useState,
   useSyncExternalStore,
 } from 'react'
 
 import type { GridSelection } from '../core/grid/selection.ts'
-import { type ResultTab, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
+import { TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
 import { gridRowCount, isEditing } from './edit-overlay.ts'
 import { cellId, HEADER_HEIGHT, ROW_HEIGHT, rowNumberWidth } from './grid-model.ts'
 import type { GridProps } from './grid-props.ts'
@@ -100,9 +99,12 @@ function copyName({ api, tab }: GridProps): (column: number) => void {
 
 function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
   const table = useGridTable(props.tab, props.onView)
-  const rowCount = useShownRowCount(props.tab)
+  const rowCount = gridRowCount(props.tab)
   const virtualizer = useGridVirtualizer(rowCount, scrollRef)
-  useRowWindow(props.api, props.tab, { store: props.store, items: virtualizer.getVirtualItems() })
+  useRowWindow(props.api, props.fetching, {
+    store: props.store,
+    items: virtualizer.getVirtualItems(),
+  })
   useSyncExternalStore(props.store.subscribe, props.store.revision)
   const widths = table.getFlatHeaders().map((header) => header.getSize())
   const gutter = rowNumberWidth(rowCount)
@@ -115,18 +117,6 @@ function useGrid(props: GridProps, scrollRef: ScrollRef): GridModel {
     })
   }
   return { table, virtualizer, widths, shown, gutter, select }
-}
-
-// While the rows are read again (after an apply, or to load them all) the grid keeps its height,
-// so that it stays where it was scrolled to.
-function useShownRowCount(tab: ResultTab): number {
-  const count = gridRowCount(tab)
-  const isRunning = tab.status === TabStatus.Running
-  const [kept, setKept] = useState(count)
-  if (!isRunning && kept !== count) {
-    setKept(count)
-  }
-  return isRunning ? Math.max(count, kept) : count
 }
 
 // The focus comes back to the grid when an editor closes, for the keyboard to go on.

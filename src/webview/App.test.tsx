@@ -22,8 +22,14 @@ const TRAIL = [
 
 let api: FakeVsCodeApi
 
-function rowsOf(tabId: string): void {
-  fromHost({ type: 'rows', tabId, viewVersion: 0, start: 0, rows: GRID_ROWS })
+function rowsOf(tabId: string, viewVersion = 0): void {
+  fromHost({ type: 'rows', tabId, viewVersion, start: 0, rows: GRID_ROWS })
+}
+
+// How many times the view asked for the rows of a tab.
+function fetchesOf(tabId: string): number {
+  return api.posted().filter((message) => message.type === 'fetchRows' && message.tabId === tabId)
+    .length
 }
 
 beforeEach(() => {
@@ -31,10 +37,13 @@ beforeEach(() => {
 })
 
 describe('App', () => {
-  it('should tell the host it is ready, and wait for a run', () => {
+  it('should tell the host it is ready, and say nothing until it tells the tabs', () => {
     render(<App api={api} />)
-
     expect(api.posted()).toStrictEqual([{ type: 'ready' }])
+    expect(screen.queryByText('Run a query to see its results here.')).toBeNull()
+
+    fromHost({ type: 'tabs', tabs: [], activeTabId: null })
+
     expect(screen.getByText('Run a query to see its results here.')).toBeDefined()
   })
 
@@ -83,15 +92,17 @@ describe('App', () => {
     expect(screen.getByLabelText('Value of name').textContent).not.toContain(LONG_TEXT)
   })
 
-  it('should forget the rows of the tabs of a run that is gone', () => {
+  it('should forget the rows of the tabs of a run that is gone once another one shows', () => {
     render(<App api={api} />)
     fromHost({ type: 'tabs', tabs: [FIRST], activeTabId: 'tab-1' })
     rowsOf('tab-1')
-
     fromHost({ type: 'tabs', tabs: [SECOND], activeTabId: 'tab-2' })
+    rowsOf('tab-2')
+    expect(fetchesOf('tab-1')).toBe(1)
+
     fromHost({ type: 'tabs', tabs: [FIRST], activeTabId: 'tab-1' })
 
-    expect(cellAt(0, 1).className).toContain('look-loading')
+    expect(fetchesOf('tab-1')).toBe(2)
   })
 
   it('should show the connection above the results in its color, production in red', () => {

@@ -25,18 +25,19 @@ describe('RowStore', () => {
     const sut = new RowStore()
     sut.windowsToFetch({ first: 0, last: 10 }, 500, 0)
     sut.store(0, 0, [ROW])
-    expect(sut.isStale()).toBe(false)
+    expect(sut.holds(0)).toBe(true)
 
     expect(sut.windowsToFetch({ first: 0, last: 10 }, 500, 1)).toStrictEqual([0])
     expect(sut.row(0)).toBe(ROW)
-    expect(sut.isStale()).toBe(true)
+    expect(sut.holds(1)).toBe(false)
     sut.store(0, 0, [NEW_ROW])
     expect(sut.row(0)).toBe(ROW)
     expect(sut.revision()).toBe(1)
 
     sut.store(1, 0, [NEW_ROW])
     expect(sut.row(0)).toBe(NEW_ROW)
-    expect(sut.isStale()).toBe(false)
+    expect(sut.holds(1)).toBe(true)
+    expect(sut.holds(0)).toBe(false)
   })
 
   it('should keep the rows of the last view that had some through views that had none', () => {
@@ -48,7 +49,21 @@ describe('RowStore', () => {
     sut.windowsToFetch({ first: 0, last: 10 }, 500, 2)
 
     expect(sut.row(0)).toBe(ROW)
-    expect(sut.isStale()).toBe(true)
+    expect(sut.holds(2)).toBe(false)
+  })
+
+  it('should ask nothing for a view older than the one it holds, and keep its rows', () => {
+    const sut = new RowStore()
+    sut.windowsToFetch({ first: 0, last: 10 }, 500, 2)
+    sut.store(2, 0, [NEW_ROW])
+
+    expect(sut.windowsToFetch({ first: 300, last: 310 }, 500, 1)).toStrictEqual([])
+    expect(sut.holds(2)).toBe(true)
+    expect(sut.row(0)).toBe(NEW_ROW)
+  })
+
+  it('should hold nothing before rows come', () => {
+    expect(new RowStore().holds(0)).toBe(false)
   })
 
   it('should stop telling a listener that unsubscribed', () => {
@@ -71,7 +86,7 @@ describe('projectedRows', () => {
 
     expect(sut.row(0)).toStrictEqual({ cells: ['c', 'a'], truncated: [1, 0] })
     expect(sut.row(1)).toBeUndefined()
-    expect(sut.isStale()).toBe(false)
+    expect(sut.holds(0)).toBe(true)
   })
 })
 

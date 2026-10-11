@@ -1,39 +1,50 @@
-import { type ReactElement, useSyncExternalStore } from 'react'
+import type { ReactElement } from 'react'
 
 import { withNoneHidden } from '../core/grid/column-layout.ts'
+import { IndicatorLook } from '../core/grid/loading-indicator.ts'
 import { TabKind, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { requestCell } from './cell-values.ts'
 import type { GridEdit } from './grid-props.ts'
 import { Grid } from './Grid.tsx'
-import { LoadingCard } from './LoadingCard.tsx'
+import { LoadingOverlay, Skeleton } from './LoadingCard.tsx'
 import { PlanView } from './PlanView.tsx'
 import { gridColumns, gridLinks, type ResultModel } from './result-model.ts'
 import type { ViewContext } from './view-context.ts'
+import { isDimmed, type Waiting } from './waiting.ts'
 
 interface ResultMainProps {
   readonly model: ResultModel
   readonly edit: GridEdit
   readonly context: ViewContext
+  readonly waiting: Waiting
 }
 
-// The rows or the plan of the result. While the statement runs, a card says what it is waiting for
-// (after a moment: a fast query shows none) and the rows shown before stay, dimmed, until the new
-// ones come.
+// The rows or the plan of the result. While the view waits (a statement runs, the rows of a new
+// view are on their way), what it shows stays as it is; a wait long enough to notice dims it and
+// shows a card that says what the view waits for. Before the first rows of a result, a skeleton
+// stands where they go.
 export const ResultMain = (props: ResultMainProps): ReactElement => {
-  const { tab, store } = props.model.projection
-  useSyncExternalStore(store.subscribe, store.revision)
-  const isRunning = tab.status === TabStatus.Running
-  const isDimmed = isRunning || store.isStale()
+  const { waiting, model } = props
+  const { indicator, awaited, incoming } = waiting
   return (
-    <div className={isDimmed ? 'result-main is-busy' : 'result-main'} aria-busy={isRunning}>
-      <ResultContent {...props} />
-      {isRunning ? <LoadingCard tab={tab} onCancel={props.model.actions.cancel} /> : null}
+    <div
+      className={isDimmed(waiting) ? 'result-main is-dimmed' : 'result-main'}
+      aria-busy={waiting.isWaiting}
+    >
+      {waiting.isEmpty && indicator.look !== IndicatorLook.Hidden ? <Skeleton /> : null}
+      <div
+        className="result-content"
+        inert={incoming !== undefined && incoming.id !== model.projection.tab.id}
+      >
+        <ResultContent {...props} />
+      </div>
+      <LoadingOverlay indicator={indicator} tab={awaited} onCancel={model.actions.cancel} />
     </div>
   )
 }
 
-const ResultContent = ({ model, edit, context }: ResultMainProps): ReactElement | null => {
+const ResultContent = ({ model, edit, context, waiting }: ResultMainProps): ReactElement | null => {
   const { tab, source } = model.projection
   if (tab.kind === TabKind.Plan) {
     return <PlanView lines={tab.plan} />
@@ -41,10 +52,11 @@ const ResultContent = ({ model, edit, context }: ResultMainProps): ReactElement 
   if (tab.columns.length === 0) {
     return source.tab.columns.length === 0 ? null : <AllHidden model={model} />
   }
-  return <ResultGrid model={model} edit={edit} context={context} />
+  return <ResultGrid model={model} edit={edit} context={context} waiting={waiting} />
 }
 
-const ResultGrid = ({ model, edit, context }: ResultMainProps): ReactElement => {
+const ResultGrid = ({ model, edit, context, waiting }: ResultMainProps): ReactElement => {
+  const { incoming } = waiting
   const { projection, choices, actions } = model
   const { tab, store, api } = projection
   return (
@@ -52,6 +64,7 @@ const ResultGrid = ({ model, edit, context }: ResultMainProps): ReactElement => 
       api={api}
       tab={tab}
       store={store}
+      fetching={incoming?.id === tab.id ? incoming : tab}
       selection={choices.selection}
       onSelect={choices.setSelection}
       onOpenDetail={(position) => {

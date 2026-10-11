@@ -185,9 +185,25 @@ translated back to the columns of the result before it leaves. Copy and export t
 shown, in their order. A table panel keeps its layout per table in the workspace state
 (`src/extension/tables/column-layouts.ts`).
 
-While a statement runs, the tab says where it is (`TabProgress`: connecting, running, fetching): the
-view shows a card after 150 ms with the time it has taken and Cancel, and keeps the rows of the view
-before (dimmed) until the first rows of the new one come (`RowStore`).
+While a statement runs, the tab says where it is (`TabProgress`: connecting, running, fetching). The
+view never goes blank or flashes in between: what is on screen stays, whole (grid, toolbar, status),
+until the next result can replace it in one frame. `tabToShow` (`src/core/grid/shown-tab.ts`) keeps
+the tab shown ready last while a new view of it (a refresh, a sort, a filter) or a new run that
+replaced it (a navigation in place, a step of the trail) is on its way, and shows the new one once
+`isViewReady`: its first rows are here, or it ended with none to fetch. The rows of the incoming view
+are asked for before it shows: by the grid on screen for a new view of its tab, by the App for the
+tab of a new run (from where the grid of its step was scrolled); the `RowStore` keeps the rows of
+before beside them, and its view version only moves forward. The first result of a panel stays out
+of sight, in its place, until its rows come.
+
+A wait long enough to notice shows: `stepIndicator` (`src/core/grid/loading-indicator.ts`) decides
+when, as a pure state machine over the time: nothing for a wait under 300 ms, then a card with the
+time waited and Cancel (and the result of before dimmed, or a skeleton before the first rows) that
+fades in, stays at least 400 ms and fades out. `WaitIndicator` (`src/webview/wait-indicator.ts`), one
+per panel, steps it with timers so that it goes on through a change of tab. Rows the grid does not
+hold yet stay blank for 200 ms before their placeholder fades in, and the grid asks for the rows 100
+past those in view both ways, so that scrolling does not flash placeholders. Without motion
+(`prefers-reduced-motion`) nothing fades, slides or shimmers; the delays stay.
 
 ## The explorer and the catalog statistics
 

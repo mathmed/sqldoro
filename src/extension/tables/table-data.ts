@@ -54,6 +54,8 @@ export async function showStep(context: TableContext, uri: vscode.Uri): Promise<
   const { step, connection } = source
   const { dialect } = source.engine
   const panel = context.panels.show(uri)
+  // The connection shows above the rows at once: the view keeps its place while the session opens.
+  panel.showConnection(connection, context.policy())
   const tab = new ResultSet({
     id: context.createId(),
     sql: tableDataQuery(step.table, dialect),

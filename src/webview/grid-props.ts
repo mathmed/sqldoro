@@ -35,6 +35,8 @@ export interface GridProps {
   readonly api: ResultsApi
   readonly tab: ResultTab
   readonly store: RowView
+  // The tab whose rows the grid asks for: a new view of its tab while it still shows the one before.
+  readonly fetching: ResultTab
   readonly selection: GridSelection | undefined
   readonly onSelect: (selection: GridSelection) => void
   readonly onOpenDetail: (position: CellPosition) => void

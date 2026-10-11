@@ -8,12 +8,15 @@ import { type HostAnswers, NO_ANSWERS } from '../../src/webview/host-answers.ts'
 import { ResultView } from '../../src/webview/ResultView.tsx'
 import { RowStore } from '../../src/webview/row-store.ts'
 import type { ViewContext } from '../../src/webview/view-context.ts'
+import { WaitIndicator } from '../../src/webview/wait-indicator.ts'
 import { resultTab } from '../fixtures/results.ts'
 import { GRID_ROWS } from './grid.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from './vscode-api.ts'
 
 export interface Shown {
   readonly changes?: Partial<ResultTab>
+  // The tab the view waits for while this one stays on screen, as changes of the tab shown.
+  readonly incoming?: Partial<ResultTab>
   readonly answers?: Partial<HostAnswers>
   readonly context?: Partial<ViewContext>
 }
@@ -26,18 +29,24 @@ export interface ShownView {
   readonly sent: (type: string) => WebviewMessage[]
 }
 
-const CONTEXT: ViewContext = { connection: null, sql: null, step: null, scrolls: new Map() }
-
 export function shownView(shown: Shown = {}): ShownView {
   const api = fakeVsCodeApi()
   const store = new RowStore()
-  const element = ({ changes = {}, answers = {}, context = {} }: Shown): ReactElement =>
+  const base: ViewContext = {
+    connection: null,
+    sql: null,
+    step: null,
+    scrolls: new Map(),
+    indicator: new WaitIndicator(),
+  }
+  const element = ({ changes = {}, incoming, answers = {}, context = {} }: Shown): ReactElement =>
     createElement(ResultView, {
       tab: resultTab({ rowCount: 4, loadedRows: 4, ...changes }),
+      incoming: incoming === undefined ? undefined : resultTab({ rowCount: 4, ...incoming }),
       store,
       api,
       answers: { ...NO_ANSWERS, ...answers },
-      context: { ...CONTEXT, ...context },
+      context: { ...base, ...context },
       hasTabs: false,
     })
   const rendered = render(element(shown))
