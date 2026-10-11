@@ -87,6 +87,11 @@ All notable changes to sqldoro are documented in this file. The format is based 
 - **Row numbers** in the result grid, always in view on the left: a click selects the row, `Shift`
   the rows up to it.
 
+### Fixed
+
+- **SSH tunnels** that cannot reach the database close the local connection cleanly instead of
+  resetting it, so the client sees a closed connection rather than `ECONNRESET`.
+
 ## [0.1.0] - Unreleased
 
 The first version of sqldoro: a MySQL and PostgreSQL client for VS Code that makes the dangerous

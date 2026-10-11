@@ -71,11 +71,10 @@ describe('LocalForwarder', () => {
 
   it('should close connections that arrive before the SSH client is ready', async () => {
     const { port } = await listening()
-    const socket = connect(port, '127.0.0.1')
 
-    await closed(socket)
-
-    expect(socket.bytesRead).toBe(0)
+    await expect(exchange(port, 'too early')).rejects.toThrow(
+      'the connection closed before any answer',
+    )
   })
 
   it('should ask the client for a channel to the target and bridge the connection to it', async () => {
