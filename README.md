@@ -42,8 +42,11 @@ VSIX…**. It needs VS Code 1.140 or later.
   that reference a row; table panels keep a trail with back and forward.
 - **Inline editing** of one table's rows: preview the exact SQL and bound values, then apply in one
   transaction; a row someone else changed is reported as a conflict, never overwritten.
-- **Tooling**: DDL, `EXPLAIN` and `EXPLAIN ANALYZE`, a query history per connection, and saved
-  queries in folders with import and export.
+- **Tooling**: DDL, `EXPLAIN` and `EXPLAIN ANALYZE`, and a query history per connection.
+- **Saved queries** in folders, with import and export: **Save Query** in the title bar of a SQL
+  editor (or on a statement of the history) names the query and picks its folder. An editor opened
+  from a saved query stays linked to it: **Save Query** updates it in place, **Save Query As…** keeps
+  a copy under a new name.
 
 ## Getting started
 
@@ -61,27 +64,28 @@ Code with `--password-store=basic` if it cannot store secrets.
 
 Every command is in the Command Palette under **sqldoro:** and in the menus where it applies.
 
-| Commands                                                                                                                    | Shortcut                                       | What they do                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **Get Started**, **About sqldoro and Its Safety Model**, **Hello**                                                          |                                                | Open the walkthrough, show the safety model and its limits, check that sqldoro runs. |
-| **Add Connection**, **Import Connection from URL**, **Edit Connection**                                                     |                                                | Open the connection form: new, from a `mysql://` or `postgres://` URL, or saved.     |
-| **Test Connection**, **Duplicate Connection**, **Delete Connection**                                                        |                                                | Test a connection, copy it with its secrets, or delete it after confirming.          |
-| **Connect** / **Disconnect**, **Refresh**                                                                                   |                                                | Open or close the session of a connection; reload a node of the explorer.            |
-| **Allow Writes**, **Make Read-Only**                                                                                        |                                                | Let a read-only connection write (after confirming), or make it read-only again.     |
-| **Move to Folder…**, **Rename Folder…**, **Delete Folder**                                                                  |                                                | Group connections in folders (`clients/acme` nests); deleting a folder keeps them.   |
-| **Find Table in Explorer**, **Filter Tables and Views**, **Clear Filter**                                                   |                                                | Filter the explorer by table name, as you type or by a text, and clear the filter.   |
-| **Go to Table…**                                                                                                            | `Ctrl+Alt+T` (`Cmd+Alt+T`)                     | Pick a table or view and open its rows.                                              |
-| **Open Table Data**, **Show DDL**                                                                                           |                                                | Open the rows of a table or view, or its `CREATE` statement.                         |
-| **New Query**, **Change Editor Connection**                                                                                 |                                                | Open a SQL editor on a connection, database or schema, or bind it to another.        |
-| **Run Query**                                                                                                               | `Ctrl+Enter` (`Cmd+Enter`)                     | Run the selection, or the statement under the cursor.                                |
-| **Run Script**                                                                                                              | `Ctrl+Alt+Enter` (`Cmd+Alt+Enter`)             | Run every statement in order; stop at the first error.                               |
-| **Cancel Query**                                                                                                            | `Ctrl+Shift+Backspace` (`Cmd+Shift+Backspace`) | Stop the running statement on the server.                                            |
-| **Explain Query**, **Explain Analyze Query**                                                                                |                                                | Show the plan; run a read-only statement and measure it, after confirming.           |
-| **Show Results**                                                                                                            |                                                | Show the result view of the SQL editor.                                              |
-| **Switch Transaction Mode**, **Commit Transaction**, **Roll Back Transaction**                                              |                                                | Switch an editor between auto-commit and manual; commit or roll back.                |
-| **Search Query History**, **Open in Editor**, **Run Again**, **Copy SQL**, **Delete from History**, **Clear Query History** |                                                | Search the history; open, run again, copy or delete a statement; clear it.           |
-| **Save Query**, **Open Saved Query**, **Insert Saved Query**, **Rename Saved Query**                                        |                                                | Save the selection or the editor as a named query; open, insert or rename one.       |
-| **Move Saved Query to Folder**, **Delete Saved Query**, **Import Saved Queries**, **Export Saved Queries**                  |                                                | Organize saved queries, and import or export them as JSON.                           |
+| Commands                                                                                                                    | Shortcut                                       | What they do                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Get Started**, **About sqldoro and Its Safety Model**, **Hello**                                                          |                                                | Open the walkthrough, show the safety model and its limits, check that sqldoro runs.        |
+| **Add Connection**, **Import Connection from URL**, **Edit Connection**                                                     |                                                | Open the connection form: new, from a `mysql://` or `postgres://` URL, or saved.            |
+| **Test Connection**, **Duplicate Connection**, **Delete Connection**                                                        |                                                | Test a connection, copy it with its secrets, or delete it after confirming.                 |
+| **Connect** / **Disconnect**, **Refresh**                                                                                   |                                                | Open or close the session of a connection; reload a node of the explorer.                   |
+| **Allow Writes**, **Make Read-Only**                                                                                        |                                                | Let a read-only connection write (after confirming), or make it read-only again.            |
+| **Move to Folder…**, **Rename Folder…**, **Delete Folder**                                                                  |                                                | Group connections in folders (`clients/acme` nests); deleting a folder keeps them.          |
+| **Find Table in Explorer**, **Filter Tables and Views**, **Clear Filter**                                                   |                                                | Filter the explorer by table name, as you type or by a text, and clear the filter.          |
+| **Go to Table…**                                                                                                            | `Ctrl+Alt+T` (`Cmd+Alt+T`)                     | Pick a table or view and open its rows.                                                     |
+| **Open Table Data**, **Show DDL**                                                                                           |                                                | Open the rows of a table or view, or its `CREATE` statement.                                |
+| **New Query**, **Change Editor Connection**                                                                                 |                                                | Open a SQL editor on a connection, database or schema, or bind it to another.               |
+| **Run Query**                                                                                                               | `Ctrl+Enter` (`Cmd+Enter`)                     | Run the selection, or the statement under the cursor.                                       |
+| **Run Script**                                                                                                              | `Ctrl+Alt+Enter` (`Cmd+Alt+Enter`)             | Run every statement in order; stop at the first error.                                      |
+| **Cancel Query**                                                                                                            | `Ctrl+Shift+Backspace` (`Cmd+Shift+Backspace`) | Stop the running statement on the server.                                                   |
+| **Explain Query**, **Explain Analyze Query**                                                                                |                                                | Show the plan; run a read-only statement and measure it, after confirming.                  |
+| **Show Results**                                                                                                            |                                                | Show the result view of the SQL editor.                                                     |
+| **Switch Transaction Mode**, **Commit Transaction**, **Roll Back Transaction**                                              |                                                | Switch an editor between auto-commit and manual; commit or roll back.                       |
+| **Search Query History**, **Open in Editor**, **Run Again**, **Copy SQL**, **Delete from History**, **Clear Query History** |                                                | Search the history; open, run again, copy, save or delete a statement; clear it.            |
+| **Save Query**, **Save Query As…**                                                                                          |                                                | Save the selection or the editor as a named query; update the query the editor opened from. |
+| **Open Saved Query**, **Insert Saved Query**, **Rename Saved Query**                                                        |                                                | Open a saved query in an editor linked to it; insert or rename one.                         |
+| **Move Saved Query to Folder**, **Delete Saved Query**, **Import Saved Queries**, **Export Saved Queries**                  |                                                | Organize saved queries, and import or export them as JSON.                                  |
 
 ### Keys in the result view
 

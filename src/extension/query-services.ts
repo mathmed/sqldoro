@@ -28,6 +28,7 @@ import { sourceTitle } from './results/source-title.ts'
 import { StatementGuard } from './safety/statement-guard.ts'
 import type { Services } from './services.ts'
 import { readSettings } from './settings.ts'
+import { SavedQueryLinks } from './snippets/saved-query-links.ts'
 import { SavedQueryStore } from './snippets/saved-query-store.ts'
 import { SavedQueryView } from './snippets/saved-query-view.ts'
 import { ColumnLayouts } from './tables/column-layouts.ts'
@@ -51,6 +52,7 @@ export interface QueryServices {
   readonly history: HistoryStore
   readonly historyView: HistoryView
   readonly savedQueries: SavedQueryStore
+  readonly savedQueryLinks: SavedQueryLinks
   readonly savedQueryView: SavedQueryView
   readonly schemaCache: SchemaCache
   readonly completion: SqlCompletionProvider
@@ -106,6 +108,7 @@ export function createQueryServices(
     tables,
     historyView: new HistoryView(editors.history, () => base.store.list()),
     savedQueries,
+    savedQueryLinks: new SavedQueryLinks(),
     savedQueryView: new SavedQueryView(savedQueries),
     schemaCache,
     completion: createCompletion(access, editors.bindings, schemaCache),

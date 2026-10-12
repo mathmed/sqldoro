@@ -29,6 +29,7 @@ export const CommandId = {
   DeleteHistoryEntry: 'sqldoro.deleteHistoryEntry',
   ClearHistory: 'sqldoro.clearHistory',
   SaveQuery: 'sqldoro.saveQuery',
+  SaveQueryAs: 'sqldoro.saveQueryAs',
   OpenSavedQuery: 'sqldoro.openSavedQuery',
   InsertSavedQuery: 'sqldoro.insertSavedQuery',
   RenameSavedQuery: 'sqldoro.renameSavedQuery',
@@ -63,6 +64,7 @@ export const ContextKey = {
   EditorHasConnection: 'sqldoro.editorHasConnection',
   IsQueryRunning: 'sqldoro.isQueryRunning',
   HasOpenTransaction: 'sqldoro.hasOpenTransaction',
+  IsSavedQueryEditor: 'sqldoro.isSavedQueryEditor',
 } as const
 
 // The language of the documents sqldoro runs.

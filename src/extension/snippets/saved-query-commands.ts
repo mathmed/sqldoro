@@ -3,31 +3,24 @@ import * as vscode from 'vscode'
 import type { Logger } from '../../core/platform.ts'
 import {
   exportQueries,
-  folderPaths,
   freeName,
   importQueries,
-  queryNameProblem,
   type SavedQuery,
 } from '../../core/snippets/saved-queries.ts'
-import { normalizeFolder } from '../../core/text/folder-paths.ts'
 import { CommandId, SQL_LANGUAGE } from '../command-id.ts'
 import { registerAll } from '../commands/command-context.ts'
 import type { EditorBindings } from '../editor/bindings.ts'
 import { openQueryEditor } from '../editor/open-editor.ts'
-import { askChoice, askText } from '../form/prompts.ts'
-import type { Clock } from '../platform/clock.ts'
-import type { SavedQueryStore } from './saved-query-store.ts'
+import { askChoice } from '../form/prompts.ts'
+import { saveQuery, saveQueryAs, type SaveQueryContext } from './save-query.ts'
+import { askQueryFolder, askQueryName } from './saved-query-prompts.ts'
 import { SavedQueryNodeKind } from './saved-query-view.ts'
 
-export interface SavedQueryCommandContext {
-  readonly store: SavedQueryStore
+export interface SavedQueryCommandContext extends SaveQueryContext {
   readonly bindings: EditorBindings
-  readonly clock: Clock
-  readonly createId: () => string
   readonly log: Logger
 }
 
-const NEW_FOLDER = Symbol('new folder')
 const DELETE_BUTTON = 'Delete'
 const JSON_FILTERS = { 'Saved queries': ['json'] }
 const encoder = new TextEncoder()
@@ -36,6 +29,7 @@ const decoder = new TextDecoder()
 export function registerSavedQueryCommands(context: SavedQueryCommandContext): vscode.Disposable[] {
   return registerAll(context, [
     { id: CommandId.SaveQuery, action: 'Save Query', run: saveQuery },
+    { id: CommandId.SaveQueryAs, action: 'Save Query As', run: saveQueryAs },
     { id: CommandId.OpenSavedQuery, action: 'Open Saved Query', run: withQuery(openQuery) },
     { id: CommandId.InsertSavedQuery, action: 'Insert Saved Query', run: withQuery(insertQuery) },
     { id: CommandId.RenameSavedQuery, action: 'Rename Saved Query', run: withQuery(renameQuery) },
@@ -94,85 +88,26 @@ async function pickQuery(context: SavedQueryCommandContext): Promise<SavedQuery 
   )
 }
 
-// The selection of the SQL editor, or all of it, under a name and in a folder.
-async function saveQuery(context: SavedQueryCommandContext): Promise<void> {
-  const sql = editorSql()
-  if (sql === undefined) {
-    return
-  }
-  const name = await askName('Save Query', '')
-  const folder = name === undefined ? undefined : await askFolder(context, 'Save the Query in')
-  if (name === undefined || folder === undefined) {
-    return
-  }
-  const now = context.clock.timestamp()
-  const saved = context.store.list()
-  await context.store.put({
-    id: context.createId(),
-    name: freeName(saved, folder, name),
-    folder,
-    sql,
-    createdAt: now,
-    updatedAt: now,
-  })
-}
-
-function editorSql(): string | undefined {
-  const editor = vscode.window.activeTextEditor
-  const sql = editor?.document.languageId === SQL_LANGUAGE ? textToSave(editor) : ''
-  if (sql === '') {
-    void vscode.window.showInformationMessage('Open a SQL editor with a statement to save.')
-    return undefined
-  }
-  return sql
-}
-
-// The selection, or the whole document when nothing is selected.
-function textToSave(editor: vscode.TextEditor): string {
-  const range = editor.selection.isEmpty ? undefined : editor.selection
-  return editor.document.getText(range).trim()
-}
-
-async function askName(title: string, value: string): Promise<string | undefined> {
-  const name = await askText({
-    title,
-    prompt: 'The name of the saved query',
-    value,
-    placeHolder: 'For example: Orders of the day',
-    validate: queryNameProblem,
-  })
-  return name?.trim()
-}
-
-async function askFolder(
-  context: SavedQueryCommandContext,
-  title: string,
-): Promise<string | undefined> {
-  const choice = await askChoice<string | typeof NEW_FOLDER>(title, [
-    { label: '$(root-folder) Top level', value: '' },
-    ...folderPaths(context.store.list()).map((path) => ({
-      label: `$(folder) ${path}`,
-      value: path,
-    })),
-    { label: '$(new-folder) New Folder…', value: NEW_FOLDER },
-  ])
-  if (choice !== NEW_FOLDER) {
-    return choice
-  }
-  const folder = await askText({
-    title: 'New Folder',
-    prompt: 'Folders nest with /',
-    value: '',
-    placeHolder: 'For example: reports/monthly',
-  })
-  return folder === undefined ? undefined : normalizeFolder(folder)
-}
-
-// A saved query opens in a new editor on the connection of the SQL editor in front, if any.
+// A saved query opens in a new editor on the connection of the SQL editor in front, if any, and
+// Save Query updates it from there. Opened again, it shows the editor that already edits it.
 async function openQuery(context: SavedQueryCommandContext, query: SavedQuery): Promise<void> {
+  const open = openDocumentOf(context, query)
+  if (open !== undefined) {
+    await vscode.window.showTextDocument(open)
+    return
+  }
   const active = vscode.window.activeTextEditor
   const binding = active === undefined ? undefined : context.bindings.get(active.document.uri)
-  await openQueryEditor(context.bindings, query.sql, binding)
+  const editor = await openQueryEditor(context.bindings, query.sql, binding)
+  context.links.link(editor.document.uri, query.id)
+}
+
+function openDocumentOf(
+  context: SavedQueryCommandContext,
+  query: SavedQuery,
+): vscode.TextDocument | undefined {
+  const uri = context.links.documentOf(query.id)
+  return vscode.workspace.textDocuments.find((document) => document.uri.toString() === uri)
 }
 
 async function insertQuery(...[, query]: Parameters<QueryAction>): Promise<void> {
@@ -187,7 +122,7 @@ async function insertQuery(...[, query]: Parameters<QueryAction>): Promise<void>
 }
 
 async function renameQuery(context: SavedQueryCommandContext, query: SavedQuery): Promise<void> {
-  const name = await askName('Rename Saved Query', query.name)
+  const name = await askQueryName('Rename Saved Query', query.name)
   if (name !== undefined && name !== query.name) {
     const others = context.store.list().filter((saved) => saved.id !== query.id)
     await context.store.put({
@@ -199,7 +134,7 @@ async function renameQuery(context: SavedQueryCommandContext, query: SavedQuery)
 }
 
 async function moveQuery(context: SavedQueryCommandContext, query: SavedQuery): Promise<void> {
-  const folder = await askFolder(context, `Move "${query.name}" to`)
+  const folder = await askQueryFolder(context.store, `Move "${query.name}" to`)
   if (folder !== undefined && folder !== query.folder) {
     const others = context.store.list().filter((saved) => saved.id !== query.id)
     await context.store.put({

@@ -6,11 +6,21 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Added
+
+- **Save Query** button in the title bar of SQL editors, and **Save Query** on the statements of the
+  query history.
+- **Save Query As…** saves the editor of a saved query as a new one, which the editor edits from
+  then on.
+
 ### Changed
 
 - The **database and schema icons** of the explorer take the color of their connection (production
   in red, then the connection's color, then its environment's); the database of the SQL editor in
   front stays green.
+- An editor opened from a saved query stays linked to it: **Save Query** updates its SQL in place,
+  with no prompt, instead of asking for a name and creating a copy. Opening the same saved query
+  again shows its editor.
 
 ### Fixed
 

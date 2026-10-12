@@ -237,6 +237,12 @@
         "icon": "$(save)"
       },
       {
+        "command": "sqldoro.saveQueryAs",
+        "title": "Save Query As…",
+        "category": "sqldoro",
+        "icon": "$(save-as)"
+      },
+      {
         "command": "sqldoro.openSavedQuery",
         "title": "Open Saved Query",
         "category": "sqldoro",
@@ -596,6 +602,11 @@
           "group": "1_entry@3"
         },
         {
+          "command": "sqldoro.saveQuery",
+          "when": "view == sqldoro.history && viewItem == historyEntry",
+          "group": "1_entry@4"
+        },
+        {
           "command": "sqldoro.deleteHistoryEntry",
           "when": "view == sqldoro.history && viewItem == historyEntry",
           "group": "2_delete@1"
@@ -683,6 +694,10 @@
         {
           "command": "sqldoro.rollbackTransaction",
           "when": "sqldoro.hasOpenTransaction"
+        },
+        {
+          "command": "sqldoro.saveQueryAs",
+          "when": "editorLangId == sql && sqldoro.isSavedQueryEditor"
         }
       ],
       "editor/title": [
@@ -710,6 +725,11 @@
           "command": "sqldoro.rollbackTransaction",
           "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
           "group": "navigation@4"
+        },
+        {
+          "command": "sqldoro.saveQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation@5"
         }
       ],
       "editor/context": [
@@ -739,24 +759,29 @@
           "group": "sqldoro@5"
         },
         {
-          "command": "sqldoro.changeConnection",
-          "when": "editorLangId == sql",
+          "command": "sqldoro.saveQueryAs",
+          "when": "editorLangId == sql && sqldoro.isSavedQueryEditor",
           "group": "sqldoro@6"
         },
         {
-          "command": "sqldoro.toggleTransactionMode",
+          "command": "sqldoro.changeConnection",
           "when": "editorLangId == sql",
           "group": "sqldoro@7"
         },
         {
+          "command": "sqldoro.toggleTransactionMode",
+          "when": "editorLangId == sql",
+          "group": "sqldoro@8"
+        },
+        {
           "command": "sqldoro.commitTransaction",
           "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
-          "group": "sqldoro@8"
+          "group": "sqldoro@9"
         },
         {
           "command": "sqldoro.rollbackTransaction",
           "when": "editorLangId == sql && sqldoro.hasOpenTransaction",
-          "group": "sqldoro@9"
+          "group": "sqldoro@10"
         }
       ]
     },
