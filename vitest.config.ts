@@ -28,6 +28,9 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['src/webview/**/*.test.{ts,tsx}'],
           setupFiles: ['test/webview/setup.ts'],
+          // A stylesheet imported as text (`?raw`) keeps its rules, so that a test can load it into
+          // the page and check which of them win; the plain imports stay empty, as by default.
+          css: { include: [/\.css\?raw$/] },
         },
       },
     ],
