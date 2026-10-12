@@ -16,7 +16,7 @@ permissions:
 # job uploads its fragments as the `quality-fragment-<job>` artifact, and the `quality-report` job
 # at the end turns them into the single PR comment (marker <!-- quality-report -->). Later steps use
 # `if: !cancelled()` so that one failure does not hide the results of the other analyses; the job
-# still fails. See "Quality Report" in the README to add an analysis.
+# still fails. See "Quality Report" in CONTRIBUTING.md to add an analysis.
 jobs:
   lint:
     runs-on: ubuntu-latest
