@@ -7,9 +7,16 @@ import {
   POSTGRES,
   saved,
 } from '../../../test/support/commands.ts'
-import { commands, contextKeys, inputBoxes, quickPicks, resetVscode } from '../../../test/vscode.ts'
+import {
+  builtInCalls,
+  commands,
+  quickPicks,
+  resetVscode,
+  webviewViews,
+  window,
+} from '../../../test/vscode.ts'
 import { type ConnectionConfig, newConnection } from '../../core/connection/connection.ts'
-import { CommandId, ContextKey } from '../command-id.ts'
+import { CommandId, ViewId } from '../command-id.ts'
 
 const SHOP: ConnectionConfig = {
   ...newConnection('shop', POSTGRES),
@@ -43,34 +50,30 @@ afterEach(() => {
 })
 
 describe('Find Table in Explorer', () => {
-  it('should filter the explorer as the name is typed, and keep it on Enter', async () => {
+  it('should show the search box above the explorer and put the focus in it', async () => {
     const finding = vscode.commands.executeCommand(CommandId.FindTable)
-    const box = inputBoxes.at(-1)
+    await vi.waitFor(() => {
+      expect(webviewViews.get(ViewId.TableSearch)).toBeDefined()
+    })
+    const box = webviewViews.get(ViewId.TableSearch)
+    box?.webview.send({ type: 'ready' })
 
-    box?.type('ord')
-    expect(harness.context.explorer.find).toBe('ord')
-    box?.accept()
-    await finding
-
-    expect(harness.context.explorer.find).toBe('ord')
-    expect(harness.viewMessages.at(-1)).toBe('Tables and views matching "ord"')
-    expect(contextKeys.get(ContextKey.IsFiltered)).toBe(true)
-    expect(box?.isDisposed).toBe(true)
+    await expect(finding).resolves.toBe(true)
+    expect(builtInCalls).toContainEqual({ command: 'sqldoro.tableSearch.focus', args: [] })
+    expect(box?.webview.posted.at(-1)).toStrictEqual({ type: 'focus' })
   })
 
-  it('should start from the text it kept, and give the tree back on Escape', async () => {
-    harness.context.explorer.setFind('ord')
+  it('should say so when the search box does not load', async () => {
+    vi.useFakeTimers()
     const finding = vscode.commands.executeCommand(CommandId.FindTable)
-    const box = inputBoxes.at(-1)
-    expect(box?.value).toBe('ord')
 
-    box?.type('line')
-    box?.escape()
-    await finding
+    await vi.advanceTimersByTimeAsync(10_000)
 
-    expect(harness.context.explorer.find).toBe('')
-    expect(harness.viewMessages.at(-1)).toBe('')
-    expect(contextKeys.get(ContextKey.IsFiltered)).toBe(false)
+    await expect(finding).resolves.toBeUndefined()
+    expect(window.showErrorMessage).toHaveBeenCalledWith(
+      'Find Table in Explorer failed: The search box did not load.',
+    )
+    vi.useRealTimers()
   })
 })
 
@@ -99,6 +102,54 @@ describe('Go to Table', () => {
       connectionId: 'shop',
       place: { database: 'shop', schema: 'sales', name: 'orders' },
     })
+  })
+
+  it('should filter as the search box does: the characters in order, the best first', async () => {
+    await vscode.commands.executeCommand(CommandId.Connect, 'shop')
+    const going = vscode.commands.executeCommand(CommandId.GoToTable)
+    await settle()
+    const pick = quickPicks.at(-1)
+    if (pick === undefined) {
+      throw new Error('no quick pick')
+    }
+    const labels = (text: string): unknown[] => {
+      pick.type(text)
+      return pick.items.map((item) => (item as { label: string }).label)
+    }
+
+    expect(labels('ln')).toStrictEqual(['$(table) lines', '$(table) lines'])
+    expect(labels('ordtl')).toStrictEqual(['$(eye) order_totals', '$(eye) order_totals'])
+    expect(labels('sales')).toStrictEqual([
+      '$(table) orders',
+      '$(table) lines',
+      '$(eye) order_totals',
+    ])
+    expect(labels(' ')).toHaveLength(6)
+    expect(pick.items).toMatchObject(Array.from({ length: 6 }, () => ({ alwaysShow: true })))
+    pick.accept()
+    await going
+  })
+
+  it('should list what it can, and say in the log why the rest could not be listed', async () => {
+    harness.dispose()
+    resetVscode()
+    harness = commandHarness({
+      session: { listSchemas: async () => Promise.reject(new Error('permission denied')) },
+    })
+    await saved(harness, SHOP)
+    await vscode.commands.executeCommand(CommandId.Connect, 'shop')
+
+    const going = vscode.commands.executeCommand(CommandId.GoToTable)
+    await vi.waitFor(() => {
+      expect(harness.log.warn).toHaveBeenCalled()
+    })
+    quickPicks.at(-1)?.accept()
+    await going
+
+    expect(quickPicks.at(-1)?.items).toStrictEqual([])
+    expect(harness.log.warn).toHaveBeenCalledWith(
+      'Could not list the tables of "Shop": permission denied',
+    )
   })
 
   it('should say that it lists the tables of connected connections only', async () => {

@@ -4,6 +4,7 @@
     "src/extension/extension.ts",
     "src/webview/main.tsx",
     "src/webview/connection-form/main.tsx",
+    "src/webview/table-search/main.tsx",
     "scripts/*.ts",
     "test/smoke/suite.ts",
   ],

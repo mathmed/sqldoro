@@ -1,13 +1,18 @@
 import * as vscode from 'vscode'
 
 import type { ObjectRef } from '../../core/engine/catalog.ts'
-import { CommandId, ContextKey } from '../command-id.ts'
+import { matchesFilter } from '../../core/text/filter.ts'
+import { compareMatches, matchName } from '../../core/text/fuzzy.ts'
+import { CommandId } from '../command-id.ts'
 import { NodeKind } from '../tree/explorer-node.ts'
 import type { ConnectionObjects } from '../tree/table-index.ts'
 import { type CommandContext, registerAll } from './command-context.ts'
 
-// A table or view the quick pick of Go to Table offers.
+// A table or view the quick pick of Go to Table offers. It filters them itself, with the matcher of
+// the search box: each one is always shown once it matches.
 interface TableItem extends vscode.QuickPickItem {
+  readonly name: string
+  readonly description: string
   readonly connectionId: string
   readonly objectKind: typeof NodeKind.Table | typeof NodeKind.View
   readonly place: ObjectRef
@@ -16,9 +21,10 @@ interface TableItem extends vscode.QuickPickItem {
 const NOTHING_CONNECTED =
   'Connect to a connection first: Go to Table lists the tables of the connected ones.'
 
-// Finding a table as the name is typed: the explorer shows only the tables and views that hold the
-// text, opened down to them (Find Table in Explorer); or a quick pick of every table of the
-// connected connections that opens the one chosen (Go to Table).
+// Finding a table as the name is typed: the search box above the explorer, whose text shows only
+// the tables and views whose name matches it, opened down to them (Find Table in Explorer puts the focus
+// in it); or a quick pick of every table of the connected connections that opens the one chosen
+// (Go to Table).
 export function registerFindCommands(context: CommandContext): vscode.Disposable[] {
   return registerAll(context, [
     { id: CommandId.FindTable, action: 'Find Table in Explorer', run: findTable },
@@ -26,38 +32,9 @@ export function registerFindCommands(context: CommandContext): vscode.Disposable
   ])
 }
 
-// The explorer follows what is typed; Enter keeps it (Clear Filter gives the tree back), Escape
-// gives the tree back at once.
-async function findTable(context: CommandContext): Promise<void> {
-  const box = vscode.window.createInputBox()
-  box.title = 'Find Table in Explorer'
-  box.placeholder = 'Part of the name of a table or view'
-  box.prompt = 'The explorer shows the tables and views of the connected connections that match.'
-  box.value = context.explorer.find
-  let isKept = false
-  const { promise, resolve } = Promise.withResolvers<undefined>()
-  box.onDidChangeValue((text) => {
-    context.explorer.setFind(text)
-  })
-  box.onDidAccept(() => {
-    isKept = true
-    box.hide()
-  })
-  box.onDidHide(() => {
-    void settleFind(context, isKept ? box.value : '').then(() => {
-      box.dispose()
-      resolve(undefined)
-    })
-  })
-  box.show()
-  return promise
-}
-
-async function settleFind(context: CommandContext, text: string): Promise<void> {
-  context.explorer.setFind(text)
-  const { find } = context.explorer
-  context.setViewMessage(find === '' ? '' : `Tables and views matching "${find}"`)
-  await vscode.commands.executeCommand('setContext', ContextKey.IsFiltered, find !== '')
+// True once the box has the focus.
+async function findTable(context: CommandContext): Promise<boolean> {
+  return context.tableSearch.focus()
 }
 
 async function goToTable(context: CommandContext): Promise<void> {
@@ -79,12 +56,36 @@ async function goToTable(context: CommandContext): Promise<void> {
     resolve(undefined)
   })
   pick.show()
-  pick.items = itemsOf(await context.index.objects())
+  const all = itemsOf(await context.index.objects())
+  pick.onDidChangeValue((text) => {
+    pick.items = matching(all, text)
+  })
+  pick.items = matching(all, pick.value)
   pick.busy = false
-  if (pick.items.length === 0) {
+  if (all.length === 0) {
     pick.placeholder = NOTHING_CONNECTED
   }
   return promise
+}
+
+// The tables and views whose name matches the text, the best first, then those whose connection or
+// database holds it.
+function matching(items: readonly TableItem[], text: string): TableItem[] {
+  if (text.trim() === '') {
+    return [...items]
+  }
+  const named = items
+    .flatMap((item) => {
+      const match = matchName(item.name, text)
+      return match === undefined ? [] : [{ item, match }]
+    })
+    .toSorted((first, second) => compareMatches(first.match, second.match))
+    .map(({ item }) => item)
+  const shown = new Set(named)
+  return [
+    ...named,
+    ...items.filter((item) => !shown.has(item) && matchesFilter(item.description, text)),
+  ]
 }
 
 // What the explorer gives Open Table Data: the table or view, and its connection.
@@ -100,7 +101,9 @@ function itemsOf(found: readonly ConnectionObjects[]): TableItem[] {
       const description = `${connection.name} · ${where}`
       const item = (name: string, kind: TableItem['objectKind']): TableItem => ({
         label: `$(${kind === NodeKind.Table ? 'table' : 'eye'}) ${name}`,
+        name,
         description,
+        alwaysShow: true,
         connectionId: connection.id,
         objectKind: kind,
         place: { ...scope, name },

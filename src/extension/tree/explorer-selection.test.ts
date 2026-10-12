@@ -13,6 +13,7 @@ import {
 import { newConnection } from '../../core/connection/connection.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { ExplorerNode } from './explorer-node.ts'
+import type { Changed } from './explorer-provider.ts'
 import { databaseUri, schemaUri } from './node-uris.ts'
 
 const EDITOR_NOTE = 'The SQL editor in front runs here'
@@ -108,10 +109,10 @@ describe('the database the SQL editor in front runs on', () => {
     const databases = await open(sut, 'Shop')
     const schemas = await open(sut, 'Shop', 'shop')
     labelsOf(sut, [...databases, ...schemas])
-    const fired: (ExplorerNode | undefined)[] = []
-    const contents = vi.fn()
+    const fired: Changed[] = []
+    const refreshes = vi.fn()
     sut.onDidChangeTreeData((node) => fired.push(node))
-    sut.onDidChangeContents(contents)
+    sut.onDidRefresh(refreshes)
 
     selection.follow({ connectionId: 'shop', database: 'stock', schema: '' })
 
@@ -120,7 +121,7 @@ describe('the database the SQL editor in front runs on', () => {
       byLabel(databases, sut, 'stock'),
       byLabel(schemas, sut, 'public'),
     ])
-    expect(contents).not.toHaveBeenCalled()
+    expect(refreshes).not.toHaveBeenCalled()
     await open(sut, 'Shop')
     expect(session.listDatabases).toHaveBeenCalledOnce()
   })
@@ -129,16 +130,16 @@ describe('the database the SQL editor in front runs on', () => {
     const { sut, selection } = await connected()
     selection.follow(undefined)
     await open(sut, 'Shop')
-    const fired: (ExplorerNode | undefined)[] = []
-    const contents = vi.fn()
+    const fired: Changed[] = []
+    const refreshes = vi.fn()
     sut.onDidChangeTreeData((node) => fired.push(node))
-    sut.onDidChangeContents(contents)
+    sut.onDidRefresh(refreshes)
 
     sut.refresh()
     selection.follow({ connectionId: 'shop', database: 'stock', schema: '' })
 
     expect(fired).toStrictEqual([undefined])
-    expect(contents).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(refreshes).toHaveBeenCalledExactlyOnceWith(undefined)
   })
 
   it('should stop following the mark once disposed', async () => {
@@ -160,7 +161,7 @@ describe('the database the SQL editor in front runs on', () => {
     await sessions.connect(other)
     const shop = await open(sut, 'Shop')
     labelsOf(sut, [...shop, ...(await open(sut, 'Other'))])
-    const fired: (ExplorerNode | undefined)[] = []
+    const fired: Changed[] = []
     sut.onDidChangeTreeData((node) => fired.push(node))
 
     selection.follow(undefined)

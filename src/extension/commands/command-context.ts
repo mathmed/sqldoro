@@ -5,6 +5,7 @@ import type { Logger } from '../../core/platform.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { ConnectionService } from '../connections/connection-service.ts'
 import { askChoice } from '../form/prompts.ts'
+import type { TableSearchView } from '../search/table-search-view.ts'
 import type { SessionManager } from '../sessions/session-manager.ts'
 import type { SessionOpener } from '../sessions/session-opener.ts'
 import type { SecretStore } from '../storage/secret-store.ts'
@@ -19,6 +20,8 @@ export interface CommandContext {
   readonly explorer: ExplorerProvider
   // Every table and view of the connected connections, to find them by name.
   readonly index: Pick<TableIndex, 'objects'>
+  // The search box above the Connections view.
+  readonly tableSearch: Pick<TableSearchView, 'focus'>
   // Shows a line above the Connections view; an empty message hides it.
   readonly setViewMessage: (message: string) => void
   readonly log: Logger

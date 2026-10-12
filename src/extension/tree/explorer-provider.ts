@@ -5,12 +5,13 @@ import { type SelectedScope, showsScope } from '../../core/editor/selection.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { Logger } from '../../core/platform.ts'
 import { type GuardPolicy, isProduction } from '../../core/safety/guard.ts'
+import type { SearchStatus } from '../../core/table-search/status.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { SessionManager } from '../sessions/session-manager.ts'
 import { connectionNode } from './connection-node.ts'
 import type { DatabaseSelection } from './database-selection.ts'
 import { type ExplorerNode, messageNode, MessageTone, type NodeContext } from './explorer-node.ts'
-import { foundNodes } from './find-nodes.ts'
+import { FindMode } from './find-mode.ts'
 import { folderChildren } from './folder-node.ts'
 import { loadingText } from './loading-text.ts'
 import { type ScopePlace, scopePlace } from './scope-mark.ts'
@@ -20,7 +21,7 @@ export interface ExplorerDependencies {
   readonly connections: () => readonly ConnectionConfig[]
   readonly sessions: SessionManager
   readonly engines: EngineRegistry
-  readonly index: Pick<TableIndex, 'objects'>
+  readonly index: Pick<TableIndex, 'load' | 'onDidChange' | 'snapshot'>
   readonly policy: () => GuardPolicy
   // Resolves after this many milliseconds: the clock of the loading nodes.
   readonly delay: (milliseconds: number) => Promise<void>
@@ -31,6 +32,8 @@ export interface ExplorerDependencies {
 }
 
 type Children = Promise<readonly ExplorerNode[]>
+// What VS Code draws again: a node, some nodes, or the whole tree.
+export type Changed = ExplorerNode | ExplorerNode[] | undefined
 
 interface Drawn {
   readonly node: ExplorerNode
@@ -46,30 +49,40 @@ interface Loaded {
 
 // A list that loads in less than this shows no loading node: no flicker for a fast server.
 const LOADING_DELAY_MS = 150
-const FIND_ROOT = { id: 'find', connectionId: '' }
 
 // The Connections view: connections in their folders, and the children of a node, loaded when it
 // opens and kept until it is refreshed or its connection changes state. A list slow to load shows a
 // line that says so; a failure becomes a line in the tree instead of an error dialog. While the user
-// finds a table, the view shows only the tables and views whose name holds the text.
+// finds a table, the view shows only the tables and views whose name matches the text (FindMode).
+// The nodes the user opens and closes are remembered, so that a node shown again (the tree given
+// back after a find) is as it was left.
 export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, vscode.Disposable {
   readonly #dependencies: ExplorerDependencies
-  readonly #changes = new vscode.EventEmitter<ExplorerNode | undefined>()
-  readonly #contents = new vscode.EventEmitter<ExplorerNode | undefined>()
+  readonly #changes = new vscode.EventEmitter<Changed>()
+  readonly #refreshes = new vscode.EventEmitter<string | undefined>()
   readonly #loaded = new Map<string, Loaded>()
   readonly #roots = new Map<string, ExplorerNode>()
   // The databases and schemas the view drew, by id: those a change of the mark draws again.
   readonly #scopeNodes = new Map<string, Drawn>()
+  readonly #expanded = new Map<string, boolean>()
+  readonly #find: FindMode
   readonly #subscriptions: vscode.Disposable[]
   #filter = ''
-  #find = ''
   readonly onDidChangeTreeData = this.#changes.event
-  // What the view shows changed for another reason than the mark of a database: the caches of the
-  // catalog follow it.
-  readonly onDidChangeContents = this.#contents.event
+  // A connection (or all of them, undefined) whose catalog is read again: what was kept of it is
+  // forgotten. Nothing else (a find, the mark of a database) makes the catalog read again.
+  readonly onDidRefresh = this.#refreshes.event
+  readonly onDidChangeFind: vscode.Event<SearchStatus>
 
   constructor(dependencies: ExplorerDependencies) {
     this.#dependencies = dependencies
+    this.#find = new FindMode({
+      ...dependencies,
+      redraw: (nodes) => {
+        this.#changes.fire(nodes === undefined ? undefined : [...nodes])
+      },
+    })
+    this.onDidChangeFind = this.#find.onDidChange
     this.#subscriptions = [
       dependencies.sessions.onDidChange((connectionId) => {
         this.refreshConnection(connectionId)
@@ -84,8 +97,13 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     return this.#filter
   }
 
+  // The text the explorer is filtered by, trimmed; empty when it shows the tree as it is.
   get find(): string {
-    return this.#find
+    return this.#find.text
+  }
+
+  get findStatus(): SearchStatus {
+    return this.#find.status
   }
 
   setFilter(filter: string): void {
@@ -93,10 +111,25 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     this.refresh()
   }
 
-  // Shows only the tables and views whose name holds the text; an empty text shows the tree again.
+  // Shows only the tables and views whose name holds the text, as typed; an empty text shows the
+  // tree again.
   setFind(text: string): void {
-    this.#find = text.trim()
-    this.#fire(undefined)
+    this.#find.setText(text)
+  }
+
+  // Loads the tables to find, before anything is typed.
+  prepareFind(): void {
+    this.#find.prepare()
+  }
+
+  // The table or view that matches best, if any.
+  bestMatch(): ExplorerNode | undefined {
+    return this.#find.isActive ? this.#find.tree.bestMatch() : undefined
+  }
+
+  // What the user did to a node: VS Code tells the tree view.
+  remember(node: ExplorerNode, isExpanded: boolean): void {
+    this.#expanded.set(node.id, isExpanded)
   }
 
   getTreeItem(node: ExplorerNode): vscode.TreeItem {
@@ -104,12 +137,26 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     if (place !== undefined) {
       this.#scopeNodes.set(node.id, { node, place })
     }
-    return node.treeItem(this.#context())
+    const item = node.treeItem(this.#context())
+    const state = rememberedState(item.collapsibleState, this.#expanded.get(node.id))
+    if (state !== undefined) {
+      item.collapsibleState = state
+    }
+    return item
+  }
+
+  // Only the found tree knows the parents of its nodes: it is the one revealed.
+  getParent(node: ExplorerNode): ExplorerNode | undefined {
+    return this.#find.tree.parentOf(node)
   }
 
   async getChildren(node?: ExplorerNode): Promise<ExplorerNode[]> {
     if (node === undefined) {
-      return this.#find === '' ? this.#rootNodes() : this.#foundNodes()
+      return this.#find.isActive ? [...this.#find.tree.roots()] : this.#rootNodes()
+    }
+    const found = this.#find.tree.childrenOf(node)
+    if (found !== undefined) {
+      return [...found]
     }
     const loaded = this.#loadedOf(node.connectionId)
     const known = loaded.children.get(node.id)
@@ -121,23 +168,21 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     if (node === undefined) {
       this.#loaded.clear()
       this.#scopeNodes.clear()
+      this.#find.reset()
     } else {
       this.#loaded.delete(node.connectionId)
     }
-    this.#fire(node?.listedBy ?? node)
+    this.#refreshes.fire(node?.connectionId)
+    this.#changes.fire(node?.listedBy ?? node)
   }
 
   dispose(): void {
     for (const subscription of this.#subscriptions) {
       subscription.dispose()
     }
+    this.#find.dispose()
     this.#changes.dispose()
-    this.#contents.dispose()
-  }
-
-  #fire(node: ExplorerNode | undefined): void {
-    this.#changes.fire(node)
-    this.#contents.fire(node)
+    this.#refreshes.dispose()
   }
 
   // Only the icon and the tooltip of these nodes change: their children stay as they were loaded.
@@ -161,22 +206,6 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     return folderChildren({ connections: this.#dependencies.connections(), nodeOf }, '')
   }
 
-  async #foundNodes(): Promise<ExplorerNode[]> {
-    const text = this.#find
-    const found = foundNodes(await this.#dependencies.index.objects(), {
-      text,
-      engines: this.#dependencies.engines,
-    })
-    return found.length > 0
-      ? found
-      : [
-          messageNode(FIND_ROOT, {
-            text: `No table or view matches "${text}"`,
-            tone: MessageTone.Info,
-          }),
-        ]
-  }
-
   // A list that takes a while shows a line that says what loads, and the list once it is here.
   async #loadSlowly(node: ExplorerNode, loaded: Loaded): Children {
     const loading = this.#load(node, loaded)
@@ -188,7 +217,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       return loading
     }
     void loading.then(() => {
-      this.#fire(node)
+      this.#changes.fire(node)
     })
     return [messageNode(node, { text: loadingText(node.kind), tone: MessageTone.Progress })]
   }
@@ -211,7 +240,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     }
     const children = await node.children({ ...this.#context(), summarize })
     if (loaded.summaries.has(node.id)) {
-      this.#fire(node)
+      this.#changes.fire(node)
     }
     return children
   }
@@ -229,9 +258,10 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   // Reloads everything under a connection (after a statement changed its schema, for one).
   refreshConnection(connectionId: string): void {
     this.#loaded.delete(connectionId)
+    this.#refreshes.fire(connectionId)
     const node = this.#roots.get(connectionId)
     if (node !== undefined) {
-      this.#fire(node)
+      this.#changes.fire(node)
     }
   }
 
@@ -248,4 +278,18 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       extensionUri,
     }
   }
+}
+
+// A node the user opened or closed shows so when VS Code makes it again; undefined keeps the state
+// the node gives.
+function rememberedState(
+  state: vscode.TreeItemCollapsibleState | undefined,
+  isExpanded: boolean | undefined,
+): vscode.TreeItemCollapsibleState | undefined {
+  if (isExpanded === undefined || state === vscode.TreeItemCollapsibleState.None) {
+    return undefined
+  }
+  return isExpanded
+    ? vscode.TreeItemCollapsibleState.Expanded
+    : vscode.TreeItemCollapsibleState.Collapsed
 }

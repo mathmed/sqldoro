@@ -9,7 +9,8 @@ import {
   type MarkdownString,
 } from './vscode/languages.ts'
 import type { FakeUri } from './vscode/uri.ts'
-import { type Disposable, resetWorkbench } from './vscode/workbench.ts'
+import { hasWebviewView, showWebviewView } from './vscode/webviews.ts'
+import { type Disposable, resetWorkbench, treeViews } from './vscode/workbench.ts'
 
 export * from './vscode/languages.ts'
 export * from './vscode/pickers.ts'
@@ -29,6 +30,7 @@ const BUILT_IN_COMMANDS: ReadonlySet<string> = new Set([
   'workbench.action.openWalkthrough',
   'markdown.showPreview',
 ])
+const FOCUS_SUFFIX = '.focus'
 
 export const contextKeys = new Map<string, unknown>()
 export const builtInCalls: { readonly command: string; readonly args: readonly unknown[] }[] = []
@@ -116,11 +118,8 @@ export const commands = {
     }
   },
   async executeCommand(command: string, ...args: unknown[]): Promise<unknown> {
-    if (BUILT_IN_COMMANDS.has(command) && !missingBuiltIns.has(command)) {
-      builtInCalls.push({ command, args })
-      if (command === 'setContext') {
-        contextKeys.set(String(args[0]), args[1])
-      }
+    if (isBuiltIn(command)) {
+      runBuiltIn(command, args)
       return undefined
     }
     const handler = handlers.get(command)
@@ -129,6 +128,34 @@ export const commands = {
     }
     return await Promise.resolve(handler(...args))
   },
+}
+
+function isBuiltIn(command: string): boolean {
+  return (BUILT_IN_COMMANDS.has(command) && !missingBuiltIns.has(command)) || isViewFocus(command)
+}
+
+function runBuiltIn(command: string, args: readonly unknown[]): void {
+  builtInCalls.push({ command, args })
+  if (command === 'setContext') {
+    contextKeys.set(String(args[0]), args[1])
+  }
+  if (isViewFocus(command)) {
+    showWebviewView(viewOf(command))
+  }
+}
+
+function viewOf(focusCommand: string): string {
+  return focusCommand.slice(0, -FOCUS_SUFFIX.length)
+}
+
+// VS Code registers <view>.focus for every view: it shows the view (a webview view is filled then)
+// and puts the focus in it.
+function isViewFocus(command: string): boolean {
+  const viewId = viewOf(command)
+  return (
+    command.endsWith(FOCUS_SUFFIX) &&
+    (treeViews.some((view) => view.viewId === viewId) || hasWebviewView(viewId))
+  )
 }
 
 // Brings the fake back to a fresh VS Code between tests.

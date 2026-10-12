@@ -12,8 +12,9 @@ const WEBVIEW_OUTPUT = 'dist/webview'
 const WEBVIEWS = [
   { name: 'results', entry: 'main.tsx' },
   { name: 'connection-form', entry: 'connection-form/main.tsx' },
+  { name: 'table-search', entry: 'table-search/main.tsx' },
 ] as const
-const WEBVIEW_FILES = ['results.js', 'results.css', 'connection-form.js', 'connection-form.css']
+const WEBVIEW_FILES = WEBVIEWS.flatMap(({ name }) => [`${name}.js`, `${name}.css`])
 // The licenses and notices of the libraries the bundles hold, shipped in the .vsix.
 const NOTICES = 'dist/ThirdPartyNotices.txt'
 // React and TanStack mark their modules "use client" for server components, which a webview has not.

@@ -15,6 +15,7 @@ const PASSED = `>> launching VS Code stable with the extension under development
 >> sqldoro.hello -> Hello from sqldoro (development)!
 >> result view loaded in 0.812s
 >> connection form loaded in 0.103s
+>> search box loaded in 0.088s
 >> smoke OK`
 
 function smoke(output: string, exitCode: number): Fragment {
@@ -26,7 +27,7 @@ describe('analyzeSmoke', () => {
     expect(analyzeSmoke(smoke(PASSED, 0))).toStrictEqual({
       status: Status.Ok,
       summary:
-        'Activated in 0.194s on VS Code 1.141.0 · 12 contributed commands and 1 contributed view registered · result view loaded in 0.812s · connection form loaded in 0.103s',
+        'Activated in 0.194s on VS Code 1.141.0 · 12 contributed commands and 1 contributed view registered · result view loaded in 0.812s · connection form loaded in 0.103s · search box loaded in 0.088s',
     })
   })
 

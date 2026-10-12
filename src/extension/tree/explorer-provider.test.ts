@@ -16,7 +16,7 @@ import {
   newConnection,
   SslMode,
 } from '../../core/connection/connection.ts'
-import type { ExplorerNode } from './explorer-node.ts'
+import type { Changed } from './explorer-provider.ts'
 import { connectionUri } from './node-uris.ts'
 
 const LOCAL = {
@@ -212,7 +212,7 @@ describe('ExplorerProvider', () => {
 
   it('should refresh a connection node when its status changes, once VS Code has it', async () => {
     const { sut, sessions } = explorer([SHOP])
-    const fired: (ExplorerNode | undefined)[] = []
+    const fired: Changed[] = []
     sut.onDidChangeTreeData((node) => fired.push(node))
 
     await sessions.connect({ ...SHOP, id: 'not-shown' })

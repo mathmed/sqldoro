@@ -81,7 +81,8 @@ export class FakeInputBox extends FakeBox {
   }
 }
 
-export type FakeQuickPick = FakeBox & {
+// A quick pick is typed in like an input box.
+export type FakeQuickPick = FakeInputBox & {
   items: readonly unknown[]
   selectedItems: readonly unknown[]
   readonly pick: (item: unknown) => void
@@ -89,7 +90,7 @@ export type FakeQuickPick = FakeBox & {
 
 // VS Code names some of its flags without a prefix (busy): an object literal takes them as they are.
 function quickPick(): FakeQuickPick {
-  const box = new FakeBox()
+  const box = new FakeInputBox()
   return Object.assign(box, {
     matchOnDescription: false,
     busy: false,

@@ -8,7 +8,12 @@ import { createInputBox, createQuickPick, resetPickers } from './pickers.ts'
 import { registerFileDecorationProvider, resetTabs, tabGroups } from './tabs.ts'
 import { FakeTextDocument, FakeTextEditor } from './text.ts'
 import { FakeUri } from './uri.ts'
-import { createWebviewPanel, webviewPanels } from './webviews.ts'
+import {
+  createWebviewPanel,
+  registerWebviewViewProvider,
+  resetWebviewViews,
+  webviewPanels,
+} from './webviews.ts'
 
 type Listener<T> = (event: T) => unknown
 type ProgressTask<T> = (
@@ -47,6 +52,12 @@ export interface FakeTreeView {
   readonly viewId: string
   readonly options: { treeDataProvider: unknown }
   message: string | undefined
+  readonly onDidExpandElement: EventEmitter<{ element: unknown }>['event']
+  readonly onDidCollapseElement: EventEmitter<{ element: unknown }>['event']
+  // What the user does: opens or closes a node.
+  readonly expand: (element: unknown) => void
+  readonly collapse: (element: unknown) => void
+  readonly reveal: ReturnType<typeof vi.fn<(element: unknown, options: unknown) => Promise<void>>>
   readonly dispose: () => void
 }
 
@@ -133,6 +144,28 @@ function statusBarItem(alignment: number, priority: number): FakeStatusBarItem {
   return item
 }
 
+function createTreeView(viewId: string, options: { treeDataProvider: unknown }): FakeTreeView {
+  const expanded = new EventEmitter<{ element: unknown }>()
+  const collapsed = new EventEmitter<{ element: unknown }>()
+  const view: FakeTreeView = {
+    viewId,
+    options,
+    message: undefined,
+    onDidExpandElement: expanded.event,
+    onDidCollapseElement: collapsed.event,
+    expand: (element) => {
+      expanded.fire({ element })
+    },
+    collapse: (element) => {
+      collapsed.fire({ element })
+    },
+    reveal: vi.fn(async () => Promise.resolve()),
+    dispose: vi.fn(),
+  }
+  treeViews.push(view)
+  return view
+}
+
 function outputChannel(name: string): FakeOutputChannel {
   const channel = {
     name,
@@ -207,11 +240,8 @@ export const window = {
   // Like VS Code, it takes a document or the URI of one.
   showTextDocument: async (target: FakeTextDocument | FakeUri): Promise<FakeTextEditor> =>
     showEditor(target instanceof FakeUri ? await openTextDocument(target) : target),
-  createTreeView: (viewId: string, options: { treeDataProvider: unknown }): FakeTreeView => {
-    const view: FakeTreeView = { viewId, options, message: undefined, dispose: vi.fn() }
-    treeViews.push(view)
-    return view
-  },
+  createTreeView,
+  registerWebviewViewProvider,
   createOutputChannel: outputChannel,
   createStatusBarItem: statusBarItem,
   createWebviewPanel,
@@ -256,6 +286,7 @@ export const env = {
 export function resetWorkbench(): void {
   resetTabs()
   resetPickers()
+  resetWebviewViews()
   webviewPanels.length = 0
   treeViews.length = 0
   outputChannels.length = 0
