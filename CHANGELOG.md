@@ -6,6 +6,12 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Fixed
+
+- The caret of a table panel's **WHERE** field no longer drifts away from the colored text: the
+  field now uses the same monospaced grid font as the text drawn under it (its placeholder too, like
+  the query box's).
+
 ## [0.1.0] - 2026-10-12
 
 The first version of sqldoro: a MySQL and PostgreSQL client for VS Code that makes the dangerous
