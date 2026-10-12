@@ -17,7 +17,7 @@ flowchart TB
     tunnel["src/tunnel<br/>SSH tunnel (ssh2)"]
   end
   subgraph browser["Webviews (browser sandbox, strict CSP)"]
-    webview["src/webview<br/>React: the result grid (TanStack Table and Virtual),<br/>the connection form (connection-form/)<br/>and the table search box (table-search/)"]
+    webview["src/webview<br/>React: the result grid (TanStack Table and Virtual)<br/>and the connection form (connection-form/)"]
   end
   core["src/core<br/>engine and tunnel interfaces, connection model,<br/>SQL lexing, safety guards, edits, result model,<br/>message protocol: pure TypeScript"]
 
@@ -45,9 +45,8 @@ flowchart TB
   only `src/extension/factories/` instantiates the drivers and the tunnel, so supporting another
   engine is writing its driver and registering it there (see
   [CONTRIBUTING.md](../CONTRIBUTING.md#adding-a-database-engine)).
-- **`src/webview`** holds the three webviews, each a browser bundle of its own (Vite): the result
-  grid, the connection form and the table search box above the Connections view. They never import
-  the extension host. The grid holds no rows of its own
+- **`src/webview`** holds the two webviews, each a browser bundle of its own (Vite): the result grid
+  and the connection form. They never import the extension host. The grid holds no rows of its own
   beyond a bounded cache: the host keeps the rows, and sorts, filters, copies and exports them.
 
 ## Opening a session
@@ -252,21 +251,24 @@ provider draws again only the database and schema nodes it drew whose mark chang
 tooltip), keeping their children, in the explorer and in the tree of a find alike. These redraws
 are not refreshes: the schema cache and the table index forget a catalog only on
 `ExplorerProvider.onDidRefresh` (Refresh, a connection that connects or disconnects, a statement
-that changes the schema), so moving between editors, or typing in the search box, never reads the
-catalog again.
+that changes the schema), so moving between editors, or typing in the box of Find Table in
+Explorer, never reads the catalog again.
 
 ## Finding a table
 
-The search box above the Connections view (`sqldoro.tableSearch`) is a webview view with a bundle
-of its own (`src/webview/table-search/`), the same page and policy as the other webviews, and a
-message protocol in the core (`src/core/table-search/protocol.ts`) checked on both sides. Every
-keystroke goes to the host (`src/extension/search/table-search-view.ts`), which filters the
-explorer at once; Enter opens the table that matches best, the down arrow reveals it in the explorer, and
-Escape clears the text. **Find Table in Explorer** puts the focus in the box.
+**Find Table in Explorer**, the magnifier in the title bar of the Connections view, opens a VS Code
+input box (`TableFinder`, in `src/extension/commands/table-finder.ts`). Every keystroke
+(`onDidChangeValue`) filters the explorer at once; the prompt of the box counts the matches, or
+says that nothing is connected or that the tables still load (`statusLine`, in
+`src/core/table-search/status.ts`), and the box is busy while they do. Enter opens the rows of the
+table that matches best and keeps the explorer filtered (**Clear Filter**, in the title bar while it
+is, gives the tree back); Escape gives the tree back at once. The box stays open while the user
+works in the tree (`ignoreFocusOut`), and the command shows the same box again while it is open;
+opened again later, it starts from the text kept.
 
 Nothing reaches the server while typing. `TableIndex` loads the tables and views of the connected
-connections once, through the schema cache, when the box gets the focus or the first character is
-typed; each namespace shows as soon as it arrives, and the box says what still loads. A refresh of
+connections once, through the schema cache, when the box opens; each namespace shows as soon as it
+arrives, and the box says what still loads. A refresh of
 the explorer (`ExplorerProvider.onDidRefresh`: Refresh, a connection that connects or disconnects,
 a statement that changes the schema) makes the schema cache and the index read them again. The
 search itself is a pure function of the core (`findTables`, in `src/core/table-search/found.ts`).

@@ -11,7 +11,6 @@ const COMMANDS_LINE = /^>> contributed commands registered: (\d+)$/m
 const VIEWS_LINE = /^>> contributed views registered: (\d+)$/m
 const RESULT_VIEW_LINE = /^>> result view loaded in ([\d.]+)s$/m
 const CONNECTION_FORM_LINE = /^>> connection form loaded in ([\d.]+)s$/m
-const SEARCH_BOX_LINE = /^>> search box loaded in ([\d.]+)s$/m
 const SUITE_FAILURE = /^>> smoke: (\S.*)$/m
 const LAUNCH_FAILURE = /^>> smoke FAILED: (\S.*)$/m
 
@@ -35,7 +34,6 @@ function passedSummary(output: string): string {
     registered.length === 0 ? '' : `${registered.join(' and ')} registered`,
     loadTime(RESULT_VIEW_LINE, output, 'result view'),
     loadTime(CONNECTION_FORM_LINE, output, 'connection form'),
-    loadTime(SEARCH_BOX_LINE, output, 'search box'),
   ]
   return parts.filter((part) => part !== '').join(' · ')
 }

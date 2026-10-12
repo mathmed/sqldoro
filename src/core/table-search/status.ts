@@ -1,18 +1,12 @@
 import type { FoundTables } from './found.ts'
 
-// Where finding a table stands, for the search box: the text as typed and what it found.
+// Where finding a table stands, for the box of Find Table in Explorer: the text as typed and what it
+// found.
 export interface SearchStatus {
   readonly text: string
   readonly matchCount: number
   readonly connectionCount: number
   readonly isLoading: boolean
-}
-
-export const IDLE_STATUS: SearchStatus = {
-  text: '',
-  matchCount: 0,
-  connectionCount: 0,
-  isLoading: false,
 }
 
 export function statusOf(text: string, found: FoundTables): SearchStatus {
@@ -24,19 +18,11 @@ function isSearching({ text }: SearchStatus): boolean {
   return text.trim() !== ''
 }
 
-// What shows inside the box, beside the text: how many tables and views match it.
-export function matchBadge(status: SearchStatus): string {
-  if (!isSearching(status) || status.connectionCount === 0) {
-    return ''
-  }
-  return status.matchCount === 0 && !status.isLoading ? 'No results' : String(status.matchCount)
-}
-
 function matchesText(count: number): string {
-  return count === 1 ? '1 table or view' : `${String(count)} tables and views`
+  return count === 1 ? '1 table or view matches' : `${String(count)} tables and views match`
 }
 
-// The line under the box: what to do, or why nothing shows.
+// The line under the box: how many tables and views match and what the keys do, or why none shows.
 export function statusLine(status: SearchStatus): string {
   if (status.connectionCount === 0) {
     return 'Connect to a connection to find its tables.'
@@ -54,7 +40,7 @@ function loadingLine(count: number): string {
 function foundLine(count: number): string {
   return count === 0
     ? 'No table or view matches.'
-    : `${matchesText(count)}: Enter opens the best match, ↓ goes to the tree.`
+    : `${matchesText(count)} · Enter opens the best match · Escape restores the tree`
 }
 
 // The line the explorer shows when nothing found is there to show.

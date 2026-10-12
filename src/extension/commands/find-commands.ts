@@ -7,9 +7,10 @@ import { CommandId } from '../command-id.ts'
 import { NodeKind } from '../tree/explorer-node.ts'
 import type { ConnectionObjects } from '../tree/table-index.ts'
 import { type CommandContext, registerAll } from './command-context.ts'
+import { TableFinder } from './table-finder.ts'
 
 // A table or view the quick pick of Go to Table offers. It filters them itself, with the matcher of
-// the search box: each one is always shown once it matches.
+// Find Table in Explorer: each one is always shown once it matches.
 interface TableItem extends vscode.QuickPickItem {
   readonly name: string
   readonly description: string
@@ -21,20 +22,15 @@ interface TableItem extends vscode.QuickPickItem {
 const NOTHING_CONNECTED =
   'Connect to a connection first: Go to Table lists the tables of the connected ones.'
 
-// Finding a table as the name is typed: the search box above the explorer, whose text shows only
-// the tables and views whose name matches it, opened down to them (Find Table in Explorer puts the focus
-// in it); or a quick pick of every table of the connected connections that opens the one chosen
-// (Go to Table).
+// Finding a table as the name is typed: an input box whose text shows in the explorer only the
+// tables and views whose name matches it, opened down to them (Find Table in Explorer); or a quick
+// pick of every table of the connected connections that opens the one chosen (Go to Table).
 export function registerFindCommands(context: CommandContext): vscode.Disposable[] {
+  const finder = new TableFinder(context)
   return registerAll(context, [
-    { id: CommandId.FindTable, action: 'Find Table in Explorer', run: findTable },
+    { id: CommandId.FindTable, action: 'Find Table in Explorer', run: async () => finder.find() },
     { id: CommandId.GoToTable, action: 'Go to Table', run: goToTable },
   ])
-}
-
-// True once the box has the focus.
-async function findTable(context: CommandContext): Promise<boolean> {
-  return context.tableSearch.focus()
 }
 
 async function goToTable(context: CommandContext): Promise<void> {

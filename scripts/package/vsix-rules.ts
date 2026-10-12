@@ -10,7 +10,7 @@ const ENGINE_GLYPHS: readonly string[] = ['mysql', 'postgres'].flatMap((engine) 
 )
 
 // What sqldoro's .vsix holds: what vsce writes (the manifests, the readme, the changelog and the
-// license), the bundles (the extension and its three webviews), the notices of the bundled
+// license), the bundles (the extension and its two webviews), the notices of the bundled
 // libraries and the media. .vscodeignore lists the same files: this check fails when the package
 // and the list part ways.
 export const VSIX_FILES: readonly string[] = [
@@ -26,8 +26,6 @@ export const VSIX_FILES: readonly string[] = [
   'extension/dist/webview/results.css',
   'extension/dist/webview/connection-form.js',
   'extension/dist/webview/connection-form.css',
-  'extension/dist/webview/table-search.js',
-  'extension/dist/webview/table-search.css',
   'extension/media/icon.png',
   'extension/media/sqldoro.svg',
   ...ENGINE_GLYPHS,

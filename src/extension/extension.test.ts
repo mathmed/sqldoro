@@ -4,7 +4,7 @@ import * as vscode from 'vscode'
 import manifest from '../../package.json' with { type: 'json' }
 import { FakeMemento, FakeSecretStorage } from '../../test/fakes/extension-context.ts'
 import { formPanels, fromForm, openForm, sentToForm } from '../../test/support/forms.ts'
-import { outputChannels, resetVscode, treeViews, webviewViews, window } from '../../test/vscode.ts'
+import { outputChannels, resetVscode, treeViews, window } from '../../test/vscode.ts'
 import { CommandId, ViewId } from './command-id.ts'
 import { activate, deactivate } from './extension.ts'
 import type { ExplorerProvider } from './tree/explorer-provider.ts'
@@ -119,16 +119,6 @@ describe('activate', () => {
     await vscode.commands.executeCommand(CommandId.DuplicateConnection, 'shop')
 
     expect(fired).toHaveBeenCalledWith(undefined)
-  })
-
-  it('should show the search box above the Connections view', async () => {
-    activateIn(vscode.ExtensionMode.Production)
-
-    await vscode.commands.executeCommand(`${ViewId.TableSearch}.focus`)
-
-    expect(webviewViews.get(ViewId.TableSearch)?.webview.html).toContain(
-      'webview:/extension/dist/webview/table-search.js',
-    )
   })
 
   it('should remember what the user opens and closes in the explorer', async () => {

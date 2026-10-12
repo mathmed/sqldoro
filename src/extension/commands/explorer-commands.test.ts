@@ -110,6 +110,14 @@ describe('Filter', () => {
     expect(harness.context.explorer.filter).toBe('orders')
   })
 
+  it('should empty the text of Find Table in Explorer', async () => {
+    harness.context.explorer.setFind('ord')
+
+    await vscode.commands.executeCommand(CommandId.ClearFilter)
+
+    expect(harness.context.explorer.find).toBe('')
+  })
+
   it('should clear the filter', async () => {
     answerInputs('orders')
     await vscode.commands.executeCommand(CommandId.Filter)

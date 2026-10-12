@@ -162,27 +162,21 @@ async function probeTransactionStatus(): Promise<void> {
   report(`transaction status: ${manual} -> ${auto}`)
 }
 
-// Go to Table opens a picker over the connected connections (none here) and ends once it closes.
-// Find Table in Explorer puts the focus in the search box above the explorer, a third React bundle
-// in a webview view: it answers true once the box runs under its Content Security Policy.
+// Go to Table and Find Table in Explorer open a picker over the connected connections (none here);
+// each command ends once its picker closes.
 async function probeFindingTables(): Promise<void> {
-  const running = vscode.commands.executeCommand(CommandId.GoToTable)
-  await delay(PICKER_SHOW_MS)
-  await vscode.commands.executeCommand('workbench.action.closeQuickOpen')
-  await Promise.race([
-    running,
-    delay(PICKER_END_MS).then(() => {
-      throw new Error(`${CommandId.GoToTable} did not end once its picker closed`)
-    }),
-  ])
-  report(`${CommandId.GoToTable} opened and closed its picker`)
-  const started = performance.now()
-  const isFocused = await vscode.commands.executeCommand(CommandId.FindTable)
-  if (isFocused !== true) {
-    throw new Error(`${CommandId.FindTable} did not put the focus in the search box`)
+  for (const command of [CommandId.GoToTable, CommandId.FindTable]) {
+    const running = vscode.commands.executeCommand(command)
+    await delay(PICKER_SHOW_MS)
+    await vscode.commands.executeCommand('workbench.action.closeQuickOpen')
+    await Promise.race([
+      running,
+      delay(PICKER_END_MS).then(() => {
+        throw new Error(`${command} did not end once its picker closed`)
+      }),
+    ])
   }
-  const seconds = (performance.now() - started) / MILLISECONDS_PER_SECOND
-  report(`search box loaded in ${seconds.toFixed(3)}s`)
+  report(`${CommandId.GoToTable} and ${CommandId.FindTable} opened and closed their pickers`)
 }
 
 async function delay(milliseconds: number): Promise<void> {

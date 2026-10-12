@@ -13,7 +13,6 @@ import { ConnectionForms } from './form/connection-forms.ts'
 import { registerHelpCommands } from './help/help-commands.ts'
 import { registerQueryFeatures } from './query-features.ts'
 import { createQueryServices, type WorkbenchContext } from './query-services.ts'
-import { TableSearchView } from './search/table-search-view.ts'
 import { createServices, type Services, type StorageContext } from './services.ts'
 import type { SessionManager } from './sessions/session-manager.ts'
 import { readSettings } from './settings.ts'
@@ -62,9 +61,9 @@ function registerConnections(
   services: Services,
   log: vscode.LogOutputChannel,
 ): vscode.Disposable[] {
-  const { tableSearch, setViewMessage, disposables } = explorerViews(extensionUri, services, log)
+  const { setViewMessage, disposables } = explorerViews(services)
   const forms = createForms(extensionUri, services, log)
-  const commandContext = { ...services, log, forms, tableSearch, setViewMessage }
+  const commandContext = { ...services, log, forms, setViewMessage }
   return [
     ...disposables,
     forms,
@@ -82,32 +81,19 @@ function registerConnections(
 }
 
 interface ExplorerViews {
-  readonly tableSearch: TableSearchView
   // Shows a line above the Connections view.
   readonly setViewMessage: (message: string) => void
   readonly disposables: readonly vscode.Disposable[]
 }
 
-// The Connections view and the search box above it.
-function explorerViews(
-  extensionUri: vscode.Uri,
-  services: Services,
-  log: vscode.LogOutputChannel,
-): ExplorerViews {
+// The Connections view, which remembers what the user opens and closes in it.
+function explorerViews(services: Services): ExplorerViews {
   const view = connectionsView(services)
-  const { explorer } = services
-  const tableSearch = new TableSearchView({ extensionUri, explorer, tree: view, log })
   return {
-    tableSearch,
     setViewMessage: (message) => {
       view.message = message
     },
-    disposables: [
-      view,
-      tableSearch,
-      vscode.window.registerWebviewViewProvider(ViewId.TableSearch, tableSearch),
-      ...followExpansion(view, explorer),
-    ],
+    disposables: [view, ...followExpansion(view, services.explorer)],
   }
 }
 
