@@ -20,6 +20,17 @@ const LABEL_LENGTH = 80
 const MINUTES_LENGTH = 16
 const WHITESPACE = /\s+/g
 
+// A statement of the view, as the commands of its menus get it.
+export function isHistoryEntryNode(value: unknown): value is { readonly entry: HistoryEntry } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    value.kind === HistoryNodeKind.Entry &&
+    'entry' in value
+  )
+}
+
 // "SELECT * FROM orders WHERE ..." on one line.
 export function entryLabel(entry: HistoryEntry): string {
   const line = entry.sql.replaceAll(WHITESPACE, ' ').trim()

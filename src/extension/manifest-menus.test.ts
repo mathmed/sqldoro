@@ -54,3 +54,38 @@ describe('the Connections title bar', () => {
     expect(hidden).not.toContain(CommandId.Filter)
   })
 })
+
+describe('saving queries from the menus', () => {
+  const editorTitle: readonly MenuEntry[] = manifest.contributes.menus['editor/title']
+  const editorContext: readonly MenuEntry[] = manifest.contributes.menus['editor/context']
+  const items: readonly MenuEntry[] = manifest.contributes.menus['view/item/context']
+  const linked = `editorLangId == sql && ${ContextKey.IsSavedQueryEditor}`
+
+  it('should show Save Query last in the title bar of every SQL editor', () => {
+    const sut = editorTitle.toSorted((left, right) => positionOf(left) - positionOf(right)).at(-1)
+
+    expect(sut).toStrictEqual({
+      command: CommandId.SaveQuery,
+      when: 'editorLangId == sql',
+      group: 'navigation@5',
+    })
+  })
+
+  it('should offer Save Query As beside Save Query only in the editor of a saved query', () => {
+    const sut = editorContext.map(({ command }) => command)
+
+    expect(sut.indexOf(CommandId.SaveQueryAs)).toBe(sut.indexOf(CommandId.SaveQuery) + 1)
+    expect(editorContext.find(({ command }) => command === CommandId.SaveQueryAs)?.when).toBe(
+      linked,
+    )
+    expect(PALETTE.find(({ command }) => command === CommandId.SaveQueryAs)?.when).toBe(linked)
+  })
+
+  it('should save a statement of the query history', () => {
+    const sut = items.filter(({ command }) => command === CommandId.SaveQuery)
+
+    expect(sut.map(({ when }) => when)).toStrictEqual([
+      `view == ${ViewId.History} && viewItem == historyEntry`,
+    ])
+  })
+})

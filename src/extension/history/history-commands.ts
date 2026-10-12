@@ -12,7 +12,7 @@ import { openQueryEditor } from '../editor/open-editor.ts'
 import type { QueryRunner } from '../editor/query-runner.ts'
 import { askChoice, askText } from '../form/prompts.ts'
 import type { HistoryStore } from './history-store.ts'
-import { entryLabel, entryTime, HistoryNodeKind } from './history-view.ts'
+import { entryLabel, entryTime, HistoryNodeKind, isHistoryEntryNode } from './history-view.ts'
 
 export interface HistoryCommandContext {
   readonly history: HistoryStore
@@ -66,19 +66,9 @@ async function actOn(
   }
 }
 
-function isEntryNode(value: unknown): value is { readonly entry: HistoryEntry } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'kind' in value &&
-    value.kind === HistoryNodeKind.Entry &&
-    'entry' in value
-  )
-}
-
 // The entry as stored now: a node of the view may be older than the last change.
 function entryOf(context: HistoryCommandContext, target: unknown): HistoryEntry | undefined {
-  return isEntryNode(target) ? context.history.find(target.entry.id) : undefined
+  return isHistoryEntryNode(target) ? context.history.find(target.entry.id) : undefined
 }
 
 // The statement goes back to an editor on its connection, database and schema, if they still exist.

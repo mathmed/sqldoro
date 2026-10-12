@@ -17,6 +17,7 @@ import type { Services } from './services.ts'
 import { ConnectionStatus } from './sessions/session-manager.ts'
 import { readSettings } from './settings.ts'
 import { registerSavedQueryCommands } from './snippets/saved-query-commands.ts'
+import { followSavedQueryLinks } from './snippets/saved-query-links.ts'
 import { registerTableDataCommands } from './tables/table-data.ts'
 import { followTablePanels } from './tables/table-panels.ts'
 import { watchClosedEditors } from './transactions/closed-editors.ts'
@@ -69,7 +70,7 @@ function followSelection(base: Services, query: QueryServices): vscode.Disposabl
 
 function disposablesOf(query: QueryServices): vscode.Disposable[] {
   const { bindings, editorSessions, transactions, panels, runner, history, historyView } = query
-  const { savedQueries, savedQueryView, ddl, diagnostics, status, transactionStatus } = query
+  const { savedQueries, savedQueryLinks, savedQueryView, ddl, diagnostics, status } = query
   return [
     bindings,
     editorSessions,
@@ -79,11 +80,12 @@ function disposablesOf(query: QueryServices): vscode.Disposable[] {
     history,
     historyView,
     savedQueries,
+    savedQueryLinks,
     savedQueryView,
     ddl,
     diagnostics,
     status,
-    transactionStatus,
+    query.transactionStatus,
     query.decorations,
   ]
 }
@@ -91,6 +93,7 @@ function disposablesOf(query: QueryServices): vscode.Disposable[] {
 function registerCommands(base: Services, query: QueryServices, log: Logger): vscode.Disposable[] {
   const connections = (id: string): ReturnType<Services['store']['find']> => base.store.find(id)
   const { runner, bindings, transactions, panels, history, savedQueries, ddl, pickBinding } = query
+  const links = query.savedQueryLinks
   return [
     ...registerEditorCommands({
       runner,
@@ -106,11 +109,13 @@ function registerCommands(base: Services, query: QueryServices, log: Logger): vs
     ...registerHistoryCommands({ history, bindings, runner, connections, log }),
     ...registerSavedQueryCommands({
       store: savedQueries,
+      links,
       bindings,
       clock: systemClock,
       createId: randomUUID,
       log,
     }),
+    ...followSavedQueryLinks(links, savedQueries),
     ...registerDdlCommands({ ddl, log }),
   ]
 }
