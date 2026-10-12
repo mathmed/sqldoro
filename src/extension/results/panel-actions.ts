@@ -1,7 +1,8 @@
 import type { EditPlan } from '../../core/edits/plan.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import type { ExportFormat } from '../../core/results/export-format.ts'
-import type { CellBlock, NavigationStart } from '../../core/results/protocol.ts'
+import type { NavigationStart } from '../../core/results/protocol-parts.ts'
+import type { CellBlock } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import type { PeekView } from '../../core/results/tab-meta.ts'
 import type { ViewSpec } from '../../core/results/view.ts'
@@ -51,6 +52,12 @@ export interface PanelActions {
   readonly allowWrites: () => Promise<void>
   // Opens the statement of a table panel in an SQL editor.
   readonly openInEditor: (tab: ResultSet) => Promise<void>
+  // Runs the text of the query box of a table panel in place of its rows, through the guards.
+  readonly runQuery: (sql: string) => Promise<void>
+  // Opens the text of the query box of a table panel in a new SQL editor.
+  readonly openSqlInEditor: (sql: string) => Promise<void>
+  // Keeps the height the user gave the query box, for the table panels of the workspace.
+  readonly setQueryHeight: (height: number) => Promise<void>
 }
 
 interface LinkRequest {

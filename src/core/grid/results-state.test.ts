@@ -10,6 +10,13 @@ const SECOND = resultTab({ id: 'b' })
 const THIRD = resultTab({ id: 'c' })
 
 describe('reduceResults', () => {
+  it('should keep what the query box of a table panel works with', () => {
+    expect(
+      reduceResults(EMPTY_RESULTS, { type: 'queryBox', tables: ['orders'], height: 120 }),
+    ).toStrictEqual({ ...EMPTY_RESULTS, queryBox: { tables: ['orders'], height: 120 } })
+    expect(EMPTY_RESULTS.queryBox).toStrictEqual({ tables: [], height: null })
+  })
+
   it('should replace the tabs with a run, in front the one the host says or the last', () => {
     expect(
       reduceResults(EMPTY_RESULTS, { type: 'tabs', tabs: [FIRST, SECOND], activeTabId: 'a' }),
@@ -75,7 +82,7 @@ describe('reduceResults', () => {
   })
 
   it('should keep the trail of a table panel and how the SQL is written', () => {
-    const crumbs = [{ id: 0, label: 'orders', isCurrent: true }]
+    const crumbs = [{ id: 0, label: 'orders', isCurrent: true, isQuery: false }]
     const lexical = { ...EMPTY_LEXICAL }
 
     expect(reduceResults(EMPTY_RESULTS, { type: 'trail', crumbs })).toStrictEqual({

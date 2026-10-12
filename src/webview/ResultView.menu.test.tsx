@@ -5,6 +5,9 @@ import { cellAt, theGrid } from '../../test/webview/grid.ts'
 import { shownView, type ShownView } from '../../test/webview/result-view.ts'
 import type { ReferenceCountsMessage, ResultTab } from '../core/results/protocol.ts'
 
+// A table panel: its tabs have a query box.
+const TABLE_BOX = { sql: 'SELECT * FROM orders', isCustom: false }
+
 const LINKED: Partial<ResultTab> = {
   meta: [
     { choices: [], reference: '' },
@@ -54,7 +57,7 @@ function referenceItem(index: number): HTMLElement {
 
 describe('the menu of a cell', () => {
   it('should offer the link of the cell, the references of its row, copy and its whole value', () => {
-    linked({ canRefresh: true })
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
 
     fireEvent.contextMenu(cellAt(0, 1), { clientX: 30, clientY: 40 })
 
@@ -148,7 +151,7 @@ describe('the rows that reference a row', () => {
   })
 
   it('should open the rows of a referencing table, here in a table panel', () => {
-    linked({ canRefresh: true })
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
     fireEvent.contextMenu(cellAt(0, 1))
     pick('Rows That Reference This Row…')
 

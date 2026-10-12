@@ -24,6 +24,7 @@ import { ResultsPanels } from '../../src/extension/results/results-panels.ts'
 import { sourceTitle } from '../../src/extension/results/source-title.ts'
 import { StatementGuard } from '../../src/extension/safety/statement-guard.ts'
 import { ColumnLayouts } from '../../src/extension/tables/column-layouts.ts'
+import { QueryBoxHeight } from '../../src/extension/tables/query-box-height.ts'
 import { TableNavigations } from '../../src/extension/tables/table-navigations.ts'
 import { tableTargetOf } from '../../src/extension/tables/table-uri.ts'
 import { EditorTransactions } from '../../src/extension/transactions/editor-transactions.ts'
@@ -222,6 +223,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     panels,
     navigations,
     layouts: new ColumnLayouts(new FakeMemento(), log),
+    queryHeight: new QueryBoxHeight(new FakeMemento()),
     metadata,
     peeks: new PeekCache(),
     bindings,
@@ -236,13 +238,7 @@ export function queryHarness(options: HarnessOptions = {}): QueryHarness {
     policy: () => policy,
     log,
   }
-  const wiring: PanelWiring = {
-    runner,
-    transactions,
-    editorSessions,
-    tables,
-    policy: () => policy,
-  }
+  const wiring: PanelWiring = { runner, transactions, editorSessions, tables, policy: () => policy }
   return {
     tables,
     tabIds,

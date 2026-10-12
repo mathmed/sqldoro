@@ -23,8 +23,8 @@ describe('parseHostMessage, beside the tabs', () => {
 
   it('should read the trail of a table panel', () => {
     const crumbs = [
-      { id: 0, label: 'condominium #1', isCurrent: false },
-      { id: 3, label: 'account (condominium_id = 1)', isCurrent: true },
+      { id: 0, label: 'condominium #1', isCurrent: false, isQuery: false },
+      { id: 3, label: 'account (condominium_id = 1)', isCurrent: true, isQuery: false },
     ]
 
     expect(parseHostMessage({ type: 'trail', crumbs })).toStrictEqual({ type: 'trail', crumbs })
@@ -89,7 +89,7 @@ describe('parseHostMessage, beside the tabs', () => {
     ],
     [{ type: 'tab', tab: { ...resultTab(), layout: { order: [] } } }, '"hidden" must be a list'],
     [
-      { type: 'trail', crumbs: [{ id: 'a', label: '', isCurrent: true }] },
+      { type: 'trail', crumbs: [{ id: 'a', label: '', isCurrent: true, isQuery: false }] },
       '"id" must be a whole number of 0 or more',
     ],
     [

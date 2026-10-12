@@ -16,6 +16,11 @@ any column, select cells with the mouse, the keyboard or the row numbers, copy t
 export the result to CSV, JSON or SQL from the toolbar. **Columns** chooses the columns shown and
 their order.
 
+Click a table in the explorer to open its rows in a panel of their own, and type a condition in its
+**WHERE**. The expand button beside it (`Ctrl+Shift+E`, `Cmd+Shift+E`) shows the whole query above the
+rows, in a box where you edit and run it in place (`Ctrl+Enter`): a `JOIN`, other columns, another
+sort. Its result replaces the rows, and **Back** returns to them.
+
 A cell whose column is in a foreign key is a link: `Ctrl+click` (`Cmd+click`) opens the row it points
 at, resting on its arrow peeks at it, and the menu of a cell lists the rows of other tables that
 reference its row. In the panel of a table, `Alt+click` opens the row in place and the breadcrumbs

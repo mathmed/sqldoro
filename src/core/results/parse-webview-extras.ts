@@ -2,7 +2,8 @@
 // host for what only it can do.
 import { type JsonRecord, readBoolean, readCount, readString } from '../json/record.ts'
 import { readLayout } from './parse-host-extras.ts'
-import { type NavigationStart, type WebviewMessage, WebviewMessageType } from './protocol.ts'
+import type { NavigationStart } from './protocol-parts.ts'
+import { MAX_QUERY_HEIGHT, type WebviewMessage, WebviewMessageType } from './protocol.ts'
 
 type Reader = (message: JsonRecord) => WebviewMessage
 
@@ -78,6 +79,22 @@ function readFetchDistinct(message: JsonRecord): WebviewMessage {
   }
 }
 
+function readRunQuery(message: JsonRecord): WebviewMessage {
+  return { type: WebviewMessageType.RunQuery, sql: readString(message, 'sql') }
+}
+
+function readOpenSqlInEditor(message: JsonRecord): WebviewMessage {
+  return { type: WebviewMessageType.OpenSqlInEditor, sql: readString(message, 'sql') }
+}
+
+function readSetQueryHeight(message: JsonRecord): WebviewMessage {
+  const height = readCount(message, 'height')
+  if (height > MAX_QUERY_HEIGHT) {
+    throw new TypeError(`"height" must be at most ${String(MAX_QUERY_HEIGHT)}`)
+  }
+  return { type: WebviewMessageType.SetQueryHeight, height }
+}
+
 export const WEBVIEW_EXTRA_READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [WebviewMessageType.SetLayout, readSetLayout],
   [WebviewMessageType.Navigate, readNavigate],
@@ -88,4 +105,7 @@ export const WEBVIEW_EXTRA_READERS: ReadonlyMap<string, Reader> = new Map<string
   [WebviewMessageType.AllowWrites, readAllowWrites],
   [WebviewMessageType.OpenInEditor, readOpenInEditor],
   [WebviewMessageType.FetchDistinct, readFetchDistinct],
+  [WebviewMessageType.RunQuery, readRunQuery],
+  [WebviewMessageType.OpenSqlInEditor, readOpenSqlInEditor],
+  [WebviewMessageType.SetQueryHeight, readSetQueryHeight],
 ])

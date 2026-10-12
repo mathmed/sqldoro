@@ -3,7 +3,8 @@
 import { act, render, screen } from '@testing-library/react'
 import { createElement, type ReactElement } from 'react'
 
-import type { CellMessage, PanelConnection, ResultTab } from '../../src/core/results/protocol.ts'
+import type { PanelConnection } from '../../src/core/results/protocol-parts.ts'
+import type { CellMessage, ResultTab } from '../../src/core/results/protocol.ts'
 import type { TabEditing } from '../../src/core/results/tab-editing.ts'
 import { NO_ANSWERS } from '../../src/webview/host-answers.ts'
 import { ResultView } from '../../src/webview/ResultView.tsx'
@@ -44,6 +45,7 @@ export function editingView(shown: Shown = {}): EditingView {
         step: null,
         scrolls: new Map(),
         indicator,
+        queryMode: { isOn: false, toggle: () => undefined },
       },
       hasTabs: false,
     })

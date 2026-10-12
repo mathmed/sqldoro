@@ -9,12 +9,14 @@ import {
   readCount,
   readList,
   readNested,
+  readNullable,
   readString,
   readStrings,
 } from '../json/record.ts'
 import type { Crumb } from '../navigation/history.ts'
 import type { LexicalRules } from '../sql/lexical-rules.ts'
 import { readCells } from './parse-common.ts'
+import type { QueryBoxText } from './protocol-parts.ts'
 import { type HostMessage, HostMessageType } from './protocol.ts'
 import type { ColumnMeta, PeekView, RowReference } from './tab-meta.ts'
 
@@ -40,6 +42,7 @@ function readCrumb(crumb: JsonRecord): Crumb {
     id: readCount(crumb, 'id'),
     label: readString(crumb, 'label'),
     isCurrent: readBoolean(crumb, 'isCurrent'),
+    isQuery: readBoolean(crumb, 'isQuery'),
   }
 }
 
@@ -106,5 +109,18 @@ function readLexicalRules(rules: JsonRecord): LexicalRules {
     hasNestedComments: readBoolean(rules, 'hasNestedComments'),
     hasExecutableComments: readBoolean(rules, 'hasExecutableComments'),
     hasLowerCaseFolding: readBoolean(rules, 'hasLowerCaseFolding'),
+  }
+}
+
+export function readQueryBoxText(record: JsonRecord, key: string): QueryBoxText {
+  const box = readNested(record, key)
+  return { sql: readString(box, 'sql'), isCustom: readBoolean(box, 'isCustom') }
+}
+
+export function readQueryBox(message: JsonRecord): HostMessage {
+  return {
+    type: HostMessageType.QueryBox,
+    tables: readStrings(message, 'tables'),
+    height: readNullable(message, 'height', readCount),
   }
 }

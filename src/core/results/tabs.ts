@@ -1,4 +1,5 @@
-import { type ResultTab, TabKind, TabStatus, type TabSummary } from './protocol.ts'
+import type { TabSummary } from './protocol-parts.ts'
+import { type ResultTab, TabKind, TabStatus } from './protocol.ts'
 
 const WHITESPACE = /\s+/g
 const TITLE_LENGTH = 60
@@ -35,11 +36,18 @@ export function formatDuration(milliseconds: number): string {
 
 // What the status line of a finished tab says: rows returned or changed, and the time it took.
 export function summaryText(summary: TabSummary, rowCount: number): string {
-  const rows =
-    summary.affectedRows === null
-      ? plural(rowCount, 'row', 'rows')
-      : plural(summary.affectedRows, 'row affected', 'rows affected')
-  return `${rows}${limitText(summary)} in ${formatDuration(summary.durationMs)}`
+  return `${rowsText(summary, rowCount)}${limitText(summary)} in ${formatDuration(summary.durationMs)}`
+}
+
+// What the query box says of the statement it ran: what it cost, and its rows.
+export function costText(summary: TabSummary, rowCount: number): string {
+  return `Cost: ${formatDuration(summary.durationMs)} · ${rowsText(summary, rowCount)}`
+}
+
+function rowsText(summary: TabSummary, rowCount: number): string {
+  return summary.affectedRows === null
+    ? plural(rowCount, 'row', 'rows')
+    : plural(summary.affectedRows, 'row affected', 'rows affected')
 }
 
 function limitText(summary: TabSummary): string {

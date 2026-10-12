@@ -26,5 +26,8 @@ export function fakePanelActions(): FakePanelActions {
     goToStep: vi.fn(),
     allowWrites: vi.fn(),
     openInEditor: vi.fn(),
+    runQuery: vi.fn(),
+    openSqlInEditor: vi.fn(),
+    setQueryHeight: vi.fn(),
   }
 }

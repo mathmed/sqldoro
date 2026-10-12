@@ -1,7 +1,7 @@
 import { type ConnectionConfig, EnvironmentTag } from '../connection/connection.ts'
 import { connectionTint } from '../connection/labels.ts'
 import { type GuardPolicy, isProduction } from '../safety/guard.ts'
-import type { PanelConnection } from './protocol.ts'
+import type { PanelConnection } from './protocol-parts.ts'
 
 const SEPARATOR = ' · '
 

@@ -6,6 +6,7 @@ import { needsQuoting } from './suggestions.ts'
 
 export const WhereSuggestionKind = {
   Column: 'column',
+  Table: 'table',
   Keyword: 'keyword',
   Operator: 'operator',
   Value: 'value',
@@ -27,10 +28,11 @@ export interface WhereCompletion {
   readonly suggestions: readonly WhereSuggestion[]
 }
 
-// What the WHERE of a table panel knows: the columns of the table, the values of its enum columns,
-// and the keywords of the dialect.
+// What the WHERE (and the query box) of a table panel knows: the columns of the table, the values of
+// its enum columns, the tables of its schema (for the query box) and the keywords of the dialect.
 export interface WhereSource {
   readonly columns: readonly string[]
+  readonly tables: readonly string[]
   readonly choices: ReadonlyMap<string, readonly string[]>
   readonly keywords: readonly string[]
   readonly dialect: Pick<Dialect, 'identifierQuote' | 'lexical'>
@@ -191,19 +193,30 @@ function operatorSuggestions(): WhereSuggestion[] {
 }
 
 function nameSuggestions(source: WhereSource): WhereSuggestion[] {
-  const columns = source.columns.map((column) => ({
-    label: column,
-    kind: WhereSuggestionKind.Column,
-    insertText: needsQuoting(column, source.dialect)
-      ? quoteIdentifier(source.dialect, column)
-      : column,
-  }))
+  const columns = source.columns.map((column) =>
+    nameSuggestion(column, WhereSuggestionKind.Column, source),
+  )
+  const tables = source.tables.map((table) =>
+    nameSuggestion(table, WhereSuggestionKind.Table, source),
+  )
   const keywords = [...new Set([...WHERE_KEYWORDS, ...source.keywords])].map((keyword) => ({
     label: keyword,
     kind: WhereSuggestionKind.Keyword,
     insertText: keyword,
   }))
-  return [...columns, ...keywords]
+  return [...columns, ...tables, ...keywords]
+}
+
+function nameSuggestion(
+  name: string,
+  kind: WhereSuggestionKind,
+  { dialect }: WhereSource,
+): WhereSuggestion {
+  return {
+    label: name,
+    kind,
+    insertText: needsQuoting(name, dialect) ? quoteIdentifier(dialect, name) : name,
+  }
 }
 
 // What was typed starts the suggestion, without case; an empty prefix takes them all.

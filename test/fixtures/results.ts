@@ -38,6 +38,7 @@ export function resultTab(changes: Partial<ResultTab> = {}): ResultTab {
     notice: '',
     plan: [],
     editing: NOT_EDITING,
+    queryBox: null,
     ...changes,
   }
 }

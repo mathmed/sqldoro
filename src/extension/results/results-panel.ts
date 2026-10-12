@@ -6,10 +6,11 @@ import type { Crumb } from '../../core/navigation/history.ts'
 import type { Logger } from '../../core/platform.ts'
 import { panelConnection, panelTitle } from '../../core/results/panel-connection.ts'
 import { parseWebviewMessage } from '../../core/results/parse-webview-message.ts'
+import type { PanelConnection } from '../../core/results/protocol-parts.ts'
 import {
   type HostMessage,
   HostMessageType,
-  type PanelConnection,
+  type QueryBoxMessage,
   type WebviewMessage,
 } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
@@ -39,6 +40,7 @@ export class ResultsPanel {
   #connectionId: string | undefined
   #connection: PanelConnection | undefined
   #crumbs: readonly Crumb[] = []
+  #queryBox: QueryBoxMessage | undefined
   #activeTabId: string | null = null
   #isReady = false
   readonly #readiness = Promise.withResolvers<undefined>()
@@ -118,6 +120,12 @@ export class ResultsPanel {
     this.#post({ type: HostMessageType.Trail, crumbs })
   }
 
+  // What the query box of a table panel works with: the view gets it now, and again when it loads.
+  offerQueryBox(box: Omit<QueryBoxMessage, 'type'>): void {
+    this.#queryBox = { type: HostMessageType.QueryBox, ...box }
+    this.#post(this.#queryBox)
+  }
+
   addTab(tab: ResultSet): void {
     this.#tabs.set(tab.id, tab)
     this.#activeTabId = tab.id
@@ -185,6 +193,9 @@ export class ResultsPanel {
     }
     this.#postSql()
     this.#post({ type: HostMessageType.Trail, crumbs: this.#crumbs })
+    if (this.#queryBox !== undefined) {
+      this.#post(this.#queryBox)
+    }
     const tabs = [...this.#tabs.values()].map((tab) => tab.toTab())
     this.#post({ type: HostMessageType.Tabs, tabs, activeTabId: this.#activeTabId })
   }

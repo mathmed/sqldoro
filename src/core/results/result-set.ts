@@ -2,16 +2,16 @@ import type { RowSource } from '../edits/edit-targets.ts'
 import { TabEditor } from '../edits/tab-editor.ts'
 import type { CellValue, QueryValue, ResultColumn, Row } from '../engine/query.ts'
 import { type ColumnLayout, DEFAULT_LAYOUT, shownColumns } from '../grid/column-layout.ts'
+import type { TabError, TabSummary } from './protocol-parts.ts'
 import {
   type CellBlock,
   type ResultTab,
-  type TabError,
   TabKind,
   TabProgress,
   TabStatus,
-  type TabSummary,
   type WireRow,
 } from './protocol.ts'
+import { type BoxSource, queryBoxText } from './query-box.ts'
 import { NO_META, type ResultMeta } from './result-meta.ts'
 import {
   type DistinctValues,
@@ -68,6 +68,7 @@ export class ResultSet implements RowSource {
   #error: TabError | null = null
   #notice = ''
   #plan: readonly string[] = []
+  #box: BoxSource | null = null
 
   constructor(spec: ResultSetSpec) {
     this.#spec = spec
@@ -157,6 +158,12 @@ export class ResultSet implements RowSource {
 
   setLayout(layout: ColumnLayout): void {
     this.#layout = layout
+  }
+
+  // What the query box of a table panel shows with the tab: what its rows are read with, or the
+  // query the user ran from the box.
+  showInBox(source: BoxSource): void {
+    this.#box = source
   }
 
   addRows(rows: readonly Row[]): void {
@@ -325,7 +332,14 @@ export class ResultSet implements RowSource {
       notice: this.#notice,
       plan: this.#plan,
       editing: this.editor.toWire(this),
+      queryBox: this.#boxText(),
     }
+  }
+
+  #boxText(): ResultTab['queryBox'] {
+    const autoLimit = this.#summary?.autoLimit ?? null
+    const shape = { columns: this.#columns, layout: this.#layout, autoLimit }
+    return this.#box === null ? null : queryBoxText(this.#box, shape)
   }
 
   #progress(): TabProgress {

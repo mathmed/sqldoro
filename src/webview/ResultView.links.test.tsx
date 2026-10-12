@@ -6,6 +6,9 @@ import { shownView, type ShownView } from '../../test/webview/result-view.ts'
 import type { PeekMessage, ResultTab } from '../core/results/protocol.ts'
 import { PEEK_DELAY_MS } from './use-peek-hover.ts'
 
+// A table panel: its tabs have a query box.
+const TABLE_BOX = { sql: 'SELECT * FROM orders', isCustom: false }
+
 // The name of a row is a link to the person of that name; row 1 has none (NULL).
 const LINKED: Partial<ResultTab> = {
   meta: [
@@ -73,7 +76,7 @@ describe('the links of a result', () => {
     fireEvent.click(cellAt(0, 1), { altKey: true })
     expect(view.sent('navigate')).toStrictEqual([])
 
-    view.rerender({ changes: { ...LINKED, canRefresh: true } })
+    view.rerender({ changes: { ...LINKED, canRefresh: true, queryBox: TABLE_BOX } })
     fireEvent.click(cellAt(0, 1), { altKey: true })
 
     expect(view.sent('navigate')).toStrictEqual([navigation(0, true)])
@@ -125,11 +128,14 @@ describe('peeking at the row a link points at', () => {
   })
 
   it('should show a few columns of the row once the host sends it, and open it from there', () => {
-    linked({ canRefresh: true })
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
     fireEvent.mouseDown(cellAt(0, 1))
     fireEvent.keyDown(theGrid(), { key: 'Enter', altKey: true })
 
-    view.rerender({ changes: { ...LINKED, canRefresh: true }, answers: { peek: PEEK } })
+    view.rerender({
+      changes: { ...LINKED, canRefresh: true, queryBox: TABLE_BOX },
+      answers: { peek: PEEK },
+    })
     const popup = screen.getByRole('dialog', { name: 'Referenced row' })
     expect(popup.textContent).toBe('people #annnameannage42OpenOpen Here')
     fireEvent.click(within(popup).getByRole('button', { name: 'Open Here' }))

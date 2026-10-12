@@ -31,6 +31,7 @@ import { readSettings } from './settings.ts'
 import { SavedQueryStore } from './snippets/saved-query-store.ts'
 import { SavedQueryView } from './snippets/saved-query-view.ts'
 import { ColumnLayouts } from './tables/column-layouts.ts'
+import { QueryBoxHeight } from './tables/query-box-height.ts'
 import { TableNavigations } from './tables/table-navigations.ts'
 import { tableTargetOf } from './tables/table-uri.ts'
 import { EditorTransactions } from './transactions/editor-transactions.ts'
@@ -214,8 +215,8 @@ interface TableParts extends RunSources {
   readonly navigations: TableNavigations
 }
 
-// The table panels: their trails, the layouts of their columns, the rows they peeked at, and the
-// catalog of their connections, read on the session of the explorer.
+// The table panels: their trails, the layouts of their columns, the height of their query box, the
+// rows they peeked at, and the catalog of their connections, read on the session of the explorer.
 function createTables(context: WorkbenchContext, parts: TableParts): PanelWiring['tables'] {
   const { access, editors } = parts
   return {
@@ -223,6 +224,7 @@ function createTables(context: WorkbenchContext, parts: TableParts): PanelWiring
     panels: parts.panels,
     navigations: parts.navigations,
     layouts: new ColumnLayouts(context.workspaceState, access.log),
+    queryHeight: new QueryBoxHeight(context.workspaceState),
     metadata: parts.metadata,
     peeks: new PeekCache(),
     bindings: editors.bindings,

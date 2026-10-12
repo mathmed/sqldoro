@@ -35,7 +35,7 @@ beforeEach(() => {
 })
 
 describe('actionsOf an editor', () => {
-  it('should leave reading again, WHERE, layouts and opening in an editor to table panels', async () => {
+  it('should leave reading again, the WHERE, layouts and the query box to table panels', async () => {
     const editor = await sqlEditor(harness, 'SELECT 1')
     const sut = actionsOf(editor.document.uri as unknown as vscode.Uri, wiring)
 
@@ -43,9 +43,13 @@ describe('actionsOf an editor', () => {
     await sut.filterTable(tabOf(), 'id = 1')
     await sut.saveLayout(tabOf())
     await sut.openInEditor(tabOf())
+    await sut.runQuery('SELECT 2')
+    await sut.openSqlInEditor('SELECT 3')
+    await sut.setQueryHeight(200)
 
     expect(harness.engine.requests).toStrictEqual([])
     expect(documents).toHaveLength(1)
+    expect(harness.tables.queryHeight.get()).toBeNull()
   })
 
   it('should ask to allow writes on the connection of the editor, if it has one', async () => {

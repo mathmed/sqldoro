@@ -7,15 +7,18 @@ import type { QueryRunner } from '../editor/query-runner.ts'
 import type { TableMetadata } from '../metadata/table-metadata.ts'
 import type { ResultsPanels } from '../results/results-panels.ts'
 import type { ColumnLayouts } from './column-layouts.ts'
+import type { QueryBoxHeight } from './query-box-height.ts'
 import type { TableNavigations } from './table-navigations.ts'
 
 // What the table panels work with: the runner every read goes through, their panels and trails,
-// the layouts of their columns, and the catalog of their connections.
+// the layouts of their columns, the height of their query box, and the catalog of their
+// connections.
 export interface TableContext {
   readonly runner: QueryRunner
   readonly panels: ResultsPanels
   readonly navigations: TableNavigations
   readonly layouts: ColumnLayouts
+  readonly queryHeight: QueryBoxHeight
   readonly metadata: TableMetadata
   readonly connections: (id: string) => ConnectionConfig | undefined
   readonly engines: EngineRegistry

@@ -10,6 +10,7 @@ import {
 
 const SOURCE: WhereSource = {
   columns: ['id', 'status', 'Created At', 'kind'],
+  tables: [],
   choices: new Map([['status', ['open', 'closed', "it's"]]]),
   keywords: ['ILIKE', 'and'],
   dialect: POSTGRES_DIALECT,
@@ -33,6 +34,19 @@ describe('whereCompletion', () => {
       { label: 'AND', kind: WhereSuggestionKind.Keyword, insertText: 'AND' },
     ])
     expect(completion?.suggestions).toHaveLength(4 + WHERE_KEYWORDS.length + 2)
+  })
+
+  it('should offer the tables of the schema after the columns, quoted where they need it', () => {
+    const source = { ...SOURCE, tables: ['status_log', 'Order Lines'] }
+
+    expect(whereCompletion('SELECT * FROM stat', 18, source)?.suggestions).toStrictEqual([
+      { label: 'status', kind: WhereSuggestionKind.Column, insertText: 'status' },
+      { label: 'status_log', kind: WhereSuggestionKind.Table, insertText: 'status_log' },
+    ])
+    expect(labelsAt('JOIN Or', source)).toStrictEqual(['Order Lines', 'OR'])
+    expect(whereCompletion('JOIN Or', 7, source)?.suggestions.at(0)?.insertText).toBe(
+      '"Order Lines"',
+    )
   })
 
   it('should keep what starts like the word being typed, without case, and replace it', () => {

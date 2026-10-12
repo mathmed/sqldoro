@@ -10,7 +10,7 @@ import {
   withCurrent,
 } from '../../core/navigation/history.ts'
 import { linkAt, linkKey, referenceKey } from '../../core/navigation/links.ts'
-import type { NavigationStart } from '../../core/results/protocol.ts'
+import type { NavigationStart } from '../../core/results/protocol-parts.ts'
 import { rowLabel } from '../../core/results/result-meta.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import type { TableContext } from '../tables/table-context.ts'

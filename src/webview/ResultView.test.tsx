@@ -29,6 +29,7 @@ function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.El
         step: null,
         scrolls: new Map(),
         indicator,
+        queryMode: { isOn: false, toggle: () => undefined },
       }}
       hasTabs={false}
     />

@@ -130,8 +130,12 @@ export async function openGrid(
 
 // Opens a table of the server as the explorer does, and waits until the grid knows whether its rows
 // can be edited.
-export async function openTableGrid(target: EditorTarget, table: ObjectRef): Promise<GridEditor> {
-  const { base, query } = await wired(target, {})
+export async function openTableGrid(
+  target: EditorTarget,
+  table: ObjectRef,
+  changes: Partial<ConnectionConfig> = {},
+): Promise<GridEditor> {
+  const { base, query } = await wired(target, changes)
   registerTableDataCommands(query.tables)
   const node = { kind: 'table', connectionId: 'it', place: table }
   const opening = commands.executeCommand(CommandId.OpenTableData, node)

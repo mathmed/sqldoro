@@ -17,6 +17,9 @@ export interface TableStep {
   readonly columns: readonly string[]
   // The row the navigation left the step from, as people read it ("#1"); empty when not known.
   readonly departure: string
+  // The statement the user ran from the query box of the panel, which the step shows the result
+  // of in place of the rows of its table; empty for the rows of the table.
+  readonly query: string
 }
 
 export interface Navigation {
@@ -31,15 +34,19 @@ export interface Crumb {
   readonly id: number
   readonly label: string
   readonly isCurrent: boolean
+  // The step of a query run from the query box, not the rows of a table.
+  readonly isQuery: boolean
 }
 
 export type StepStart = Pick<TableStep, 'key' | 'table'>
 
 // Old steps go once the trail is this long: going back that far is the work of the explorer.
 export const MAX_STEPS = 30
+// How the trail names the step of a query run from the query box.
+const QUERY_LABEL = 'Query'
 
 function newStep(start: StepStart, id: number): TableStep {
-  return { ...start, id, condition: '', view: IDENTITY_VIEW, columns: [], departure: '' }
+  return { ...start, id, condition: '', view: IDENTITY_VIEW, columns: [], departure: '', query: '' }
 }
 
 export function startNavigation(start: StepStart): Navigation {
@@ -66,10 +73,10 @@ function stepAt(navigation: Navigation, index: number): TableStep {
   return step
 }
 
-// What the user did on the step shown: its WHERE, its view, the row left from.
+// What the user did on the step shown: its WHERE, its view, the row left from, its query.
 export function withCurrent(
   navigation: Navigation,
-  change: Partial<Pick<TableStep, 'columns' | 'condition' | 'departure' | 'view'>>,
+  change: Partial<Pick<TableStep, 'columns' | 'condition' | 'departure' | 'query' | 'view'>>,
 ): Navigation {
   return {
     ...navigation,
@@ -77,6 +84,21 @@ export function withCurrent(
       index === navigation.index ? { ...step, ...change } : step,
     ),
   }
+}
+
+export function isQueryStep(step: Pick<TableStep, 'query'>): boolean {
+  return step.query !== ''
+}
+
+// A query run from the query box: a step of its own after the step shown, on the same table, so
+// that Back returns to the rows it was run from. A query run from the step of a query takes its
+// place: the trail keeps one step per query box session, not one per run.
+export function withQuery(navigation: Navigation, query: string): Navigation {
+  const current = currentStep(navigation)
+  const moved = isQueryStep(current)
+    ? navigation
+    : pushStep(navigation, { table: current.table, key: undefined })
+  return withCurrent(moved, { query, departure: '' })
 }
 
 // The step `offset` steps away (-1 back, 1 forward); undefined past either end.
@@ -106,10 +128,13 @@ export function crumbsOf(navigation: Navigation): Crumb[] {
     id: step.id,
     label: stepLabel(step, home),
     isCurrent: index === navigation.index,
+    isQuery: isQueryStep(step),
   }))
 }
 
+// The step of a query is named as such: its text is in the query box.
 export function stepLabel(step: TableStep, home: ObjectRef): string {
+  const name = isQueryStep(step) ? QUERY_LABEL : tableLabel(step.table, home)
   const detail = step.key === undefined ? step.departure : keyText(step.key)
-  return [tableLabel(step.table, home), detail].filter((part) => part !== '').join(' ')
+  return [name, detail].filter((part) => part !== '').join(' ')
 }

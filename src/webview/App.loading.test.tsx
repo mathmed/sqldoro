@@ -127,8 +127,8 @@ describe('App, while a new run replaces the tabs', () => {
 
   it('should ask for the rows of a step of the trail from where its grid was scrolled', () => {
     const steps = [
-      { id: 1, label: 'orders', isCurrent: true },
-      { id: 2, label: 'customers', isCurrent: false },
+      { id: 1, label: 'orders', isCurrent: true, isQuery: false },
+      { id: 2, label: 'customers', isCurrent: false, isQuery: false },
     ]
     render(<App api={api} />)
     fromHost({ type: 'trail', crumbs: steps })

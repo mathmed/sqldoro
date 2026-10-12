@@ -7,6 +7,13 @@ import type { ColumnLayout } from '../grid/column-layout.ts'
 import type { Crumb } from '../navigation/history.ts'
 import type { LexicalRules } from '../sql/lexical-rules.ts'
 import type { ExportFormat } from './export-format.ts'
+import type {
+  NavigationStart,
+  PanelConnection,
+  QueryBoxText,
+  TabError,
+  TabSummary,
+} from './protocol-parts.ts'
 import type { TabEditing } from './tab-editing.ts'
 import type { ColumnMeta, PeekView, RowReference } from './tab-meta.ts'
 import type { ViewSpec } from './view.ts'
@@ -38,33 +45,6 @@ export const TabProgress = {
 } as const
 
 export type TabProgress = (typeof TabProgress)[keyof typeof TabProgress]
-
-export interface TabSummary {
-  readonly durationMs: number
-  readonly affectedRows: number | null
-  // More rows than the row limit: the rest were not kept.
-  readonly isTruncated: boolean
-  // The limit sqldoro gave a query that had none (the automatic LIMIT), or null.
-  readonly autoLimit: number | null
-}
-
-// The connection of the editor, as the result view shows it above the tabs.
-export interface PanelConnection {
-  readonly name: string
-  // The environment tag (prod, staging...), empty when the connection has none.
-  readonly environment: string
-  readonly isProduction: boolean
-  readonly isReadOnly: boolean
-  // The theme color of its badge (charts.blue), empty for none; production is red whatever it is.
-  readonly color: string
-}
-
-// The server's message, and the place in the editor it points at (1-based) when it gave one.
-export interface TabError {
-  readonly message: string
-  readonly line: number | null
-  readonly column: number | null
-}
 
 // One statement of a run. Rows are not part of it: the webview asks for the ones it shows.
 export interface ResultTab {
@@ -101,6 +81,8 @@ export interface ResultTab {
   readonly notice: string
   readonly plan: readonly string[]
   readonly editing: TabEditing
+  // What the query box shows with the tab: tabs of table panels only, null elsewhere.
+  readonly queryBox: QueryBoxText | null
 }
 
 // A row as the grid gets it: long text is cut, and `truncated` lists the columns that were.
@@ -128,6 +110,7 @@ export const HostMessageType = {
   ReferenceCounts: 'referenceCounts',
   Distinct: 'distinct',
   Sql: 'sql',
+  QueryBox: 'queryBox',
 } as const
 
 export type HostMessage =
@@ -188,6 +171,13 @@ export type HostMessage =
       readonly lexical: LexicalRules
       readonly keywords: readonly string[]
     }
+  // What the query box of a table panel works with: the tables and views of the schema of its
+  // table, to complete, and the height the user gave the box (null for the default).
+  | {
+      readonly type: typeof HostMessageType.QueryBox
+      readonly tables: readonly string[]
+      readonly height: number | null
+    }
 
 // The whole value of one cell, sent when the webview asks for a value it only holds cut.
 export type CellMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Cell }>
@@ -205,6 +195,11 @@ export type DistinctMessage = Extract<
 >
 
 export type SqlMessage = Extract<HostMessage, { readonly type: typeof HostMessageType.Sql }>
+
+export type QueryBoxMessage = Extract<
+  HostMessage,
+  { readonly type: typeof HostMessageType.QueryBox }
+>
 
 export const WebviewMessageType = {
   Ready: 'ready',
@@ -233,6 +228,9 @@ export const WebviewMessageType = {
   AllowWrites: 'allowWrites',
   OpenInEditor: 'openInEditor',
   FetchDistinct: 'fetchDistinct',
+  RunQuery: 'runQuery',
+  OpenSqlInEditor: 'openSqlInEditor',
+  SetQueryHeight: 'setQueryHeight',
 } as const
 
 // An edit of the grid: the cells or rows of the view it acts on (null for adding a row and
@@ -241,16 +239,6 @@ export interface EditMessage {
   readonly kind: EditKind
   readonly block: CellBlock | null
   readonly input: string
-}
-
-// Where a navigation starts: the row of a tab, and whether the rows it leads to open in place of
-// the rows of the panel (table panels keep a trail of the steps to go back to) or in a panel of
-// their own.
-export interface NavigationStart {
-  readonly tabId: string
-  readonly viewVersion: number
-  readonly row: number
-  readonly isInPlace: boolean
 }
 
 export type WebviewMessage =
@@ -360,6 +348,12 @@ export type WebviewMessage =
       readonly tabId: string
       readonly column: number
     }
+  // Runs the text of the query box of a table panel, through the guards, in place of its rows.
+  | { readonly type: typeof WebviewMessageType.RunQuery; readonly sql: string }
+  // Opens this text (of the query box) in a new SQL editor, on the connection of the panel.
+  | { readonly type: typeof WebviewMessageType.OpenSqlInEditor; readonly sql: string }
+  // The height the user gave the query box, kept for the table panels of the workspace.
+  | { readonly type: typeof WebviewMessageType.SetQueryHeight; readonly height: number }
 
 interface NavigateMessage extends NavigationStart {
   readonly type: typeof WebviewMessageType.Navigate
@@ -376,3 +370,6 @@ export const MAX_WINDOW_ROWS = 1000
 
 // The filter of a column offers at most this many of its values.
 export const MAX_DISTINCT_VALUES = 500
+
+// The query box is at most this tall, in pixels; what the webview asks beyond is refused.
+export const MAX_QUERY_HEIGHT = 4000

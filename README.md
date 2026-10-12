@@ -49,9 +49,20 @@ built to make the dangerous queries hard and the everyday ones quick.
   meet it: it is your own SQL, run through the guards like a query in an editor, kept one condition
   of one statement, and the rows stay editable. The **WHERE** colors the SQL as you type and suggests
   the columns of the table, the operators after a column and the values of an enum after
-  `status =` (`Ctrl+Space` asks for them); its expand button (or `Ctrl+Shift+E`, `Cmd+Shift+E`) opens
-  the whole query of the panel in an SQL editor, with its condition, its sort and the columns shown. These reads are sqldoro's own: the query history does
-  not keep them. Beside the names: the server version of a connected connection (`8.0.45`), the size
+  `status =` (`Ctrl+Space` asks for them). Its expand button (or `Ctrl+Shift+E`, `Cmd+Shift+E`)
+  shows the **query box** above the toolbar in its place: the whole query of the panel, exactly as it
+  reads the rows (the columns shown, the WHERE, the filters and sort with their values written in, and
+  the `LIMIT`), in an editable SQL box with the same colors and suggestions (plus the tables and views
+  of the schema), `Tab` to indent. `Ctrl+Enter` (`Cmd+Enter`) or **Run** runs it, or the text selected
+  in it, in place of the rows: one statement, through the guards like a query in an editor (a
+  read-only connection refuses a write, production asks first, the automatic `LIMIT` applies), kept in
+  the query history, with what it cost and its rows beside **Run**. Its result is a step of the trail
+  (**Back** returns to the rows), sorted and filtered here, its links followed, and edited when it is
+  still one table's rows. Its lower edge resizes it (the height is kept for the workspace); closing it
+  (or `Ctrl+Shift+E` again) gives the WHERE back, and what you wrote stays for the next time.
+  **Open in SQL Editor** (in **More Actions** at the end of the toolbar, or `↗` in the box) opens the
+  query in a new SQL editor tab. The reads of the table itself are sqldoro's own: the query history
+  does not keep them. Beside the names: the server version of a connected connection (`8.0.45`), the size
   of each database (`2 GB`), how many tables and views a group holds once it is open (`Tables 142`,
   or `3 of 142` under a filter), and the estimated rows and size of each table (`~27k rows · 32 MB`,
   exact numbers in its tooltip), read from the catalog statistics in the same query that lists them.
@@ -207,7 +218,8 @@ editor where it applies.
 | `Enter`, `Escape`                           | In **Quick Search**: search at once (it also searches as you pause), clear it.    |
 | `Enter`                                     | In the **WHERE** of a table: read the rows that meet the condition.               |
 | `Ctrl+Space`, `Tab`                         | In the **WHERE** of a table: suggest columns, operators and values; take one.     |
-| `Ctrl+Shift+E` (`Cmd+Shift+E`)              | In a table panel: open its query in an SQL editor.                                |
+| `Ctrl+Shift+E` (`Cmd+Shift+E`)              | In a table panel: show its query box in place of the WHERE, or the WHERE again.   |
+| `Ctrl+Enter` (`Cmd+Enter`), `Tab`           | In the query box: run the query (or the selection); indent.                       |
 | `Ctrl+click`, `Ctrl+Enter` (`Cmd`)          | On a link: open the row it points at in a panel of its own.                       |
 | `Alt+click`                                 | On a link in a table panel: open the row it points at in place.                   |
 | `Alt+Enter`                                 | On a link: peek at the row it points at.                                          |

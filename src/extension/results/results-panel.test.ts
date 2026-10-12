@@ -77,7 +77,7 @@ describe('ResultsPanel', () => {
 
   it('should show the trail of a table panel, and again once the view reloads', async () => {
     const sut = panel()
-    const crumbs = [{ id: 0, label: 'orders #1', isCurrent: true }]
+    const crumbs = [{ id: 0, label: 'orders #1', isCurrent: true, isQuery: false }]
 
     sut.showTrail(crumbs)
     expect(posted()).toStrictEqual([])

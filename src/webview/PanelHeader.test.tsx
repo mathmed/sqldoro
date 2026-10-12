@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { Crumb } from '../core/navigation/history.ts'
-import type { PanelConnection } from '../core/results/protocol.ts'
+import type { PanelConnection } from '../core/results/protocol-parts.ts'
 import { PanelHeader } from './PanelHeader.tsx'
 import { useTrailKeys } from './use-trail-keys.ts'
 
@@ -62,8 +62,8 @@ describe('PanelHeader', () => {
   it('should go nowhere along a trail that shows none of its steps', () => {
     const api = fakeVsCodeApi()
     const crumbs = [
-      { id: 1, label: 'orders', isCurrent: false },
-      { id: 2, label: 'lines', isCurrent: false },
+      { id: 1, label: 'orders', isCurrent: false, isQuery: false },
+      { id: 2, label: 'lines', isCurrent: false, isQuery: false },
     ]
     render(<Header api={api} connection={null} crumbs={crumbs} />)
 

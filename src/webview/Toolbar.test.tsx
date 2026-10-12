@@ -22,6 +22,7 @@ let actions: {
   openInEditor: Mock<() => void>
 }
 
+let queryMode: { isOn: boolean; toggle: Mock<() => void> }
 let panels: {
   openColumns: Mock<(anchor: HTMLElement) => void>
   openReferences: Mock<(anchor: HTMLElement) => void> | undefined
@@ -46,6 +47,7 @@ function toolbar(tab: ResultTab, { hasSelection = true, isServerSide = false } =
       actions={actions}
       edits={EDITS}
       panels={panels}
+      queryMode={queryMode}
     />,
   )
 }
@@ -73,6 +75,7 @@ beforeEach(() => {
     filterTable: vi.fn(),
     openInEditor: vi.fn(),
   }
+  queryMode = { isOn: false, toggle: vi.fn() }
   panels = {
     openColumns: vi.fn(),
     openReferences: undefined,
@@ -179,12 +182,38 @@ describe('Toolbar', () => {
     expect(screen.queryByRole('button', { name: 'Sort and filter on the server' })).toBeNull()
   })
 
-  it('should open the query of a table in an SQL editor from its WHERE', () => {
+  it('should show the query box of a table panel from its WHERE, which it then replaces', () => {
     toolbar(resultTab({ canRefresh: true }))
 
-    fireEvent.click(button('Open in SQL Editor'))
+    fireEvent.click(button('Edit the Query'))
+
+    expect(queryMode.toggle).toHaveBeenCalledOnce()
+    expect(button('Edit the Query').title).toBe(
+      'Edit the whole query of this table above the rows (Ctrl+Shift+E)',
+    )
+  })
+
+  it('should leave the WHERE out while the query box is shown', () => {
+    queryMode = { isOn: true, toggle: vi.fn() }
+
+    toolbar(resultTab({ canRefresh: true }))
+
+    expect(screen.queryByRole('combobox', { name: 'WHERE condition' })).toBeNull()
+  })
+
+  it('should open the query of a table panel in an SQL editor from its other actions', () => {
+    toolbar(resultTab({ canRefresh: true, queryBox: { sql: 'SELECT 1', isCustom: false } }))
+
+    fireEvent.click(button('More Actions'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Open in SQL Editor' }))
 
     expect(actions.openInEditor).toHaveBeenCalledOnce()
+  })
+
+  it('should have no other actions outside a table panel', () => {
+    toolbar(resultTab())
+
+    expect(screen.queryByRole('button', { name: 'More Actions' })).toBeNull()
   })
 
   it('should say that copying and exporting take the columns shown, in their order', () => {

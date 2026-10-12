@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react'
 
 import { EditKind } from '../core/edits/edit-kind.ts'
-import type { PanelConnection, ResultTab } from '../core/results/protocol.ts'
+import type { PanelConnection } from '../core/results/protocol-parts.ts'
+import type { ResultTab } from '../core/results/protocol.ts'
 import { wholeValue } from './cell-values.ts'
 import { CellDetail } from './CellDetail.tsx'
 import type { EditActions } from './edit-messages.ts'
@@ -18,8 +19,7 @@ import type { RowStore } from './row-store.ts'
 import { StatusLine } from './StatusLine.tsx'
 import { Toolbar } from './Toolbar.tsx'
 import { type CellEditing, useCellEditor } from './use-cell-editor.ts'
-import { useEditorShortcut } from './use-editor-shortcut.ts'
-import type { ViewContext } from './view-context.ts'
+import type { QueryModeSwitch, ViewContext } from './view-context.ts'
 import { useWaiting, viewClassName } from './waiting.ts'
 
 interface ResultViewProps {
@@ -45,7 +45,6 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
     editing: useCellEditor(api, tab, { store, cell: answers.cell }),
     edits: model.edits,
   })
-  useEditorShortcut(props.tab.canRefresh, model.actions.openInEditor)
   const { connection, indicator } = props.context
   const waiting = useWaiting({ tab, store, incoming: props.incoming, indicator })
   return (
@@ -54,7 +53,7 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
       id="result-panel"
       className={viewClassName(waiting)}
     >
-      <ResultToolbar model={model} />
+      <ResultToolbar model={model} queryMode={props.context.queryMode} />
       <div className="result-body">
         <ResultMain model={model} edit={edit} context={props.context} waiting={waiting} />
         <DetailPanel model={model} />
@@ -66,7 +65,13 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
   )
 }
 
-const ResultToolbar = ({ model }: { readonly model: ResultModel }): ReactElement => (
+const ResultToolbar = ({
+  model,
+  queryMode,
+}: {
+  readonly model: ResultModel
+  readonly queryMode: QueryModeSwitch
+}): ReactElement => (
   <Toolbar
     tab={model.projection.tab}
     hasSelection={model.choices.selection !== undefined}
@@ -74,6 +79,7 @@ const ResultToolbar = ({ model }: { readonly model: ResultModel }): ReactElement
     actions={model.actions}
     edits={model.edits}
     panels={toolbarPanels(model)}
+    queryMode={queryMode}
   />
 )
 

@@ -37,6 +37,8 @@ export const IconName = {
   Filter: 'filter',
   More: 'more',
   Search: 'search',
+  Play: 'play',
+  Collapse: 'collapse',
 } as const
 
 export type IconName = (typeof IconName)[keyof typeof IconName]
@@ -88,6 +90,8 @@ const SHAPES: ReadonlyMap<IconName, string> = new Map([
     'M8 2.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM8 7.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM8 11.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z',
   ],
   [IconName.Search, 'M7 2.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm3.25 7.75 3.25 3.25'],
+  [IconName.Play, 'M5 3.25v9.5L12.5 8z'],
+  [IconName.Collapse, 'M13.5 2.5 9.5 6.5M9.5 3v3.5H13M2.5 13.5l4-4M3 9.5h3.5V13'],
 ])
 
 export const Icon = ({ name }: { readonly name: IconName }): ReactElement => (

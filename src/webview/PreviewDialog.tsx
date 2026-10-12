@@ -1,6 +1,6 @@
 import { type KeyboardEvent, type ReactElement, useEffect, useRef } from 'react'
 
-import type { PanelConnection } from '../core/results/protocol.ts'
+import type { PanelConnection } from '../core/results/protocol-parts.ts'
 import type { EditPreview, PreviewStatement } from '../core/results/tab-editing.ts'
 import { plural } from '../core/results/tabs.ts'
 import { ConnectionBanner } from './ConnectionBanner.tsx'
