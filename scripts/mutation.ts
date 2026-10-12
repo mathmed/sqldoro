@@ -1,4 +1,4 @@
-// Mutation testing with Stryker (see "Mutation testing" in the README).
+// Mutation testing with Stryker (see CONTRIBUTING.md).
 //   changed [--base <ref>]   mutates only the core files changed since <ref>: what the PR job runs
 //   full                     mutates the whole core: the weekly run
 // Prints the score, the survivors and a MUTATION_RESULT line for the Quality Report, and fails

@@ -1,5 +1,5 @@
 // Packs the built extension (dist/, `npm run build`) into <name>-<version>.vsix with vsce and checks
-// what the package holds (see "Packaging" in CONTRIBUTING.md). The package is reproducible: vsce
+// what the package holds (see CONTRIBUTING.md). The package is reproducible: vsce
 // sorts its files and dates them all at the last commit (SOURCE_DATE_EPOCH), so one commit always
 // packs the same bytes.
 //

@@ -1,4 +1,4 @@
-// Consolidated Quality Report (see "Quality Report" in the README).
+// Consolidated Quality Report (see "Quality Report" in CONTRIBUTING.md).
 //   run <analysis> -- <command>   runs a CI analysis, keeps its exit code and stores its fragment
 //   render                        builds the single PR comment from the fragments
 import { main } from './quality-report/cli.ts'
