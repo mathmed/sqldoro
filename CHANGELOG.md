@@ -6,6 +6,8 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-12
+
 ### Added
 
 - **Save Query** button in the title bar of SQL editors, and **Save Query** on the statements of the
@@ -73,5 +75,6 @@ statements hard and the everyday ones quick. Open source (MIT), with no telemetr
 - A reproducible `.vsix` that ships only what the extension needs, with the licenses of the bundled
   libraries in `ThirdPartyNotices.txt`; short README and contributor docs.
 
-[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mathmed/sqldoro/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mathmed/sqldoro/releases/tag/v0.1.0

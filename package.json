@@ -2,7 +2,7 @@
   "name": "sqldoro",
   "displayName": "sqldoro",
   "description": "MySQL and PostgreSQL client for VS Code: schema explorer, SQL editor, fast result grid and safe inline editing. Read-only by default, no telemetry.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "mathmed",
   "license": "MIT",
   "private": true,
