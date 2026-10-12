@@ -76,6 +76,18 @@ describe('matchName', () => {
     })
   })
 
+  it('should take the words in order, never one before the word it took', () => {
+    expect(matchName('b_a_b', 'ab')).toStrictEqual({
+      rank: MatchRank.WordStarts,
+      start: 2,
+      nameLength: 5,
+      highlights: [
+        [2, 3],
+        [4, 5],
+      ],
+    })
+  })
+
   it('should give back part of a word when the next words need it', () => {
     expect(matchName('ordersOrdinal', 'ordord')).toMatchObject({
       rank: MatchRank.WordStarts,
@@ -95,6 +107,14 @@ describe('matchName', () => {
 
   it('should not start a word inside an upper case run or at a separator', () => {
     expect(matchName('HTTPLog', 'hl')?.rank).toBe(MatchRank.Subsequence)
+    expect(matchName('ab__x', 'a_x')).toMatchObject({
+      rank: MatchRank.Subsequence,
+      highlights: [
+        [0, 1],
+        [2, 3],
+        [4, 5],
+      ],
+    })
     expect(matchName('a__b', '_b')?.rank).toBe(MatchRank.Substring)
     expect(matchName('a_b_c', 'a_c')).toMatchObject({
       rank: MatchRank.WordStarts,

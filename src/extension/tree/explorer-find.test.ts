@@ -104,6 +104,7 @@ describe('finding a table in the explorer', () => {
     })
     expect(itemOfNode(schema)).toMatchObject({
       iconPath: icon('symbol-namespace', 'charts.green'),
+      tooltip: 'sales\nThe SQL editor in front runs here',
       resourceUri: schemaUri('shop', 'shop', 'sales'),
     })
     expect(groups.map((node) => itemOfNode(node)?.iconPath)).toStrictEqual([

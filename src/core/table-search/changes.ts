@@ -1,4 +1,5 @@
 import type { FoundBranch, FoundTables } from './found.ts'
+import { emptyFindText } from './status.ts'
 
 // What the tree of what was found must draw again after the text or the index changed: the whole
 // tree when its top changed, otherwise the branches that look different or whose children changed
@@ -46,8 +47,8 @@ function signatureOf(found: FoundBranch): string {
 }
 
 // The top of the tree: its connections, or the line it shows without any.
-function rootLook({ roots, connectionCount, isLoading }: FoundTables): string {
-  return JSON.stringify(roots.length > 0 ? roots.map(lookOf) : [connectionCount > 0, isLoading])
+function rootLook(found: FoundTables): string {
+  return JSON.stringify(found.roots.length > 0 ? found.roots.map(lookOf) : emptyFindText(found))
 }
 
 function remember(branches: readonly FoundBranch[], earlier: Map<string, string>): void {
