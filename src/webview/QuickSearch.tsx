@@ -1,4 +1,4 @@
-import { type ReactElement, useEffect, useState } from 'react'
+import { type ReactElement, useEffect, useRef, useState } from 'react'
 
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { groupDigits, plural } from '../core/results/tabs.ts'
@@ -35,19 +35,24 @@ function useSearchDraft(search: string, onSearch: (text: string) => void): Searc
   return { draft, type: setDraft, send }
 }
 
-// Hands the value on once it has not changed for a while.
+// Hands the value on once it has not changed for a while; the view drawn again in the meantime
+// does not start the pause over.
 function useSettled(value: string, isPending: boolean, onSettled: (value: string) => void): void {
+  const settledRef = useRef(onSettled)
+  useEffect(() => {
+    settledRef.current = onSettled
+  })
   useEffect(() => {
     if (!isPending) {
       return undefined
     }
     const timer = setTimeout(() => {
-      onSettled(value)
+      settledRef.current(value)
     }, TYPING_DELAY_MS)
     return () => {
       clearTimeout(timer)
     }
-  }, [value, isPending, onSettled])
+  }, [value, isPending])
 }
 
 // A search box over the rows of the result, in the host: it keeps the rows with the text in any

@@ -15,6 +15,8 @@ export interface ResultsState {
   readonly crumbs: readonly Crumb[]
   readonly tabs: readonly ResultTab[]
   readonly activeTabId: string | null
+  // Whether the host has told the tabs yet: until it does, the view has nothing to say.
+  readonly hasHeardTabs: boolean
 }
 
 export const EMPTY_RESULTS: ResultsState = {
@@ -23,6 +25,7 @@ export const EMPTY_RESULTS: ResultsState = {
   crumbs: [],
   tabs: [],
   activeTabId: null,
+  hasHeardTabs: false,
 }
 
 type MessageOf<T extends HostMessage['type']> = Extract<HostMessage, { readonly type: T }>
@@ -42,8 +45,12 @@ const REDUCERS: ReadonlyMap<string, Reducer> = new Map([
     ...state,
     tabs: message.tabs,
     activeTabId: message.activeTabId ?? lastId(message.tabs),
+    hasHeardTabs: true,
   })),
-  reducer(HostMessageType.Tab, (state, message) => withTab(state, message.tab)),
+  reducer(HostMessageType.Tab, (state, message) => ({
+    ...withTab(state, message.tab),
+    hasHeardTabs: true,
+  })),
   reducer(HostMessageType.Connection, (state, message) => ({
     ...state,
     connection: message.connection,

@@ -20,7 +20,9 @@ export function cellMenuItems(model: ResultModel, target: MenuTarget): MenuItem[
 
 function linkItems(model: ResultModel, { position, place }: MenuTarget): MenuItem[] {
   const { links, projection } = model
-  const value = projection.store.row(position.row)?.cells.at(position.column)
+  const value = projection.store
+    .row(position.row, projection.tab.viewVersion)
+    ?.cells.at(position.column)
   if (!links.isLink(position, value)) {
     return []
   }

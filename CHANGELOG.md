@@ -8,6 +8,17 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ### Changed
 
+- **Loading of the results** is smooth: sorting, filtering, refreshing or navigating in place keeps
+  the rows, toolbar and status on screen until the new rows replace them in one frame, instead of
+  turning the rows into placeholders, flipping the toolbar to Cancel and back, or blanking the panel.
+  A load under 300 ms shows nothing more; a longer one fades in a card with the time and Cancel (the
+  rows of before dimmed, or a skeleton of the table on its first load) that stays at least 400 ms.
+  Scrolling fast no longer flashes placeholders: the grid asks for the rows ahead, and rows not here
+  yet stay blank for a moment. A new table panel shows its connection at once, and no "Run a query"
+  text while it loads; its toolbar and status appear once, when the rows are read, and the card is no
+  longer hidden behind the skeleton. Respects reduced motion.
+- **Quick search** applies after its pause even when the view is drawn again while you type (it
+  used to start the pause over).
 - **Filters of the columns** take operators that suit the kind of the column (`=`, `≠`, `is null`
   and `is not null` for all; `contains`, `does not contain`, `starts with`, `ends with` for text;
   `<`, `≤`, `>`, `≥`, `between` for numbers and dates; `in` a list picked from the values of the

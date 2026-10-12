@@ -9,20 +9,27 @@ import type { CellMessage, ResultTab } from '../core/results/protocol.ts'
 import { NO_ANSWERS } from './host-answers.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStore } from './row-store.ts'
-
-const CONTEXT = { connection: null, sql: null, step: null, scrolls: new Map<number, number>() }
+import { WaitIndicator } from './wait-indicator.ts'
 
 let api: FakeVsCodeApi
 let store: RowStore
+let indicator: WaitIndicator
 
 function element(changes: Partial<ResultTab> = {}, answer?: CellMessage): JSX.Element {
   return (
     <ResultView
       tab={resultTab({ rowCount: 4, loadedRows: 4, ...changes })}
+      incoming={undefined}
       store={store}
       api={api}
       answers={{ ...NO_ANSWERS, cell: answer }}
-      context={CONTEXT}
+      context={{
+        connection: null,
+        sql: null,
+        step: null,
+        scrolls: new Map(),
+        indicator,
+      }}
       hasTabs={false}
     />
   )
@@ -43,6 +50,7 @@ function sent(type: string): unknown[] {
 beforeEach(() => {
   api = fakeVsCodeApi()
   store = new RowStore()
+  indicator = new WaitIndicator()
 })
 
 afterEach(() => {

@@ -164,6 +164,13 @@ export function onGridKey(event: KeyboardEvent, props: GridProps, context: KeyCo
   )
 }
 
+function valueAt(
+  { store, tab }: Pick<GridProps, 'store' | 'tab'>,
+  position: CellPosition,
+): unknown {
+  return store.row(position.row, tab.viewVersion)?.cells.at(position.column)
+}
+
 // The keys of a link act on the cell with the focus, where it is laid out.
 function linkKeys({ links, store, tab }: GridProps): {
   readonly openLink: (position: CellPosition) => boolean
@@ -171,7 +178,7 @@ function linkKeys({ links, store, tab }: GridProps): {
   readonly openMenu: (position: CellPosition) => void
 } {
   const isLink = (position: CellPosition): boolean =>
-    links.actions.isLink(position, store.row(position.row)?.cells.at(position.column))
+    links.actions.isLink(position, valueAt({ store, tab }, position))
   const placeOf = (position: CellPosition): ReturnType<typeof placeUnder> =>
     placeUnder(document.getElementById(cellId(tab.id, position.row, position.column)))
   return {

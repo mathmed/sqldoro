@@ -8,20 +8,27 @@ import type { ResultTab } from '../core/results/protocol.ts'
 import { NO_ANSWERS } from './host-answers.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStore } from './row-store.ts'
-
-const CONTEXT = { connection: null, sql: null, step: null, scrolls: new Map<number, number>() }
+import { WaitIndicator } from './wait-indicator.ts'
 
 let api: FakeVsCodeApi
 let store: RowStore
+let indicator: WaitIndicator
 
 function element(changes: Partial<ResultTab> = {}): JSX.Element {
   return (
     <ResultView
       tab={resultTab({ rowCount: 4, loadedRows: 4, ...changes })}
+      incoming={undefined}
       store={store}
       api={api}
       answers={NO_ANSWERS}
-      context={CONTEXT}
+      context={{
+        connection: null,
+        sql: null,
+        step: null,
+        scrolls: new Map(),
+        indicator,
+      }}
       hasTabs={false}
     />
   )
@@ -46,6 +53,7 @@ function clearWhere(): HTMLElement | null {
 beforeEach(() => {
   api = fakeVsCodeApi()
   store = new RowStore()
+  indicator = new WaitIndicator()
 })
 
 afterEach(() => {
@@ -55,16 +63,21 @@ afterEach(() => {
 describe('ResultView, the quick search', () => {
   it('should search the rows after a pause, once for the same text', () => {
     vi.useFakeTimers()
-    render(element())
+    const { rerender } = render(element())
 
     fireEvent.change(search(), { target: { value: 'an' } })
     act(() => {
-      vi.advanceTimersByTime(399)
+      vi.advanceTimersByTime(200)
+    })
+    rerender(element({ loadedRows: 5 }))
+    act(() => {
+      vi.advanceTimersByTime(199)
     })
     expect(sent('search')).toStrictEqual([])
     act(() => {
       vi.advanceTimersByTime(1)
     })
+    expect(sent('search')).toHaveLength(1)
     fireEvent.keyDown(search(), { key: 'Enter' })
 
     expect(sent('search')).toStrictEqual([{ type: 'search', tabId: 'tab-1', text: 'an' }])

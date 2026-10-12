@@ -77,6 +77,17 @@ describe('Open Table Data', () => {
     expect(documents).toStrictEqual([])
   })
 
+  it('should show the connection of the panel with its first tabs, before the session opens', async () => {
+    const { panel } = await openTable(harness)
+
+    expect(panel.webview.posted.slice(0, 4)).toMatchObject([
+      { type: 'connection', connection: { name: 'Shop' } },
+      { type: 'sql' },
+      { type: 'trail' },
+      { type: 'tabs', tabs: [{ status: 'running', progress: 'connecting' }] },
+    ])
+  })
+
   it('should run the read through the guards and keep it out of the history', async () => {
     await openTable(harness)
 

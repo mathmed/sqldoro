@@ -20,9 +20,13 @@ import { Toolbar } from './Toolbar.tsx'
 import { type CellEditing, useCellEditor } from './use-cell-editor.ts'
 import { useEditorShortcut } from './use-editor-shortcut.ts'
 import type { ViewContext } from './view-context.ts'
+import { useWaiting, viewClassName } from './waiting.ts'
 
 interface ResultViewProps {
   readonly tab: ResultTab
+  // What the view waits for while this result stays on screen: a new view of the tab, or the tab of
+  // a new run.
+  readonly incoming: ResultTab | undefined
   readonly store: RowStore
   readonly api: ResultsApi
   readonly answers: HostAnswers
@@ -42,22 +46,20 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
     edits: model.edits,
   })
   useEditorShortcut(props.tab.canRefresh, model.actions.openInEditor)
-  const { connection } = props.context
+  const { connection, indicator } = props.context
+  const waiting = useWaiting({ tab, store, incoming: props.incoming, indicator })
   return (
-    <section {...panelRole(tab, props.hasTabs)} id="result-panel" className="result-view">
+    <section
+      {...panelRole(tab, props.hasTabs)}
+      id="result-panel"
+      className={viewClassName(waiting)}
+    >
       <ResultToolbar model={model} />
       <div className="result-body">
-        <ResultMain model={model} edit={edit} context={props.context} />
+        <ResultMain model={model} edit={edit} context={props.context} waiting={waiting} />
         <DetailPanel model={model} />
       </div>
-      <footer className="result-footer">
-        <StatusLine
-          tab={tab}
-          hiddenColumns={model.hiddenColumns}
-          onShowColumns={toolbarPanels(model).openColumns}
-        />
-        <EditBar tab={tab} isConnectionReadOnly={connection?.isReadOnly === true} />
-      </footer>
+      <ResultFooter model={model} connection={connection} />
       <ChangesPreview tab={tab} edits={model.edits} connection={connection} />
       <OverlayView model={model} />
     </section>
@@ -73,6 +75,23 @@ const ResultToolbar = ({ model }: { readonly model: ResultModel }): ReactElement
     edits={model.edits}
     panels={toolbarPanels(model)}
   />
+)
+
+const ResultFooter = ({
+  model,
+  connection,
+}: {
+  readonly model: ResultModel
+  readonly connection: PanelConnection | null
+}): ReactElement => (
+  <footer className="result-footer">
+    <StatusLine
+      tab={model.projection.tab}
+      hiddenColumns={model.hiddenColumns}
+      onShowColumns={toolbarPanels(model).openColumns}
+    />
+    <EditBar tab={model.projection.tab} isConnectionReadOnly={connection?.isReadOnly === true} />
+  </footer>
 )
 
 // The panel of a tab, or the only result of the run, named by its statement.

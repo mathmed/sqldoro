@@ -8,6 +8,7 @@ import type { TabEditing } from '../../src/core/results/tab-editing.ts'
 import { NO_ANSWERS } from '../../src/webview/host-answers.ts'
 import { ResultView } from '../../src/webview/ResultView.tsx'
 import { RowStore } from '../../src/webview/row-store.ts'
+import { WaitIndicator } from '../../src/webview/wait-indicator.ts'
 import { editableTab } from '../fixtures/results.ts'
 import { GRID_ROWS, theGrid } from './grid.ts'
 import { fakeVsCodeApi } from './vscode-api.ts'
@@ -29,13 +30,21 @@ const EDITOR_NAME = /^New value of /
 export function editingView(shown: Shown = {}): EditingView {
   const api = fakeVsCodeApi()
   const store = new RowStore()
+  const indicator = new WaitIndicator()
   const element = ({ editing = {}, changes = {}, cell, connection }: Shown): ReactElement =>
     createElement(ResultView, {
       tab: editableTab(editing, changes),
       store,
       api,
       answers: { ...NO_ANSWERS, cell },
-      context: { connection: connection ?? null, sql: null, step: null, scrolls: new Map() },
+      incoming: undefined,
+      context: {
+        connection: connection ?? null,
+        sql: null,
+        step: null,
+        scrolls: new Map(),
+        indicator,
+      },
       hasTabs: false,
     })
   const rendered = render(element(shown))

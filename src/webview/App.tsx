@@ -2,7 +2,6 @@ import { type ReactElement, useEffect, useReducer, useRef, useState } from 'reac
 
 import {
   activateTab,
-  activeTab,
   EMPTY_RESULTS,
   reduceResults,
   type ResultsState,
@@ -15,8 +14,10 @@ import { RESULTS_CHANNEL, type ResultsApi } from './results-api.ts'
 import { ResultView } from './ResultView.tsx'
 import { RowStores } from './row-stores.ts'
 import { TabBar } from './TabBar.tsx'
+import { useShownTab } from './use-shown-tab.ts'
 import { useTrailKeys } from './use-trail-keys.ts'
 import type { ViewContext } from './view-context.ts'
+import { WaitIndicator } from './wait-indicator.ts'
 
 type Action =
   | { readonly kind: 'host'; readonly message: HostMessage }
@@ -35,6 +36,8 @@ interface Results {
   readonly scrolls: Map<number, number>
   readonly answers: HostAnswers
   readonly activate: (tabId: string) => void
+  // Whether the panel shows that it waits, through the changes of tab.
+  readonly indicator: WaitIndicator
 }
 
 // Listens to the extension host (then tells it the view is ready): rows go to the row stores, the
@@ -45,6 +48,7 @@ function useResults(api: ResultsApi): Results {
   const [stores] = useState(() => new RowStores())
   const [scrolls] = useState(() => new Map<number, number>())
   const [answers, setAnswers] = useState<HostAnswers>(NO_ANSWERS)
+  const indicator = usePanelIndicator()
   useHostMessages(api, (message) => {
     if (message.type === HostMessageType.Rows) {
       stores.of(message.tabId).store(message.viewVersion, message.start, message.rows)
@@ -53,18 +57,28 @@ function useResults(api: ResultsApi): Results {
     setAnswers((current) => withAnswer(current, message))
     dispatch({ kind: 'host', message })
   })
-  useEffect(() => {
-    stores.retain(new Set(state.tabs.map((tab) => tab.id)))
-  }, [state.tabs, stores])
   return {
     state,
     stores,
     scrolls,
     answers,
+    indicator,
     activate: (tabId) => {
       dispatch({ kind: 'activate', tabId })
     },
   }
+}
+
+// One indicator for the panel, stopped with it.
+function usePanelIndicator(): WaitIndicator {
+  const [indicator] = useState(() => new WaitIndicator())
+  useEffect(
+    () => () => {
+      indicator.stop()
+    },
+    [indicator],
+  )
+  return indicator
 }
 
 // Hands each message of the host to `onMessage`, then tells the host the view is ready.
@@ -86,11 +100,12 @@ function useHostMessages(api: ResultsApi, onMessage: (message: HostMessage) => v
 }
 
 // The result view: the trail of a table panel and its connection, the tabs of the last run (when it
-// has several) and the result of the one in front.
+// has several) and the result of the one in front; while a new one is on its way, the result of
+// before stays.
 export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
-  const { state, stores, scrolls, answers, activate } = useResults(api)
+  const { state, stores, scrolls, answers, activate, indicator } = useResults(api)
   useTrailKeys(api, state.crumbs)
-  const tab = activeTab(state)
+  const { tab, incoming } = useShownTab(state, { api, stores, scrolls })
   const hasTabs = state.tabs.length > 1
   return (
     <main className="results">
@@ -99,15 +114,16 @@ export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
         <TabBar tabs={state.tabs} activeTabId={state.activeTabId} onActivate={activate} />
       ) : null}
       {tab === undefined ? (
-        <p className="empty-state">Run a query to see its results here.</p>
+        <NoResult hasHeardTabs={state.hasHeardTabs} />
       ) : (
         <ResultView
           key={tab.id}
           tab={tab}
+          incoming={incoming}
           store={stores.of(tab.id)}
           api={api}
           answers={answers}
-          context={viewContext(state, scrolls)}
+          context={viewContext(state, { scrolls, indicator })}
           hasTabs={hasTabs}
         />
       )}
@@ -115,13 +131,20 @@ export const App = ({ api }: { readonly api: ResultsApi }): ReactElement => {
   )
 }
 
+// Before the host tells the tabs (the view is loading), nothing: the panel does not flash a text.
+const NoResult = ({ hasHeardTabs }: { readonly hasHeardTabs: boolean }): ReactElement | null =>
+  hasHeardTabs ? <p className="empty-state">Run a query to see its results here.</p> : null
+
 // What the result of a tab shows of the panel: its connection, how its SQL is written, and the step
 // of the trail it is (its scroll position is kept for it).
-function viewContext(state: ResultsState, scrolls: Map<number, number>): ViewContext {
+function viewContext(
+  state: ResultsState,
+  panel: Pick<ViewContext, 'indicator' | 'scrolls'>,
+): ViewContext {
   return {
     connection: state.connection,
     sql: state.sql,
     step: state.crumbs.find((crumb) => crumb.isCurrent)?.id ?? null,
-    scrolls,
+    ...panel,
   }
 }

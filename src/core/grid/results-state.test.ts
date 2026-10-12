@@ -17,6 +17,7 @@ describe('reduceResults', () => {
       ...EMPTY_RESULTS,
       tabs: [FIRST, SECOND],
       activeTabId: 'a',
+      hasHeardTabs: true,
     })
     expect(
       reduceResults(EMPTY_RESULTS, {
@@ -32,7 +33,7 @@ describe('reduceResults', () => {
         { ...EMPTY_RESULTS, connection: SHOP, tabs: [FIRST], activeTabId: 'a' },
         { type: 'tabs', tabs: [], activeTabId: null },
       ),
-    ).toStrictEqual({ ...EMPTY_RESULTS, connection: SHOP })
+    ).toStrictEqual({ ...EMPTY_RESULTS, connection: SHOP, hasHeardTabs: true })
   })
 
   it('should add a new tab in front', () => {
@@ -43,6 +44,7 @@ describe('reduceResults', () => {
       connection: SHOP,
       tabs: [FIRST, SECOND],
       activeTabId: 'b',
+      hasHeardTabs: true,
     })
   })
 
@@ -54,6 +56,7 @@ describe('reduceResults', () => {
       ...EMPTY_RESULTS,
       tabs: [changed, SECOND],
       activeTabId: 'b',
+      hasHeardTabs: true,
     })
   })
 
@@ -66,6 +69,9 @@ describe('reduceResults', () => {
       tabs: [FIRST],
       activeTabId: 'a',
     })
+    expect(
+      reduceResults(EMPTY_RESULTS, { type: 'connection', connection: SHOP }).hasHeardTabs,
+    ).toBe(false)
   })
 
   it('should keep the trail of a table panel and how the SQL is written', () => {

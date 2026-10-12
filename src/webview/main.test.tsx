@@ -1,4 +1,4 @@
-import { act, screen } from '@testing-library/react'
+import { act } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
@@ -18,7 +18,7 @@ describe('the result view entry point', () => {
 
     await act(async () => import('./main.tsx'))
 
-    expect(screen.getByText('Run a query to see its results here.')).toBeDefined()
+    expect(root.querySelector('main.results')).not.toBeNull()
     expect(api.postMessage).toHaveBeenCalledWith({ type: 'ready' })
   })
 

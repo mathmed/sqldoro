@@ -497,17 +497,39 @@
   margin: 4px;
 }
 
-/* While a statement runs: the rows of before dimmed, a card with what it waits for. */
+/* While the view waits (loading-indicator.ts decides when): what it shows stays as it is; a wait
+   long enough to notice dims the result of before and fades in a card with what it waits for.
+   --fade-time is FADE_MS of the core. Rows the grid does not hold yet stay blank for a moment
+   (--placeholder-delay), so that scrolling does not flash placeholders that their rows replace at
+   once. */
 .result-main {
+  --fade-time: 150ms;
+  --placeholder-delay: 200ms;
+
   position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
 }
 
-.result-main.is-busy .grid {
+.result-content {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  transition: opacity var(--fade-time) ease;
+}
+
+.result-main.is-dimmed .result-content {
   opacity: 0.55;
-  transition: opacity 0.2s ease;
+}
+
+/* Nothing to show yet: out of sight (in its place) until the rows come, or the wait shows; then
+   only the skeleton and the card, until the result shows whole. */
+.result-view.is-pending,
+.result-view.is-empty > .toolbar,
+.result-view.is-empty > .result-footer {
+  visibility: hidden;
 }
 
 .loading-overlay {
@@ -518,13 +540,26 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    opacity var(--fade-time) ease,
+    visibility 0s linear var(--fade-time);
+}
+
+.loading-overlay.is-shown {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity var(--fade-time) ease;
 }
 
 .loading-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 240px;
+  box-sizing: border-box;
+  width: 300px;
+  max-width: calc(100% - 32px);
   padding: 12px 16px;
   background: var(--vscode-editorWidget-background);
   border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
@@ -535,6 +570,9 @@
 
 .loading-text {
   margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .progress-bar {
@@ -567,17 +605,32 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Before the first rows: a header and rows where the grid puts them, behind the grid, whose header
+   covers its own once the columns are known. */
 .skeleton {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  overflow: hidden;
+  animation: fade-in var(--fade-time) ease both;
 }
 
-.skeleton-row,
-.grid-row.loading .grid-cell {
+.skeleton-header {
+  box-sizing: border-box;
+  height: var(--header-height);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.skeleton-row {
+  position: relative;
+  height: var(--row-height);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.skeleton-row::before,
+.grid-row.loading .grid-cell::before {
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     90deg,
     var(--vscode-editorWidget-background) 0%,
@@ -585,12 +638,28 @@
     var(--vscode-editorWidget-background) 100%
   );
   background-size: 200% 100%;
+  content: '';
+}
+
+.skeleton-row::before {
+  inset: 6px 8px;
+  border-radius: 3px;
   animation: shimmer 1.4s linear infinite;
 }
 
-.skeleton-row {
-  height: 14px;
-  border-radius: 3px;
+.grid-row.loading .grid-cell::before {
+  animation:
+    fade-in var(--fade-time) ease var(--placeholder-delay) both,
+    shimmer 1.4s linear var(--placeholder-delay) infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes progress-slide {
@@ -611,10 +680,26 @@
   }
 }
 
+/* Without motion: nothing slides or shimmers, and nothing fades; the delays stay. */
 @media (prefers-reduced-motion: reduce) {
+  .result-content,
+  .loading-overlay,
+  .loading-overlay.is-shown {
+    transition: none;
+  }
+
   .progress-bar > span,
-  .skeleton-row,
-  .grid-row.loading .grid-cell {
+  .skeleton,
+  .skeleton-row::before {
     animation: none;
+  }
+
+  .progress-bar > span {
+    left: 0;
+    width: 100%;
+  }
+
+  .grid-row.loading .grid-cell::before {
+    animation: fade-in 0s linear var(--placeholder-delay) both;
   }
 }

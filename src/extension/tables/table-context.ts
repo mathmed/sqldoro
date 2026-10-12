@@ -2,6 +2,7 @@ import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { Logger } from '../../core/platform.ts'
+import type { GuardPolicy } from '../../core/safety/guard.ts'
 import type { QueryRunner } from '../editor/query-runner.ts'
 import type { TableMetadata } from '../metadata/table-metadata.ts'
 import type { ResultsPanels } from '../results/results-panels.ts'
@@ -21,5 +22,7 @@ export interface TableContext {
   // The session of the explorer on a connection, where the catalog is read.
   readonly catalogOf: (connection: ConnectionConfig) => Promise<EngineSession>
   readonly createId: () => string
+  // The guard policy of the settings: how a panel shows its connection.
+  readonly policy: () => GuardPolicy
   readonly log: Logger
 }

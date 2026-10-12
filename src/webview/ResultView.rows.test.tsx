@@ -180,14 +180,4 @@ describe('ResultView, editing the rows', () => {
       },
     ])
   })
-
-  it('should keep its rows while they are read again, and take the new count after', () => {
-    const { rerender } = editingView()
-
-    rerender({ changes: { status: 'running', rowCount: 0, loadedRows: 0, summary: null } })
-    expect(screen.getAllByRole('row')).toHaveLength(5)
-
-    rerender({ changes: { rowCount: 2, loadedRows: 2 } })
-    expect(screen.getAllByRole('row')).toHaveLength(3)
-  })
 })
