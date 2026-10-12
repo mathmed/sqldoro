@@ -6,7 +6,7 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-10-12
 
 The first version of sqldoro: a MySQL and PostgreSQL client for VS Code that makes the dangerous
 statements hard and the everyday ones quick. Open source (MIT), with no telemetry.
