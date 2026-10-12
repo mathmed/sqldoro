@@ -20,6 +20,8 @@ const EDITOR_NOTE = 'The SQL editor in front runs here'
 const DEFAULT_NOTE = 'New queries on this connection run here'
 const MARKED_DATABASE = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.green'))
 const DATABASE = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.yellow'))
+// Shop is a production connection: what is not marked shows in its red.
+const PRODUCTION_DATABASE = new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.red'))
 
 function catalog(): Partial<EngineSession> {
   return {
@@ -60,7 +62,7 @@ describe('the database the SQL editor in front runs on', () => {
       resourceUri: databaseUri('shop', 'shop'),
     })
     expect(itemOf(sut, databases, 'stock')).toMatchObject({
-      iconPath: DATABASE,
+      iconPath: PRODUCTION_DATABASE,
       tooltip: 'stock',
       resourceUri: databaseUri('shop', 'stock'),
     })
@@ -70,7 +72,7 @@ describe('the database the SQL editor in front runs on', () => {
       resourceUri: schemaUri('shop', 'shop', 'sales'),
     })
     expect(itemOf(sut, schemas, 'public')).toMatchObject({
-      iconPath: new vscode.ThemeIcon('symbol-namespace', new vscode.ThemeColor('charts.purple')),
+      iconPath: new vscode.ThemeIcon('symbol-namespace', new vscode.ThemeColor('charts.red')),
       tooltip: 'public',
     })
   })

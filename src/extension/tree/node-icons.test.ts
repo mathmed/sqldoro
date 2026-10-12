@@ -5,7 +5,14 @@ import { describe, expect, it } from 'vitest'
 import * as vscode from 'vscode'
 
 import { EXTENSION_URI } from '../../../test/support/explorer.ts'
-import { engineGlyph, NodeIcon, SELECTED_COLOR, selectedIcon, themeIcon } from './node-icons.ts'
+import {
+  engineGlyph,
+  NodeIcon,
+  SELECTED_COLOR,
+  selectedIcon,
+  themeIcon,
+  tintedIcon,
+} from './node-icons.ts'
 
 // The theme colors that have a value of their own in the light, dark and high-contrast themes.
 const THEMED_COLORS: ReadonlySet<string> = new Set([
@@ -45,6 +52,15 @@ describe('themeIcon', () => {
   it('should make a codicon in its theme color', () => {
     expect(themeIcon(NodeIcon.Database)).toStrictEqual(
       new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.yellow')),
+    )
+  })
+
+  it('should make the codicon in the color of its connection, or its own when there is none', () => {
+    expect(tintedIcon(NodeIcon.Database, 'charts.blue')).toStrictEqual(
+      new vscode.ThemeIcon('database', new vscode.ThemeColor('charts.blue')),
+    )
+    expect(tintedIcon(NodeIcon.Schema, '')).toStrictEqual(
+      new vscode.ThemeIcon('symbol-namespace', new vscode.ThemeColor('charts.purple')),
     )
   })
 

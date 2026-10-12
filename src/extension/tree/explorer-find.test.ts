@@ -118,7 +118,7 @@ describe('finding a table in the explorer', () => {
       icon('eye', 'charts.orange'),
     )
     selection.follow({ connectionId: 'shop', database: 'other', schema: '' })
-    expect(itemOfNode(database)?.iconPath).toStrictEqual(icon('database', 'charts.yellow'))
+    expect(itemOfNode(database)?.iconPath).toStrictEqual(icon('database', 'charts.red'))
   })
 
   it('should highlight the text in the names found, and count the matches of a group', async () => {

@@ -9,7 +9,8 @@ export interface IconLook {
 
 // The icon of each kind of node of the Connections view. Each family has its color (the tables
 // blue, the views orange, the keys gold), so that a kind is told at a glance. Folders keep the
-// color of the text: at the top of the view, color belongs to the connections.
+// color of the text: at the top of the view, color belongs to the connections. Databases and
+// schemas take the color of their connection when it has one (tintedIcon).
 export const NodeIcon = {
   Folder: { id: 'folder', color: 'symbolIcon.folderForeground' },
   Database: { id: 'database', color: 'charts.yellow' },
@@ -36,6 +37,11 @@ const ENGINES_WITH_GLYPHS: ReadonlySet<string> = new Set(['mysql', 'postgres'])
 
 export function themeIcon(look: IconLook): vscode.ThemeIcon {
   return new vscode.ThemeIcon(look.id, new vscode.ThemeColor(look.color))
+}
+
+// An icon in the theme color of its connection; in its own color when the connection has none.
+export function tintedIcon(look: IconLook, tint: string): vscode.ThemeIcon {
+  return themeIcon(tint === '' ? look : { ...look, color: tint })
 }
 
 export function selectedIcon(look: IconLook): vscode.ThemeIcon {

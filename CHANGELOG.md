@@ -6,6 +6,12 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Changed
+
+- The **database and schema icons** of the explorer take the color of their connection (production
+  in red, then the connection's color, then its environment's); the database of the SQL editor in
+  front stays green.
+
 ### Fixed
 
 - The caret of a table panel's **WHERE** field no longer drifts away from the colored text: the
