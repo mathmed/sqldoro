@@ -26,7 +26,7 @@ const STANDARD_LEXICAL: LexicalRules = {
   hasLowerCaseFolding: false,
 }
 
-function lexicalOf(sql: SqlDialect | null): LexicalRules {
+export function lexicalOf(sql: SqlDialect | null): LexicalRules {
   return sql?.lexical ?? STANDARD_LEXICAL
 }
 
@@ -46,6 +46,7 @@ function whereSource(tab: ResultTab, sql: SqlDialect | null): WhereSource {
   const lexical = lexicalOf(sql)
   return {
     columns: tab.columns.map(({ name }) => name),
+    tables: [],
     choices: new Map(
       tab.columns.flatMap(({ name }, index) => {
         const choices = tab.meta.at(index)?.choices ?? []
@@ -59,4 +60,15 @@ function whereSource(tab: ResultTab, sql: SqlDialect | null): WhereSource {
 
 export function whereSql(tab: ResultTab, sql: SqlDialect | null): WhereSql {
   return { source: whereSource(tab, sql), keywords: keywordSet(sql) }
+}
+
+// What the query box of a table panel offers beside: the tables and views of the schema, and the
+// keywords of whole statements (SELECT, FROM, JOIN...).
+export function boxSql(
+  tab: ResultTab,
+  { sql, tables }: { readonly sql: SqlDialect | null; readonly tables: readonly string[] },
+): WhereSql {
+  const where = whereSql(tab, sql)
+  const keywords = [...STANDARD_KEYWORDS, ...where.source.keywords]
+  return { ...where, source: { ...where.source, tables, keywords } }
 }

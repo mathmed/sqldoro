@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { POSTGRES_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { RESULT_COLUMNS } from '../../../test/fixtures/results.ts'
 import { NOT_EDITING } from '../edits/tab-editor.ts'
 import { ResultSet } from './result-set.ts'
@@ -61,6 +62,7 @@ describe('ResultSet', () => {
       notice: '',
       plan: [],
       editing: NOT_EDITING,
+      queryBox: null,
     })
     expect(sut.isRunning).toBe(true)
     expect(sut.id).toBe('t1')
@@ -279,5 +281,41 @@ describe('ResultSet', () => {
     const withoutPlan = resultSet()
     withoutPlan.succeed({ durationMs: 1, affectedRows: 2, isTruncated: false, autoLimit: null })
     expect(withoutPlan.toTab().plan).toStrictEqual([])
+  })
+})
+
+describe('ResultSet in a table panel', () => {
+  const ORDERS = { database: 'shop', schema: 'sales', name: 'orders' }
+  const READ = {
+    table: ORDERS,
+    key: undefined,
+    condition: "name <> 'x'",
+    view: { filters: [], sort: [] },
+    parameterTypes: new Map<string, string>(),
+  }
+
+  it('should give the query box the statement of its rows, the columns shown and its limit', () => {
+    const sut = resultSet({ canRefresh: true })
+    sut.showInBox({ table: READ, dialect: POSTGRES_DIALECT })
+    sut.setLayout({ order: ['name'], hidden: [] })
+    expect(sut.toTab().queryBox).toStrictEqual({
+      sql: 'SELECT * FROM "sales"."orders" WHERE (name <> \'x\'\n)',
+      isCustom: false,
+    })
+
+    sut.setLayout({ order: ['name'], hidden: ['id'] })
+    sut.succeed({ durationMs: 1, affectedRows: null, isTruncated: true, autoLimit: 100 })
+
+    expect(sut.toTab().queryBox).toStrictEqual({
+      sql: 'SELECT "name" FROM "sales"."orders" WHERE (name <> \'x\'\n) LIMIT 100',
+      isCustom: false,
+    })
+  })
+
+  it('should give it the query the user ran from it', () => {
+    const sut = resultSet()
+    sut.showInBox({ query: 'SELECT 1' })
+
+    expect(sut.toTab().queryBox).toStrictEqual({ sql: 'SELECT 1', isCustom: true })
   })
 })

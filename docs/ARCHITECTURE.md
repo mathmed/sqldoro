@@ -328,6 +328,27 @@ of the core (`src/core/sql/highlight.ts`, `src/core/completion/where-completion.
 the view how the SQL of the connection is written (the `sql` message: its quote, lexical rules and
 keywords).
 
+The **query box** of a table panel shows that statement in place of the WHERE, to edit and run in
+place. Each tab of a table panel carries what the box shows with it (`ResultTab.queryBox`): the
+`ResultSet` holds its source (`showInBox`) and the core writes the text when the tab is sent
+(`src/core/results/query-box.ts`: `tableEditorSql` with the columns shown, then the automatic `LIMIT`
+the rows were read with), or the query the user ran. The mode of the panel, what the user wrote (kept
+per step of the trail it was written from) and the height of the box are pure functions of the core
+(`src/core/grid/query-mode.ts`) that the view (`App`, `use-query-box.ts`, `QueryBox.tsx`) keeps in its
+state; the box reuses the field of the WHERE (`use-sql-field.ts`) on a text area. Running it posts
+`runQuery`: the host checks it is one statement (`boxQuery`, the statement splitter of the guards) and
+runs it through `QueryRunner.perform` (`src/extension/tables/query-box.ts`), like a statement of an
+editor: classified, refused on a read-only connection, confirmed on production, with the automatic
+limit, recorded in the history. Only once the guards let it run does the trail get a step of a query
+(`withQuery`: a step after the rows it was run from, or in place of the step of a query shown) and the
+panel a new tab, which the edit analysis checks like any result; a refusal leaves the rows and the
+trail as they were. Going back and forth along the trail runs the query of a step again only when it
+reads (`isReadOnlyQuery`): a statement that writes runs once, when the user runs it. The result of a
+query is sorted, filtered and read whole as the result of an editor is; its columns are not saved as
+the layout of the table. The host offers the box the tables and views of the schema (read once on the
+session of the explorer, with the schema cache) and the height the user gave it, kept in the state of
+the workspace (`queryBox` message, `setQueryHeight`).
+
 ## Navigation between rows
 
 What a result links to comes from the catalog, never from the text of the query: the drivers trace

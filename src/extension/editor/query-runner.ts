@@ -265,7 +265,7 @@ export class QueryRunner implements vscode.Disposable {
         shouldAutoLimit: true,
       })
       if (isDone) {
-        this.#afterSuccess(parts, statement.sql)
+        this.afterSuccess(parts, statement.sql)
       }
       if (!isDone || parts.run.isCancelled) {
         this.#notRun(parts.panel, tab, statements.length - index - 1)
@@ -274,7 +274,8 @@ export class QueryRunner implements vscode.Disposable {
     }
   }
 
-  #afterSuccess(parts: RunParts, sql: string): void {
+  // A statement of the user that ran: one that changed the schema refreshes the explorer.
+  afterSuccess(parts: RunParts, sql: string): void {
     if (changesSchema(sql, parts.target.engine.dialect.lexical)) {
       this.#dependencies.onSchemaChange(parts.target.connection.id)
     }

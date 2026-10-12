@@ -2,7 +2,13 @@
 // the columns and rows of each answer, fails it, or keeps it running until it is cancelled.
 import { vi } from 'vitest'
 
-import type { ForeignKeyInfo, ObjectRef, ReferenceInfo } from '../../src/core/engine/catalog.ts'
+import type {
+  ForeignKeyInfo,
+  ObjectRef,
+  ReferenceInfo,
+  TableInfo,
+  ViewInfo,
+} from '../../src/core/engine/catalog.ts'
 import type { EngineSession } from '../../src/core/engine/engine.ts'
 import {
   QueryCancelledError,
@@ -45,6 +51,9 @@ export class ScriptedEngine {
   readonly foreignKeys = new Map<string, readonly ForeignKeyInfo[]>()
   readonly references = new Map<string, readonly ReferenceInfo[]>()
   readonly places = new Map<string, TableDescription>()
+  // The tables and views of every schema.
+  readonly listTables = vi.fn(async (): Promise<readonly TableInfo[]> => Promise.resolve([]))
+  readonly listViews = vi.fn(async (): Promise<readonly ViewInfo[]> => Promise.resolve([]))
 
   session(overrides: Partial<EngineSession> = {}): EngineSession {
     return fakeSession({
@@ -57,6 +66,8 @@ export class ScriptedEngine {
         Promise.resolve(this.foreignKeys.get(placeKey(table)) ?? []),
       listReferences: async (table) => Promise.resolve(this.references.get(placeKey(table)) ?? []),
       describeTableAt: async (table) => Promise.resolve(this.places.get(placeKey(table))),
+      listTables: this.listTables,
+      listViews: this.listViews,
       ...overrides,
     })
   }

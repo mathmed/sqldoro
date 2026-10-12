@@ -83,7 +83,17 @@ All notable changes to sqldoro are documented in this file. The format is based 
   a cell of an enum is edited by picking from its values, a set by checking them.
 - **WHERE editor**: the condition of a table panel is colored as you type and completes the
   columns, the operators after a column and the values of an enum after `column =` (`Ctrl+Space`).
-  Its expand button (or `Ctrl+Shift+E`) opens the query of the panel in an SQL editor.
+  Its expand button (or `Ctrl+Shift+E`) shows the query box of the panel in its place.
+- **Query box** in table panels: the whole query of the panel (the columns shown, the WHERE, the
+  filters and sort with their values written in, the `LIMIT`) in an editable SQL box above the rows,
+  colored and completed like the WHERE (plus the tables and views of the schema), instead of a new
+  editor tab. `Ctrl+Enter` (`Cmd+Enter`) or **Run** runs it (or the selection) in place of the rows,
+  through the guards like a query in an editor, kept in the query history, with its cost and rows; one
+  statement at a time. Its result is a step of the trail (**Back** returns to the rows), sorted and
+  filtered here, its links followed, and editable when it is still one table's rows; a query that
+  writes is never run again by going back and forth. Its edge resizes it (kept for the workspace), and
+  what you wrote stays when you close it and open it again. **Open in SQL Editor** moved to **More
+  Actions** at the end of the toolbar and to the `↗` of the box.
 - **Loading**: a statement that takes a moment shows a card with what it waits for, the time it has
   taken and **Cancel**; the rows of before stay, dimmed, until the new ones come; a slow list of the
   explorer says what loads.

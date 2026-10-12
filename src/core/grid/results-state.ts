@@ -1,8 +1,9 @@
 import type { Crumb } from '../navigation/history.ts'
+import type { PanelConnection } from '../results/protocol-parts.ts'
 import {
   type HostMessage,
   HostMessageType,
-  type PanelConnection,
+  type QueryBoxMessage,
   type ResultTab,
   type SqlMessage,
 } from '../results/protocol.ts'
@@ -17,6 +18,8 @@ export interface ResultsState {
   readonly activeTabId: string | null
   // Whether the host has told the tabs yet: until it does, the view has nothing to say.
   readonly hasHeardTabs: boolean
+  // What the query box of a table panel works with: the tables to complete, the height it keeps.
+  readonly queryBox: Omit<QueryBoxMessage, 'type'>
 }
 
 export const EMPTY_RESULTS: ResultsState = {
@@ -26,6 +29,7 @@ export const EMPTY_RESULTS: ResultsState = {
   tabs: [],
   activeTabId: null,
   hasHeardTabs: false,
+  queryBox: { tables: [], height: null },
 }
 
 type MessageOf<T extends HostMessage['type']> = Extract<HostMessage, { readonly type: T }>
@@ -63,6 +67,10 @@ const REDUCERS: ReadonlyMap<string, Reducer> = new Map([
       lexical: message.lexical,
       keywords: message.keywords,
     },
+  })),
+  reducer(HostMessageType.QueryBox, (state, message) => ({
+    ...state,
+    queryBox: { tables: message.tables, height: message.height },
   })),
 ])
 

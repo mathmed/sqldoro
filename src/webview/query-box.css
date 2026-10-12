@@ -1,0 +1,179 @@
+/* The query box of a table panel: the whole query above the toolbar and the rows, in the colors of
+   the WHERE, with its bar (run, cost, ways out) and a lower edge that resizes it. The text is
+   transparent over its colored copy; both use the line height of query-mode.ts (18px) and the
+   padding QueryField.tsx places the suggestions with. */
+.query-box {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  background: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  animation: query-box-open 140ms ease-out;
+}
+
+@keyframes query-box-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+.query-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 6px;
+}
+
+.query-run {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 5px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-radius: 4px;
+}
+
+.query-run:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.query-run .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.query-run .icon-play {
+  fill: currentColor;
+}
+
+.query-status {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+
+.query-status.is-problem {
+  color: var(--vscode-errorForeground);
+}
+
+.query-field {
+  position: relative;
+  margin: 0 6px;
+  transition: height 120ms ease-out;
+}
+
+.query-field.is-resizing {
+  transition: none;
+}
+
+.query-input,
+.query-highlight {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px 8px;
+  font-family: var(--grid-font);
+  font-size: var(--grid-font-size);
+  line-height: 18px;
+  letter-spacing: normal;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.query-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  resize: none;
+  color: transparent;
+  caret-color: var(--vscode-editor-foreground, var(--vscode-input-foreground));
+  background: transparent;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  outline: none;
+}
+
+.query-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.query-input::selection {
+  color: transparent;
+  background: var(--vscode-editor-selectionBackground);
+}
+
+.query-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: var(--vscode-editor-foreground, var(--vscode-input-foreground));
+  background: var(--vscode-input-background);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.query-highlight > code {
+  display: block;
+  font: inherit;
+}
+
+.query-grip {
+  flex: none;
+  height: 6px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.query-grip::after {
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin: 2px auto 0;
+  content: '';
+  background: var(--vscode-scrollbarSlider-background, var(--vscode-panel-border));
+  border-radius: 1px;
+}
+
+.query-grip:hover::after,
+.query-grip:focus-visible::after {
+  background: var(--vscode-focusBorder);
+}
+
+.query-grip:focus-visible {
+  outline: none;
+}
+
+/* The other actions of a table panel, at the end of the toolbar. */
+.toolbar .header-action {
+  width: 24px;
+  height: 22px;
+  margin-left: 4px;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+}
+
+.toolbar .header-action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .query-box {
+    animation: none;
+  }
+
+  .query-field {
+    transition: none;
+  }
+}

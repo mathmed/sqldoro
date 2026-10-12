@@ -37,7 +37,9 @@ export interface PanelWiring {
 // again as a step of its trail.
 export function actionsOf(uri: vscode.Uri, wiring: PanelWiring): PanelActions {
   const actions = { ...runActions(uri, wiring), ...navigationActions(uri, wiring) }
-  return isTableKey(uri.toString()) ? { ...actions, ...tableActions(wiring.tables, uri) } : actions
+  return isTableKey(uri.toString())
+    ? { ...actions, ...tableActions(wiring.tables, uri, actions) }
+    : actions
 }
 
 function runActions(
@@ -58,6 +60,10 @@ function runActions(
     copyColumnName,
     applyEdits: async (tab, plan) => applyEdits(applyContext(wiring), uri, { tab, plan }),
     isInOpenTransaction: () => batchMode(transactions.of(uri.toString())) === BatchMode.Joined,
+    // Only a table panel has a query box.
+    runQuery: async () => Promise.resolve(),
+    openSqlInEditor: async () => Promise.resolve(),
+    setQueryHeight: async () => Promise.resolve(),
   }
 }
 

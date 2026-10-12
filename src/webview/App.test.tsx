@@ -16,8 +16,8 @@ const SHOP = {
   color: '',
 }
 const TRAIL = [
-  { id: 1, label: 'Condominium #1', isCurrent: false },
-  { id: 2, label: 'CondominiumBankAccount (condominiumId = 1)', isCurrent: true },
+  { id: 1, label: 'Condominium #1', isCurrent: false, isQuery: false },
+  { id: 2, label: 'CondominiumBankAccount (condominiumId = 1)', isCurrent: true, isQuery: false },
 ]
 
 let api: FakeVsCodeApi

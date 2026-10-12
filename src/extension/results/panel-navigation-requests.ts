@@ -87,6 +87,20 @@ const openInEditor = route(WebviewMessageType.OpenInEditor, async (requests, mes
   }
 })
 
+// What the query box of a table panel asks: to run its text, to open it in an SQL editor, to keep
+// its height.
+const queryBoxRoutes = [
+  route(WebviewMessageType.RunQuery, async (requests, message) =>
+    requests.actions.runQuery(message.sql),
+  ),
+  route(WebviewMessageType.OpenSqlInEditor, async (requests, message) =>
+    requests.actions.openSqlInEditor(message.sql),
+  ),
+  route(WebviewMessageType.SetQueryHeight, async (requests, message) =>
+    requests.actions.setQueryHeight(message.height),
+  ),
+]
+
 // The routes of the messages that navigate between rows and tables, lay the columns out and ask
 // the extension for what only it can do.
 export const NAVIGATION_ROUTES: readonly (readonly [string, Route])[] = [
@@ -101,4 +115,5 @@ export const NAVIGATION_ROUTES: readonly (readonly [string, Route])[] = [
     requests.actions.goToStep(message.step),
   ),
   route(WebviewMessageType.AllowWrites, async (requests) => requests.actions.allowWrites()),
+  ...queryBoxRoutes,
 ]

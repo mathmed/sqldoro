@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { PanelConnection } from '../core/results/protocol.ts'
+import type { PanelConnection } from '../core/results/protocol-parts.ts'
 import type { EditPreview } from '../core/results/tab-editing.ts'
 import { PreviewDialog } from './PreviewDialog.tsx'
 

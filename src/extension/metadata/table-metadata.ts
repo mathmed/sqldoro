@@ -1,4 +1,4 @@
-import type { ObjectRef } from '../../core/engine/catalog.ts'
+import { CatalogDetail, type ObjectRef, type ObjectScope } from '../../core/engine/catalog.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import type { TableDescription } from '../../core/engine/table.ts'
@@ -70,6 +70,19 @@ export class TableMetadata {
         }
       },
     )
+  }
+
+  // The names of the tables and views of a schema, as the autocomplete of the editors keeps them.
+  async objectNames(source: CatalogSource, scope: ObjectScope): Promise<string[]> {
+    const [tables, views] = await Promise.all([
+      this.#cache.cached(source.connectionId, ['tables', scope.database, scope.schema], async () =>
+        source.session.listTables(scope, CatalogDetail.Names),
+      ),
+      this.#cache.cached(source.connectionId, ['views', scope.database, scope.schema], async () =>
+        source.session.listViews(scope),
+      ),
+    ])
+    return [...tables, ...views].map(({ name }) => name)
   }
 
   // The type each column's values are compared as, by column name, where the catalog says.

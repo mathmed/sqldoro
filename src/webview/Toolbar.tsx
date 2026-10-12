@@ -9,6 +9,7 @@ import { IconName } from './icons.tsx'
 import { MenuButton, type MenuItem } from './Menu.tsx'
 import { QuickSearch } from './QuickSearch.tsx'
 import { ToolButton, ToolGroup, ToolToggle } from './tool-buttons.tsx'
+import type { QueryModeSwitch } from './view-context.ts'
 import { type ToolbarPanels, ViewTools } from './ViewTools.tsx'
 import { WhereEditor } from './WhereEditor.tsx'
 
@@ -26,7 +27,7 @@ export interface ToolbarActions {
   readonly search: (text: string) => void
   // Reads the rows of a table again with a condition as their WHERE.
   readonly filterTable: (condition: string) => void
-  // Opens the statement of a table in an SQL editor.
+  // Opens the statement of the rows of a table panel in a new SQL editor.
   readonly openInEditor: () => void
 }
 
@@ -37,6 +38,7 @@ interface ToolbarProps {
   readonly actions: ToolbarActions
   readonly edits: EditActions
   readonly panels: ToolbarPanels
+  readonly queryMode: QueryModeSwitch
 }
 
 interface ToolsProps {
@@ -57,9 +59,10 @@ const EXPORT_FORMATS: readonly (readonly [ExportFormat, string])[] = [
 ]
 
 // The actions of a result, grouped as in VS Code's toolbars: reading the rows again, their changes,
-// copying and exporting, how they are read; then the WHERE of a table and the quick search.
+// copying and exporting, how they are read; then the WHERE of a table (unless its query box is
+// shown), the quick search, and the other actions of a table panel.
 export const Toolbar = (props: ToolbarProps): ReactElement => {
-  const { tab, hasSelection, actions, panels } = props
+  const { tab, hasSelection, actions, panels, queryMode } = props
   return (
     <div className="toolbar" role="toolbar" aria-label="Result actions">
       <RunTools tab={tab} actions={actions} />
@@ -68,18 +71,32 @@ export const Toolbar = (props: ToolbarProps): ReactElement => {
       <ViewTools tab={tab} panels={panels} />
       <ReadTools tab={tab} isServerSide={props.isServerSide} actions={actions} />
       <span className="toolbar-fill" />
-      {tab.canRefresh ? (
+      {tab.canRefresh && !queryMode.isOn ? (
         <WhereEditor
           tab={tab}
           sql={panels.whereSql}
           onFilter={actions.filterTable}
-          onOpenInEditor={actions.openInEditor}
+          onEditQuery={queryMode.toggle}
         />
       ) : null}
       <QuickSearch tab={tab} onSearch={actions.search} />
+      <MoreTools tab={tab} actions={actions} />
     </div>
   )
 }
+
+// What a table panel does less often: its query in a new SQL editor.
+const MoreTools = ({ tab, actions }: ToolsProps): ReactElement | null =>
+  tab.queryBox === null ? null : (
+    <MenuButton
+      label="More Actions"
+      tooltip="More actions"
+      icon={IconName.More}
+      items={[{ label: 'Open in SQL Editor', isDisabled: false, onSelect: actions.openInEditor }]}
+      isDisabled={false}
+      hasChevron={false}
+    />
+  )
 
 // While the statement runs it can be cancelled; once it ran, the rows of a table can be read again.
 const RunTools = ({ tab, actions }: ToolsProps): ReactElement | null => {

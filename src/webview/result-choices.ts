@@ -61,9 +61,18 @@ export function toolbarActions(projection: Projection, choices: ResultChoices): 
       api.postMessage({ type: WebviewMessageType.FilterTable, tabId: tab.id, condition })
     },
     openInEditor: () => {
-      api.postMessage({ type: WebviewMessageType.OpenInEditor, tabId: tab.id })
+      openInEditor(api, tab)
     },
   }
+}
+
+// The rows of a table as the panel reads them; the query the user ran from the query box as it ran.
+function openInEditor(api: ResultsApi, tab: ResultTab): void {
+  if (tab.queryBox?.isCustom === true) {
+    api.postMessage({ type: WebviewMessageType.OpenSqlInEditor, sql: tab.queryBox.sql })
+    return
+  }
+  api.postMessage({ type: WebviewMessageType.OpenInEditor, tabId: tab.id })
 }
 
 // What stops the statement of the tab, or runs it again.

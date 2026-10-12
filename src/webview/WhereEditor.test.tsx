@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { MYSQL_LEXICAL } from '../../test/fixtures/lexical.ts'
 import { shownView, type ShownView } from '../../test/webview/result-view.ts'
@@ -169,27 +169,14 @@ describe('the WHERE of a table', () => {
   })
 })
 
-describe('opening the query of a table in an editor', () => {
-  it('should open it from the button beside the WHERE or with Ctrl+Shift+E', () => {
-    where()
+describe('the expand button of the WHERE', () => {
+  it('should ask the panel for its query box, and open no editor', () => {
+    const toggle = vi.fn()
+    view = shownView({ changes: TABLE, context: { queryMode: { isOn: false, toggle } } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in SQL Editor' }))
-    fireEvent.keyDown(window, { key: 'E', code: 'KeyE', ctrlKey: true, shiftKey: true })
-    fireEvent.keyDown(window, { key: 'E', code: 'KeyE', metaKey: true, shiftKey: true })
-    fireEvent.keyDown(window, { key: 'e', code: 'KeyE', ctrlKey: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the Query' }))
 
-    expect(view.sent('openInEditor')).toStrictEqual([
-      { type: 'openInEditor', tabId: 'tab-1' },
-      { type: 'openInEditor', tabId: 'tab-1' },
-      { type: 'openInEditor', tabId: 'tab-1' },
-    ])
-  })
-
-  it('should leave the shortcut alone outside a table panel', () => {
-    view = shownView()
-
-    fireEvent.keyDown(window, { key: 'E', code: 'KeyE', ctrlKey: true, shiftKey: true })
-
+    expect(toggle).toHaveBeenCalledOnce()
     expect(view.sent('openInEditor')).toStrictEqual([])
   })
 

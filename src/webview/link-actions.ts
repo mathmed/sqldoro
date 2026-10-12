@@ -1,9 +1,6 @@
 import type { CellPosition } from '../core/grid/selection.ts'
-import {
-  type NavigationStart,
-  type ResultTab,
-  WebviewMessageType,
-} from '../core/results/protocol.ts'
+import type { NavigationStart } from '../core/results/protocol-parts.ts'
+import { type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ResultsApi } from './results-api.ts'
 
 // What the links of a result do: open the row a foreign key points at (in a panel of its own, or
@@ -19,14 +16,19 @@ export interface LinkActions {
   readonly canOpenInPlace: boolean
 }
 
-// Where a navigation from a row of the tab starts; in place only in a table panel.
+// Where a navigation from a row of the tab starts; in place only in a table panel (its rows, or the
+// result of a query of its query box).
 function startOf(tab: ResultTab, row: number, isInPlace: boolean): NavigationStart {
   return {
     tabId: tab.id,
     viewVersion: tab.viewVersion,
     row,
-    isInPlace: isInPlace && tab.canRefresh,
+    isInPlace: isInPlace && isTablePanel(tab),
   }
+}
+
+function isTablePanel(tab: ResultTab): boolean {
+  return tab.queryBox !== null
 }
 
 export function linkActions(api: ResultsApi, tab: ResultTab): LinkActions {
@@ -56,6 +58,6 @@ export function linkActions(api: ResultsApi, tab: ResultTab): LinkActions {
         reference,
       })
     },
-    canOpenInPlace: tab.canRefresh,
+    canOpenInPlace: isTablePanel(tab),
   }
 }

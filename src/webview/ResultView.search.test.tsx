@@ -28,6 +28,7 @@ function element(changes: Partial<ResultTab> = {}): JSX.Element {
         step: null,
         scrolls: new Map(),
         indicator,
+        queryMode: { isOn: false, toggle: () => undefined },
       }}
       hasTabs={false}
     />

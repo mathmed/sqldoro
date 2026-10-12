@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import { resultTab } from '../../../test/fixtures/results.ts'
 import { TabKind, TabStatus } from './protocol.ts'
-import { canLoadAll, formatDuration, groupDigits, plural, summaryText, tabTitle } from './tabs.ts'
+import {
+  canLoadAll,
+  costText,
+  formatDuration,
+  groupDigits,
+  plural,
+  summaryText,
+  tabTitle,
+} from './tabs.ts'
 
 describe('tabTitle', () => {
   it('should put the statement on one line', () => {
@@ -48,6 +56,17 @@ describe('formatDuration', () => {
     expect(formatDuration(999.4)).toBe('999 ms')
     expect(formatDuration(1000)).toBe('1.00 s')
     expect(formatDuration(65_432)).toBe('65.43 s')
+  })
+})
+
+describe('costText', () => {
+  it('should say what the statement cost, and its rows', () => {
+    const summary = { durationMs: 12.4, affectedRows: null, isTruncated: true, autoLimit: 100 }
+
+    expect(costText(summary, 100)).toBe('Cost: 12 ms · 100 rows')
+    expect(costText({ ...summary, durationMs: 1500, affectedRows: 1 }, 0)).toBe(
+      'Cost: 1.50 s · 1 row affected',
+    )
   })
 })
 

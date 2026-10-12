@@ -71,8 +71,8 @@ describe('a link of a table panel', () => {
     expect(postedOf(nav.orders.panel, 'trail').at(-1)).toStrictEqual({
       type: 'trail',
       crumbs: [
-        { id: 0, label: 'orders #2', isCurrent: false },
-        { id: 1, label: 'notes #gift', isCurrent: true },
+        { id: 0, label: 'orders #2', isCurrent: false, isQuery: false },
+        { id: 1, label: 'notes #gift', isCurrent: true, isQuery: false },
       ],
     })
     nav.orders.panel.webview.send({ type: 'goToStep', step: 0 })

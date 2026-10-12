@@ -38,6 +38,7 @@ export function shownView(shown: Shown = {}): ShownView {
     step: null,
     scrolls: new Map(),
     indicator: new WaitIndicator(),
+    queryMode: { isOn: false, toggle: () => undefined },
   }
   const element = ({ changes = {}, incoming, answers = {}, context = {} }: Shown): ReactElement =>
     createElement(ResultView, {

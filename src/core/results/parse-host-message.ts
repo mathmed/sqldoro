@@ -18,21 +18,21 @@ import {
   readDistinct,
   readLayout,
   readPeek,
+  readQueryBox,
+  readQueryBoxText,
   readReferenceCounts,
   readRowReference,
   readSql,
   readTrail,
 } from './parse-host-extras.ts'
+import type { PanelConnection, TabError, TabSummary } from './protocol-parts.ts'
 import {
   type HostMessage,
   HostMessageType,
-  type PanelConnection,
   type ResultTab,
-  type TabError,
   TabKind,
   TabProgress,
   TabStatus,
-  type TabSummary,
   type WireRow,
 } from './protocol.ts'
 
@@ -56,6 +56,7 @@ const READERS: ReadonlyMap<string, Reader> = new Map<string, Reader>([
   [HostMessageType.ReferenceCounts, readReferenceCounts],
   [HostMessageType.Distinct, readDistinct],
   [HostMessageType.Sql, readSql],
+  [HostMessageType.QueryBox, readQueryBox],
 ])
 
 function isTabStatus(value: unknown): value is TabStatus {
@@ -115,6 +116,7 @@ function readTab(tab: JsonRecord): ResultTab {
     notice: readString(tab, 'notice'),
     plan: readStrings(tab, 'plan'),
     editing: readEditing(readNested(tab, 'editing')),
+    queryBox: readNullable(tab, 'queryBox', readQueryBoxText),
   }
 }
 

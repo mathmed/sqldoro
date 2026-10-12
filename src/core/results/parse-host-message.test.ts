@@ -38,9 +38,32 @@ describe('parseHostMessage', () => {
       canRefresh: true,
       tableFilter: "status = 'open'",
       search: 'ann',
+      queryBox: { sql: 'SELECT * FROM "orders" LIMIT 100', isCustom: false },
     })
 
     expect(parseHostMessage({ type: 'tab', tab })).toStrictEqual({ type: 'tab', tab })
+  })
+
+  it('should refuse a tab whose query box does not say whether it holds a query of the user', () => {
+    const tab = { ...resultTab(), queryBox: { sql: 'SELECT 1' } }
+
+    expect(() => parseHostMessage({ type: 'tab', tab })).toThrow(
+      new TypeError('"isCustom" must be a boolean'),
+    )
+  })
+
+  it('should read what the query box of a table panel works with', () => {
+    expect(
+      parseHostMessage({ type: 'queryBox', tables: ['orders', 'lines'], height: 180 }),
+    ).toStrictEqual({ type: 'queryBox', tables: ['orders', 'lines'], height: 180 })
+    expect(parseHostMessage({ type: 'queryBox', tables: [], height: null })).toStrictEqual({
+      type: 'queryBox',
+      tables: [],
+      height: null,
+    })
+    expect(() => parseHostMessage({ type: 'queryBox', tables: [], height: -4 })).toThrow(
+      new TypeError('"height" must be a whole number of 0 or more'),
+    )
   })
 
   it('should refuse a tab that does not say whether it can be read again', () => {

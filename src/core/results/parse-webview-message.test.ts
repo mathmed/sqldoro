@@ -174,6 +174,30 @@ describe('parseWebviewMessage', () => {
     })
   })
 
+  it('should read what the query box of a table panel asks', () => {
+    expect(parseWebviewMessage({ type: 'runQuery', sql: 'SELECT 1' })).toStrictEqual({
+      type: 'runQuery',
+      sql: 'SELECT 1',
+    })
+    expect(parseWebviewMessage({ type: 'openSqlInEditor', sql: 'SELECT 2' })).toStrictEqual({
+      type: 'openSqlInEditor',
+      sql: 'SELECT 2',
+    })
+    expect(parseWebviewMessage({ type: 'setQueryHeight', height: 4000 })).toStrictEqual({
+      type: 'setQueryHeight',
+      height: 4000,
+    })
+  })
+
+  it('should refuse a query box taller than it can be, or a query that is not text', () => {
+    expect(() => parseWebviewMessage({ type: 'setQueryHeight', height: 4001 })).toThrow(
+      new TypeError('"height" must be at most 4000'),
+    )
+    expect(() => parseWebviewMessage({ type: 'runQuery', sql: 3 })).toThrow(
+      new TypeError('"sql" must be a string'),
+    )
+  })
+
   it('should read a problem the webview reports', () => {
     expect(parseWebviewMessage({ type: 'problem', message: 'boom' })).toStrictEqual({
       type: 'problem',

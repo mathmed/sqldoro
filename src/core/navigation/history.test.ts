@@ -6,6 +6,7 @@ import {
   canMoveBy,
   crumbsOf,
   currentStep,
+  isQueryStep,
   MAX_STEPS,
   moveBy,
   moveToStep,
@@ -14,6 +15,7 @@ import {
   startNavigation,
   stepLabel,
   withCurrent,
+  withQuery,
 } from './history.ts'
 
 const CONDOMINIUM = { database: 'bank', schema: 'public', name: 'Condominium' }
@@ -43,6 +45,7 @@ describe('startNavigation and pushStep', () => {
           view: IDENTITY_VIEW,
           columns: [],
           departure: '',
+          query: '',
         },
       ],
       index: 0,
@@ -132,8 +135,13 @@ describe('moving', () => {
 describe('crumbsOf and stepLabel', () => {
   it('should name each step by its table and its row', () => {
     expect(crumbsOf(trail())).toStrictEqual([
-      { id: 0, label: 'Condominium #1', isCurrent: false },
-      { id: 1, label: 'CondominiumBankAccount (condominiumId = 1)', isCurrent: true },
+      { id: 0, label: 'Condominium #1', isCurrent: false, isQuery: false },
+      {
+        id: 1,
+        label: 'CondominiumBankAccount (condominiumId = 1)',
+        isCurrent: true,
+        isQuery: false,
+      },
     ])
   })
 
@@ -144,5 +152,55 @@ describe('crumbsOf and stepLabel', () => {
     expect(
       stepLabel(currentStep(startNavigation({ table: AUDIT, key: undefined })), CONDOMINIUM),
     ).toBe('audit.Entry')
+  })
+})
+
+describe('withQuery', () => {
+  const JOIN = 'SELECT * FROM "Condominium" JOIN "CondominiumBankAccount" USING (id)'
+
+  it('should run a query of the query box as a step of its own, on the table shown', () => {
+    const sut = withQuery(trail(), JOIN)
+
+    expect(sut.steps.map((step) => step.id)).toStrictEqual([0, 1, 2])
+    expect(sut.index).toBe(2)
+    expect(currentStep(sut)).toStrictEqual({
+      id: 2,
+      table: ACCOUNT,
+      key: undefined,
+      condition: '',
+      view: IDENTITY_VIEW,
+      columns: [],
+      departure: '',
+      query: JOIN,
+    })
+    expect(isQueryStep(currentStep(sut))).toBe(true)
+    expect(isQueryStep(currentStep(trail()))).toBe(false)
+  })
+
+  it('should run another query in place of the query step shown, not after it', () => {
+    const first = withCurrent(withQuery(trail(), JOIN), { departure: '#2' })
+    const sut = withQuery(first, 'SELECT 1')
+
+    expect(sut.steps.map((step) => step.id)).toStrictEqual([0, 1, 2])
+    expect(currentStep(sut)).toMatchObject({ id: 2, query: 'SELECT 1', departure: '' })
+  })
+
+  it('should drop the steps forward of the one it was run from', () => {
+    const back = moveBy(trail(), -1) ?? trail()
+    const sut = withQuery(back, JOIN)
+
+    expect(sut.steps.map((step) => step.id)).toStrictEqual([0, 2])
+    expect(currentStep(sut).table).toBe(CONDOMINIUM)
+  })
+
+  it('should name the step of a query, and the row left from it', () => {
+    const sut = withCurrent(withQuery(trail(), JOIN), { departure: '#4' })
+
+    expect(crumbsOf(sut).map((crumb) => crumb.label)).toStrictEqual([
+      'Condominium #1',
+      'CondominiumBankAccount (condominiumId = 1)',
+      'Query #4',
+    ])
+    expect(stepLabel(currentStep(withQuery(trail(), JOIN)), CONDOMINIUM)).toBe('Query')
   })
 })

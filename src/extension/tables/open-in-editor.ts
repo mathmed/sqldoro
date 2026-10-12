@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 
-import { hiddenCount } from '../../core/grid/column-layout.ts'
+import { shownNames } from '../../core/results/query-box.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
 import { namedView } from '../../core/results/server-view.ts'
 import { tableEditorSql } from '../../core/results/table-query.ts'
@@ -42,12 +42,12 @@ export async function openTableInEditor(
   await openQueryEditor(context.bindings, query.sql, tableBinding(uri))
 }
 
-// The columns the grid shows, in its order, when it hides some; none (every column) otherwise.
-function shownNames(tab: ResultSet): string[] {
-  if (hiddenCount(tab.columns, tab.layout) === 0) {
-    return []
-  }
-  return tab.shownColumns.flatMap((index) =>
-    tab.columns.slice(index, index + 1).map(({ name }) => name),
-  )
+// What the query box of a table panel holds, in a new SQL editor on the connection, database and
+// schema of the panel: the user goes on with it there.
+export async function openSqlInEditor(
+  context: Pick<TableEditorContext, 'bindings'>,
+  uri: vscode.Uri,
+  sql: string,
+): Promise<void> {
+  await openQueryEditor(context.bindings, sql, tableBinding(uri))
 }
