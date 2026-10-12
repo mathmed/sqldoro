@@ -4,6 +4,7 @@ import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { folderNode as folderContents } from '../../core/connection/folders.ts'
 import { folderName } from '../../core/text/folder-paths.ts'
 import { type ExplorerNode, nodeId, NodeKind } from './explorer-node.ts'
+import { NodeIcon, themeIcon } from './node-icons.ts'
 
 // What the folders of the view show: the connections as they are saved now, each made a node once
 // (the view finds a connection again by its node).
@@ -33,7 +34,7 @@ function folderNode(source: FolderSource, path: string): ExplorerNode {
       const item = new vscode.TreeItem(folderName(path), vscode.TreeItemCollapsibleState.Expanded)
       item.id = node.id
       item.contextValue = NodeKind.Folder
-      item.iconPath = new vscode.ThemeIcon('folder')
+      item.iconPath = themeIcon(NodeIcon.Folder)
       item.tooltip = path
       return item
     },

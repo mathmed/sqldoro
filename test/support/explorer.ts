@@ -11,14 +11,16 @@ import { EngineRegistry } from '../../src/core/engine/engine-registry.ts'
 import type { EngineSession } from '../../src/core/engine/engine.ts'
 import { SchemaCache } from '../../src/extension/completion/schema-cache.ts'
 import { SessionManager } from '../../src/extension/sessions/session-manager.ts'
+import { DatabaseSelection } from '../../src/extension/tree/database-selection.ts'
 import type { ExplorerNode } from '../../src/extension/tree/explorer-node.ts'
 import { ExplorerProvider } from '../../src/extension/tree/explorer-provider.ts'
 import { TableIndex } from '../../src/extension/tree/table-index.ts'
 import { fakeEngine, fakeSession } from '../fakes/engine.ts'
 import { recordingLogger } from '../fakes/logger.ts'
 import { MYSQL_DIALECT } from '../fixtures/dialects.ts'
+import { Uri } from '../vscode.ts'
 
-const POSTGRES = fakeEngine({
+export const POSTGRES = fakeEngine({
   id: 'postgres',
   displayName: 'PostgreSQL',
   defaultPort: 5432,
@@ -43,6 +45,7 @@ export const SHOP: ConnectionConfig = {
 export interface Explorer {
   readonly sut: ExplorerProvider
   readonly sessions: SessionManager
+  readonly selection: DatabaseSelection
   readonly log: ReturnType<typeof recordingLogger>
 }
 
@@ -54,6 +57,8 @@ export interface ExplorerOptions {
   // The clock of the loading nodes; by default no list is ever slow.
   readonly delay?: (milliseconds: number) => Promise<void>
 }
+
+export const EXTENSION_URI = Uri.file('/extension') as unknown as vscode.Uri
 
 // A delay that never ends: no list takes long enough to show a loading node.
 export async function never(): Promise<void> {
@@ -79,6 +84,7 @@ export function explorer(
     onConnectionLost: vi.fn(),
   })
   const engines = new EngineRegistry([POSTGRES, MYSQL])
+  const selection = new DatabaseSelection({ connections: () => connections, engines })
   const sut = new ExplorerProvider({
     connections: () => connections,
     sessions,
@@ -92,9 +98,11 @@ export function explorer(
     }),
     policy: () => ({ productionEnvironments: new Set(['prod']) }),
     delay,
+    selection,
+    extensionUri: EXTENSION_URI,
     log,
   })
-  return { sut, sessions, log }
+  return { sut, sessions, selection, log }
 }
 
 export async function childrenOf(

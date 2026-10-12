@@ -72,7 +72,14 @@ async function wired(
 ): Promise<{ readonly base: Services; readonly query: QueryServices }> {
   const log = recordingLogger()
   const globalState = new FakeMemento()
-  const base = createServices({ globalState, secrets: new FakeSecretStorage() }, log)
+  const base = createServices(
+    {
+      globalState,
+      secrets: new FakeSecretStorage(),
+      extensionUri: Uri.file('/extension') as unknown as vscode.Uri,
+    },
+    log,
+  )
   await base.service.save(
     connectionTo(base, target, changes),
     new Map([[SecretKind.Password, target.server.password]]),

@@ -4,6 +4,7 @@ import type * as vscode from 'vscode'
 
 import type { EngineRegistry } from '../core/engine/engine-registry.ts'
 import type { Logger } from '../core/platform.ts'
+import type { GuardPolicy } from '../core/safety/guard.ts'
 import { SchemaCache } from './completion/schema-cache.ts'
 import { showConnectionLost } from './connections/connection-lost.ts'
 import { ConnectionService } from './connections/connection-service.ts'
@@ -18,10 +19,15 @@ import { readSettings } from './settings.ts'
 import { ConnectionStore } from './storage/connection-store.ts'
 import { KnownHosts } from './storage/known-hosts.ts'
 import { SecretStore } from './storage/secret-store.ts'
+import { DatabaseSelection } from './tree/database-selection.ts'
+import { ExplorerDecorations } from './tree/explorer-decorations.ts'
 import { ExplorerProvider } from './tree/explorer-provider.ts'
 import { TableIndex } from './tree/table-index.ts'
 
-export type StorageContext = Pick<vscode.ExtensionContext, 'globalState' | 'secrets'>
+export type StorageContext = Pick<
+  vscode.ExtensionContext,
+  'extensionUri' | 'globalState' | 'secrets'
+>
 
 export interface Services {
   readonly engines: EngineRegistry
@@ -31,6 +37,9 @@ export interface Services {
   readonly sessions: SessionManager
   readonly service: ConnectionService
   readonly explorer: ExplorerProvider
+  // The database each connection marks in the explorer, and the colors of its labels.
+  readonly selection: DatabaseSelection
+  readonly explorerDecorations: ExplorerDecorations
   // What the autocomplete, the explorer and the result grid know of each catalog.
   readonly schemaCache: SchemaCache
   readonly index: TableIndex
@@ -63,17 +72,19 @@ export function createServices(context: StorageContext, log: Logger): Services {
     open,
     sessions,
     service,
-    ...createCatalog({ store, sessions, engines }, log),
+    ...createCatalog({ store, sessions, engines, extensionUri: context.extensionUri }, log),
   }
 }
 
-type CatalogParts = Pick<Services, 'engines' | 'sessions' | 'store'>
+type CatalogParts = Pick<Services, 'engines' | 'sessions' | 'store'> &
+  Pick<StorageContext, 'extensionUri'>
 
 // The catalog of the connections as the explorer, the autocomplete and the grid see it.
 function createCatalog(
-  { store, sessions, engines }: CatalogParts,
+  parts: CatalogParts,
   log: Logger,
-): Pick<Services, 'explorer' | 'index' | 'schemaCache'> {
+): Pick<Services, 'explorer' | 'explorerDecorations' | 'index' | 'schemaCache' | 'selection'> {
+  const { store, sessions, engines } = parts
   const schemaCache = new SchemaCache(log)
   const index = new TableIndex({
     cache: schemaCache,
@@ -82,14 +93,31 @@ function createCatalog(
     engines,
     log,
   })
-  const explorer = new ExplorerProvider({
-    connections: () => store.list(),
-    sessions,
-    engines,
-    index,
-    policy: () => readSettings().policy,
-    delay,
-    log,
-  })
-  return { explorer, index, schemaCache }
+  return { index, schemaCache, ...createExplorer(parts, index, log) }
+}
+
+// The Connections view, the database each connection marks in it and the colors of its labels.
+function createExplorer(
+  { store, sessions, engines, extensionUri }: CatalogParts,
+  index: TableIndex,
+  log: Logger,
+): Pick<Services, 'explorer' | 'explorerDecorations' | 'selection'> {
+  const connections = (): ReturnType<ConnectionStore['list']> => store.list()
+  const policy = (): GuardPolicy => readSettings().policy
+  const selection = new DatabaseSelection({ connections, engines })
+  return {
+    selection,
+    explorer: new ExplorerProvider({
+      connections,
+      sessions,
+      engines,
+      index,
+      policy,
+      delay,
+      selection,
+      extensionUri,
+      log,
+    }),
+    explorerDecorations: new ExplorerDecorations({ connections, selection, policy }),
+  }
 }

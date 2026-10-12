@@ -211,8 +211,26 @@ to draw the node again. A table or database node knows the node whose list it co
 
 Connections can sit in folders (`clients/acme`, `src/core/connection/folders.ts`): the view shows the
 folders as nodes, and renaming or deleting a folder only moves the connections in it. A connection
-has a color, which tints its node, the badge of its editors and the chip of its panels (production
-is red whatever it is). Finding a table (`TableIndex`, `find-nodes.ts`) lists the tables and views of
+has a color, which tints its label, the badge of its editors and the chip of its panels (production
+is red whatever it is).
+
+Each kind of node has its codicon and a theme color (`NodeIcon` in `src/extension/tree/node-icons.ts`,
+the one table of the looks): only theme colors (`charts.*`, `symbolIcon.*`), which have values for
+the light, dark and high-contrast themes. A connection shows the glyph of its engine
+(`media/explorer/<engine>-<connected|disconnected>-<light|dark>.svg`, drawn for sqldoro), with a green
+dot once connected; an engine without a glyph, a connection that connects or failed, show a codicon.
+SVG icons cannot take theme colors, so the color of a connection goes to its label: connections,
+databases and schemas carry a `resourceUri` (`sqldoro-explorer:`, `node-uris.ts`) and
+`ExplorerDecorations` colors their labels through VS Code's file decorations.
+
+The database (and schema) the SQL editor in front runs on stands out: `selectedScopes` and
+`changedScopes` (`src/core/editor/selection.ts`, pure) decide what each connection marks (the binding of
+the editor in front; with none in front, the default database of each connection) and which marks
+moved. `DatabaseSelection` follows the editor in front, its binding and the connections, and tells
+which marks changed: the decorations fire for their URIs only (the green label and the `●`), and the
+provider draws again only the database and schema nodes it drew whose mark changed (their icon and
+tooltip), keeping their children. These redraws do not reach `onDidChangeContents`, the event the
+schema cache follows, so moving between editors never reads the catalog again. Finding a table (`TableIndex`, `find-nodes.ts`) lists the tables and views of
 the connected connections through the schema cache and shows the matches as a tree of its own,
 opened down to them, under ids of their own so that VS Code gives the tree back as it was.
 

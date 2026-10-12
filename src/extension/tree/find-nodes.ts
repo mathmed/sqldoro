@@ -13,6 +13,7 @@ import {
   NodeKind,
   treeItem,
 } from './explorer-node.ts'
+import { type IconLook, NodeIcon, themeIcon } from './node-icons.ts'
 import type { ConnectionObjects, ScopeObjects } from './table-index.ts'
 
 // What the explorer shows while the user finds a table: the connections, databases and schemas
@@ -118,7 +119,7 @@ function databaseBranch(connectionId: string, database: string): ExplorerNode {
     kind: NodeKind.Database,
     connectionId,
     label: database,
-    icon: 'database',
+    icon: NodeIcon.Database,
   })
 }
 
@@ -128,7 +129,7 @@ function schemaBranch(connectionId: string, scope: ObjectScope): ExplorerNode {
     kind: NodeKind.Schema,
     connectionId,
     label: scope.schema,
-    icon: 'symbol-namespace',
+    icon: NodeIcon.Schema,
   })
 }
 
@@ -142,7 +143,7 @@ function groupBranch(
     kind: group.kind,
     connectionId,
     label: isTables ? 'Tables' : 'Views',
-    icon: isTables ? 'table' : 'eye',
+    icon: isTables ? NodeIcon.Tables : NodeIcon.Views,
     description: String(group.count),
   })
 }
@@ -152,7 +153,7 @@ interface Branch {
   readonly kind: NodeKind
   readonly connectionId: string
   readonly label: string
-  readonly icon: string
+  readonly icon: IconLook
   readonly description?: string
 }
 
@@ -164,7 +165,7 @@ function plainBranch(branch: Branch): ExplorerNode {
     treeItem: () =>
       treeItem(node, {
         label: branch.label,
-        icon: new vscode.ThemeIcon(branch.icon),
+        icon: themeIcon(branch.icon),
         description: branch.description ?? '',
         isExpandable: true,
       }),

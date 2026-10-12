@@ -1,16 +1,19 @@
 import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
+import { type SelectedScope, showsScope } from '../../core/editor/selection.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { Logger } from '../../core/platform.ts'
 import { type GuardPolicy, isProduction } from '../../core/safety/guard.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { SessionManager } from '../sessions/session-manager.ts'
 import { connectionNode } from './connection-node.ts'
+import type { DatabaseSelection } from './database-selection.ts'
 import { type ExplorerNode, messageNode, MessageTone, type NodeContext } from './explorer-node.ts'
 import { foundNodes } from './find-nodes.ts'
 import { folderChildren } from './folder-node.ts'
 import { loadingText } from './loading-text.ts'
+import { type ScopePlace, scopePlace } from './scope-mark.ts'
 import type { TableIndex } from './table-index.ts'
 
 export interface ExplorerDependencies {
@@ -21,10 +24,18 @@ export interface ExplorerDependencies {
   readonly policy: () => GuardPolicy
   // Resolves after this many milliseconds: the clock of the loading nodes.
   readonly delay: (milliseconds: number) => Promise<void>
+  // The database each connection marks; a change draws only the nodes whose mark changed.
+  readonly selection: Pick<DatabaseSelection, 'onDidChange' | 'selected'>
+  readonly extensionUri: vscode.Uri
   readonly log: Logger
 }
 
 type Children = Promise<readonly ExplorerNode[]>
+
+interface Drawn {
+  readonly node: ExplorerNode
+  readonly place: ScopePlace
+}
 
 // What the view loaded under a connection: the children of its nodes, and what the nodes said of
 // them (how many tables a group holds).
@@ -44,18 +55,29 @@ const FIND_ROOT = { id: 'find', connectionId: '' }
 export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, vscode.Disposable {
   readonly #dependencies: ExplorerDependencies
   readonly #changes = new vscode.EventEmitter<ExplorerNode | undefined>()
+  readonly #contents = new vscode.EventEmitter<ExplorerNode | undefined>()
   readonly #loaded = new Map<string, Loaded>()
   readonly #roots = new Map<string, ExplorerNode>()
-  readonly #subscription: vscode.Disposable
+  // The databases and schemas the view drew, by id: those a change of the mark draws again.
+  readonly #scopeNodes = new Map<string, Drawn>()
+  readonly #subscriptions: vscode.Disposable[]
   #filter = ''
   #find = ''
   readonly onDidChangeTreeData = this.#changes.event
+  // What the view shows changed for another reason than the mark of a database: the caches of the
+  // catalog follow it.
+  readonly onDidChangeContents = this.#contents.event
 
   constructor(dependencies: ExplorerDependencies) {
     this.#dependencies = dependencies
-    this.#subscription = dependencies.sessions.onDidChange((connectionId) => {
-      this.refreshConnection(connectionId)
-    })
+    this.#subscriptions = [
+      dependencies.sessions.onDidChange((connectionId) => {
+        this.refreshConnection(connectionId)
+      }),
+      dependencies.selection.onDidChange((scopes) => {
+        this.#redrawMarks(scopes)
+      }),
+    ]
   }
 
   get filter(): string {
@@ -74,10 +96,14 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   // Shows only the tables and views whose name holds the text; an empty text shows the tree again.
   setFind(text: string): void {
     this.#find = text.trim()
-    this.#changes.fire(undefined)
+    this.#fire(undefined)
   }
 
   getTreeItem(node: ExplorerNode): vscode.TreeItem {
+    const place = scopePlace(node)
+    if (place !== undefined) {
+      this.#scopeNodes.set(node.id, { node, place })
+    }
     return node.treeItem(this.#context())
   }
 
@@ -94,15 +120,35 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
   refresh(node?: ExplorerNode): void {
     if (node === undefined) {
       this.#loaded.clear()
+      this.#scopeNodes.clear()
     } else {
       this.#loaded.delete(node.connectionId)
     }
-    this.#changes.fire(node?.listedBy ?? node)
+    this.#fire(node?.listedBy ?? node)
   }
 
   dispose(): void {
-    this.#subscription.dispose()
+    for (const subscription of this.#subscriptions) {
+      subscription.dispose()
+    }
     this.#changes.dispose()
+    this.#contents.dispose()
+  }
+
+  #fire(node: ExplorerNode | undefined): void {
+    this.#changes.fire(node)
+    this.#contents.fire(node)
+  }
+
+  // Only the icon and the tooltip of these nodes change: their children stay as they were loaded.
+  #redrawMarks(scopes: readonly SelectedScope[]): void {
+    for (const { node, place } of this.#scopeNodes.values()) {
+      const isMarked = (scope: SelectedScope): boolean =>
+        scope.connectionId === node.connectionId && showsScope(place, scope)
+      if (scopes.some(isMarked)) {
+        this.#changes.fire(node)
+      }
+    }
   }
 
   #rootNodes(): ExplorerNode[] {
@@ -142,7 +188,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       return loading
     }
     void loading.then(() => {
-      this.#changes.fire(node)
+      this.#fire(node)
     })
     return [messageNode(node, { text: loadingText(node.kind), tone: MessageTone.Progress })]
   }
@@ -165,7 +211,7 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     }
     const children = await node.children({ ...this.#context(), summarize })
     if (loaded.summaries.has(node.id)) {
-      this.#changes.fire(node)
+      this.#fire(node)
     }
     return children
   }
@@ -185,12 +231,12 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
     this.#loaded.delete(connectionId)
     const node = this.#roots.get(connectionId)
     if (node !== undefined) {
-      this.#changes.fire(node)
+      this.#fire(node)
     }
   }
 
   #context(): NodeContext {
-    const { sessions, log, policy } = this.#dependencies
+    const { sessions, log, policy, selection, extensionUri } = this.#dependencies
     return {
       state: (connectionId) => sessions.state(connectionId),
       session: (connectionId) => sessions.session(connectionId)?.engineSession,
@@ -198,6 +244,8 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       isProduction: (environment) => isProduction(environment, policy()),
       log,
       summaryOf: (node) => this.#loaded.get(node.connectionId)?.summaries.get(node.id),
+      selected: (connectionId) => selection.selected(connectionId),
+      extensionUri,
     }
   }
 }

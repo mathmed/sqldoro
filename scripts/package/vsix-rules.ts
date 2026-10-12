@@ -1,6 +1,14 @@
 import { formatBytes } from '../shared/text.ts'
 import { manifestFiles } from './manifest-files.ts'
 
+// The glyphs of the engines on the connections of the Connections view: one per engine, connected
+// or not, for light and dark themes (the extension names them in src/extension/tree/node-icons.ts).
+const ENGINE_GLYPHS: readonly string[] = ['mysql', 'postgres'].flatMap((engine) =>
+  ['connected', 'disconnected'].flatMap((state) =>
+    ['light', 'dark'].map((theme) => `extension/media/explorer/${engine}-${state}-${theme}.svg`),
+  ),
+)
+
 // What sqldoro's .vsix holds: what vsce writes (the manifests, the readme, the changelog and the
 // license), the bundles (the extension and its two webviews), the notices of the bundled libraries and the media. .vscodeignore lists
 // the same files: this check fails when the package and the list part ways.
@@ -19,6 +27,7 @@ export const VSIX_FILES: readonly string[] = [
   'extension/dist/webview/connection-form.css',
   'extension/media/icon.png',
   'extension/media/sqldoro.svg',
+  ...ENGINE_GLYPHS,
 ]
 // Folders whose files may ship beside those above: the pages of the walkthrough.
 const VSIX_FOLDERS: readonly string[] = ['extension/media/walkthrough/']

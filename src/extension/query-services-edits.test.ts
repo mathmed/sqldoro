@@ -63,7 +63,14 @@ function column(reference: string, name: string, typeName: string): Record<strin
 async function wired(): Promise<QueryServices> {
   const log = recordingLogger()
   const globalState = new FakeMemento()
-  const base = createServices({ globalState, secrets: new FakeSecretStorage() }, log)
+  const base = createServices(
+    {
+      globalState,
+      secrets: new FakeSecretStorage(),
+      extensionUri: Uri.file('/extension') as unknown as vscode.Uri,
+    },
+    log,
+  )
   const connection = {
     ...newConnection('shop', base.engines.get('postgres')),
     name: 'Shop',
