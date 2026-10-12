@@ -1,7 +1,7 @@
 {
   "name": "sqldoro",
   "displayName": "sqldoro",
-  "description": "A fast, safe MySQL and PostgreSQL client: schema explorer, SQL editor with autocomplete, a virtualized result grid, inline editing with an SQL preview, and safety guards for every statement. No telemetry.",
+  "description": "MySQL and PostgreSQL client for VS Code: schema explorer, SQL editor, fast result grid and safe inline editing. Read-only by default, no telemetry.",
   "version": "0.1.0",
   "publisher": "mathmed",
   "license": "MIT",
