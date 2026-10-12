@@ -53,8 +53,6 @@ export const CommandId = {
 export type CommandId = (typeof CommandId)[keyof typeof CommandId]
 
 export const ViewId = {
-  // The search box above the Connections view (a webview).
-  TableSearch: 'sqldoro.tableSearch',
   Connections: 'sqldoro.connections',
   History: 'sqldoro.history',
   SavedQueries: 'sqldoro.savedQueries',

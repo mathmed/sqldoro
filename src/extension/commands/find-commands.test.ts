@@ -7,16 +7,9 @@ import {
   POSTGRES,
   saved,
 } from '../../../test/support/commands.ts'
-import {
-  builtInCalls,
-  commands,
-  quickPicks,
-  resetVscode,
-  webviewViews,
-  window,
-} from '../../../test/vscode.ts'
+import { commands, quickPicks, resetVscode } from '../../../test/vscode.ts'
 import { type ConnectionConfig, newConnection } from '../../core/connection/connection.ts'
-import { CommandId, ViewId } from '../command-id.ts'
+import { CommandId } from '../command-id.ts'
 
 const SHOP: ConnectionConfig = {
   ...newConnection('shop', POSTGRES),
@@ -49,34 +42,6 @@ afterEach(() => {
   harness.dispose()
 })
 
-describe('Find Table in Explorer', () => {
-  it('should show the search box above the explorer and put the focus in it', async () => {
-    const finding = vscode.commands.executeCommand(CommandId.FindTable)
-    await vi.waitFor(() => {
-      expect(webviewViews.get(ViewId.TableSearch)).toBeDefined()
-    })
-    const box = webviewViews.get(ViewId.TableSearch)
-    box?.webview.send({ type: 'ready' })
-
-    await expect(finding).resolves.toBe(true)
-    expect(builtInCalls).toContainEqual({ command: 'sqldoro.tableSearch.focus', args: [] })
-    expect(box?.webview.posted.at(-1)).toStrictEqual({ type: 'focus' })
-  })
-
-  it('should say so when the search box does not load', async () => {
-    vi.useFakeTimers()
-    const finding = vscode.commands.executeCommand(CommandId.FindTable)
-
-    await vi.advanceTimersByTimeAsync(10_000)
-
-    await expect(finding).resolves.toBeUndefined()
-    expect(window.showErrorMessage).toHaveBeenCalledWith(
-      'Find Table in Explorer failed: The search box did not load.',
-    )
-    vi.useRealTimers()
-  })
-})
-
 describe('Go to Table', () => {
   it('should list the tables and views of the connected connections and open the one picked', async () => {
     const openTableData = vi.fn()
@@ -104,7 +69,7 @@ describe('Go to Table', () => {
     })
   })
 
-  it('should filter as the search box does: the characters in order, the best first', async () => {
+  it('should filter as Find Table in Explorer does: the characters in order, the best first', async () => {
     await vscode.commands.executeCommand(CommandId.Connect, 'shop')
     const going = vscode.commands.executeCommand(CommandId.GoToTable)
     await settle()

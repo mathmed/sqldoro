@@ -1,10 +1,11 @@
 import * as vscode from 'vscode'
 
 import { describeError } from '../../core/text/errors.ts'
-import { CommandId, ContextKey } from '../command-id.ts'
+import { CommandId } from '../command-id.ts'
 import { askText } from '../form/prompts.ts'
 import type { ExplorerNode } from '../tree/explorer-node.ts'
 import { type CommandContext, connectionFrom, registerAll } from './command-context.ts'
+import { showFilterState } from './filter-state.ts'
 
 export function registerExplorerCommands(context: CommandContext): vscode.Disposable[] {
   return registerAll(context, [
@@ -55,7 +56,7 @@ async function filter(context: CommandContext): Promise<void> {
   }
 }
 
-// Clears the filter and the text of the search box.
+// Clears the filter and the text of Find Table in Explorer.
 async function clearFilter(context: CommandContext): Promise<void> {
   context.explorer.setFind('')
   await applyFilter(context, '')
@@ -63,9 +64,7 @@ async function clearFilter(context: CommandContext): Promise<void> {
 
 async function applyFilter(context: CommandContext, text: string): Promise<void> {
   context.explorer.setFilter(text)
-  const { filter: applied } = context.explorer
-  context.setViewMessage(applied === '' ? '' : `Tables and views matching "${applied}"`)
-  await vscode.commands.executeCommand('setContext', ContextKey.IsFiltered, applied !== '')
+  await showFilterState(context)
 }
 
 function isNode(value: unknown): value is ExplorerNode {

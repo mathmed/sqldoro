@@ -1,6 +1,7 @@
 // The input boxes and quick picks the extension creates, which the tests type in, accept and close
 // as a user would.
 import { vi } from 'vitest'
+import type * as vscode from 'vscode'
 
 type Listener<T> = (event: T) => unknown
 
@@ -81,19 +82,25 @@ export class FakeInputBox extends FakeBox {
   }
 }
 
+// VS Code names some of its flags without a prefix (busy, ignoreFocusOut): an object literal takes
+// them as they are.
+export type FakeFlaggedBox = FakeInputBox & Pick<vscode.InputBox, 'busy' | 'ignoreFocusOut'>
+
+function flagged(box: FakeInputBox): FakeFlaggedBox {
+  return Object.assign(box, { busy: false, ignoreFocusOut: false })
+}
+
 // A quick pick is typed in like an input box.
-export type FakeQuickPick = FakeInputBox & {
+export type FakeQuickPick = FakeFlaggedBox & {
   items: readonly unknown[]
   selectedItems: readonly unknown[]
   readonly pick: (item: unknown) => void
 }
 
-// VS Code names some of its flags without a prefix (busy): an object literal takes them as they are.
 function quickPick(): FakeQuickPick {
-  const box = new FakeInputBox()
+  const box = flagged(new FakeInputBox())
   return Object.assign(box, {
     matchOnDescription: false,
-    busy: false,
     items: [] as readonly unknown[],
     selectedItems: [] as readonly unknown[],
     // The user picks an item and presses Enter.
@@ -104,11 +111,11 @@ function quickPick(): FakeQuickPick {
   })
 }
 
-export const inputBoxes: FakeInputBox[] = []
+export const inputBoxes: FakeFlaggedBox[] = []
 export const quickPicks: FakeQuickPick[] = []
 
-export const createInputBox = vi.fn((): FakeInputBox => {
-  const box = new FakeInputBox()
+export const createInputBox = vi.fn((): FakeFlaggedBox => {
+  const box = flagged(new FakeInputBox())
   inputBoxes.push(box)
   return box
 })

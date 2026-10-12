@@ -56,17 +56,19 @@ built to make the dangerous queries hard and the everyday ones quick.
   or `3 of 142` under a filter), and the estimated rows and size of each table (`~27k rows · 32 MB`,
   exact numbers in its tooltip), read from the catalog statistics in the same query that lists them.
   **Refresh** reads them again. A node that takes a moment to load says so (`Loading tables…`).
-  **The search box above the explorer** filters it as you type, on every keystroke, across every
-  connected connection: the tables and views whose name matches show opened down to them, the
-  matched characters highlighted, and the box counts them. Matching is like VS Code's: the text
-  whole in the name first, then over the starts of its words (`trst` finds `transaction_status`
-  and `TransactionStatus`), then its characters in order (`trsa` finds `Transaction`), the best
-  matches first. The names load once, each database as it arrives, so typing never waits for the
-  server. `Enter` opens the table that matches best, `↓` moves to it in the explorer, `Escape` (or
-  the `✕`) gives the tree back as you left it. **Find Table in Explorer** puts the focus in the
-  box. **Go to Table…** (`Ctrl+Alt+T`) lists the
-  tables and views of the connected connections in a quick pick, filtered the same way, and opens
-  the one you choose.
+  **Find Table in Explorer** (the magnifier in the title bar of the view) opens a box whose text
+  filters the explorer as you type, on every keystroke, across every connected connection: the
+  tables and views whose name matches show opened down to them, the matched characters
+  highlighted, and the box counts them. Matching is like VS Code's: the text whole in the name
+  first, then over the starts of its words (`trst` finds `transaction_status` and
+  `TransactionStatus`), then its characters in order (`trsa` finds `Transaction`), the best matches
+  first. The names load once, each database as it arrives, so typing never waits for the server.
+  `Enter` opens the table that matches best and keeps the explorer filtered (**Clear Filter** gives
+  the tree back); `Escape` gives the tree back as you left it. The box stays open while you work in
+  the tree, and opens again on the text you left. **Filter Tables and Views**, in the Command
+  Palette, keeps only the tables and views whose name contains a text. **Go to Table…**
+  (`Ctrl+Alt+T`) lists the tables and views of the connected connections in a quick pick, filtered
+  the same way, and opens the one you choose.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or the whole script, cancel on the server, see errors underlined where
   the server points, and autocomplete databases, tables, columns (aliases too) and keywords.
@@ -151,13 +153,13 @@ editor where it applies.
 | **Allow Writes**                       |                                                | Lets a read-only connection write, after a confirmation (the connection name typed on production). |
 | **Make Read-Only**                     |                                                | Makes a connection read-only again.                                                                |
 | **Refresh**                            |                                                | Reloads a node of the explorer, or all of it.                                                      |
-| **Filter Tables and Views**            |                                                | Shows only the tables and views whose name contains some text.                                     |
-| **Find Table in Explorer**             |                                                | Puts the focus in the search box above the explorer, which filters it as you type.                 |
+| **Filter Tables and Views**            |                                                | Shows only the tables and views whose name contains some text (Command Palette).                   |
+| **Find Table in Explorer**             |                                                | Opens a box whose text filters the explorer as you type; `Enter` opens the best match.             |
 | **Go to Table…**                       | `Ctrl+Alt+T` (`Cmd+Alt+T`)                     | Lists the tables and views of the connected connections; the one picked opens its rows.            |
 | **Move to Folder…**                    |                                                | Puts a connection in a folder (`clients/acme` nests folders), or takes it out of one.              |
 | **Rename Folder…**                     |                                                | Renames a folder; its connections move with it.                                                    |
 | **Delete Folder**                      |                                                | Removes a folder; its connections stay, out of it.                                                 |
-| **Clear Filter**                       |                                                | Shows every table and view again.                                                                  |
+| **Clear Filter**                       |                                                | Shows every table and view again, after a filter or a find.                                        |
 | **Open Table Data**                    |                                                | Opens the rows of a table or view (a click on it in the explorer) in a result panel of their own.  |
 | **Show DDL**                           |                                                | Opens the `CREATE` statement of a table or view (from the explorer).                               |
 | **New Query**                          |                                                | Opens a SQL editor on a connection, database or schema.                                            |

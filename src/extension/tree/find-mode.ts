@@ -26,7 +26,7 @@ const ROOT_CHANGED: FoundChanges = { isRootChanged: true, keys: new Set() }
 
 // Finding a table in the explorer as it is typed: the tables and views are filtered in memory on
 // every keystroke (TableIndex), the found tree is updated in place and VS Code is told only what
-// changed. The search box follows where it stands (`onDidChange`).
+// changed. The box of Find Table in Explorer follows where it stands (`onDidChange`).
 export class FindMode implements vscode.Disposable {
   readonly #dependencies: FindModeDependencies
   readonly #tree: FindTree

@@ -363,14 +363,6 @@
     "views": {
       "sqldoro": [
         {
-          "type": "webview",
-          "id": "sqldoro.tableSearch",
-          "name": "Find Table",
-          "icon": "media/sqldoro.svg",
-          "contextualTitle": "sqldoro",
-          "initialSize": 1
-        },
-        {
           "id": "sqldoro.connections",
           "name": "Connections",
           "icon": "media/sqldoro.svg",
@@ -417,19 +409,14 @@
           "group": "navigation@2"
         },
         {
-          "command": "sqldoro.filter",
-          "when": "view == sqldoro.connections",
-          "group": "navigation@3"
-        },
-        {
           "command": "sqldoro.clearFilter",
           "when": "view == sqldoro.connections && sqldoro.isFiltered",
-          "group": "navigation@4"
+          "group": "navigation@3"
         },
         {
           "command": "sqldoro.refresh",
           "when": "view == sqldoro.connections",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "sqldoro.importConnectionUrl",
