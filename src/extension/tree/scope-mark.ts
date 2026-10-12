@@ -2,7 +2,7 @@ import type * as vscode from 'vscode'
 
 import { type SelectedScope, SelectionSource, showsScope } from '../../core/editor/selection.ts'
 import { type ExplorerNode, type ItemLook, type NodeContext, NodeKind } from './explorer-node.ts'
-import { type IconLook, selectedIcon } from './node-icons.ts'
+import { type IconLook, selectedIcon, tintedIcon } from './node-icons.ts'
 import { databaseUri, schemaUri } from './node-uris.ts'
 
 const EDITOR_NOTE = 'The SQL editor in front runs here'
@@ -14,9 +14,9 @@ interface MarkedLook {
   readonly tooltip?: string
 }
 
-// A database or schema carries a URI, for the color of its label; the one the SQL editor in front
-// runs on (with none in front, the default of its connection) shows its icon in the accent and says
-// so in its tooltip.
+// A database or schema carries a URI, for the color of its label, and shows its icon in the color
+// of its connection; the one the SQL editor in front runs on (with none in front, the default of its
+// connection) shows its icon in the accent instead and says so in its tooltip.
 export function markOf(
   node: ExplorerNode,
   look: MarkedLook,
@@ -30,7 +30,7 @@ export function markOf(
   const selected = context.selected(node.connectionId)
   return selected !== undefined && showsScope(place, selected)
     ? { resourceUri, ...selectedLook(look, selected) }
-    : { resourceUri }
+    : { resourceUri, icon: tintedIcon(look.icon, context.tint(node.connectionId)) }
 }
 
 function uriOf(connectionId: string, place: ScopePlace): vscode.Uri {

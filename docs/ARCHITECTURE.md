@@ -167,7 +167,9 @@ a usable key stay read-only, and the grid says why.
   `undefined`, and a failing statistics query falls back to the names (logged at debug level).
 - **Looks**: `NodeIcon` (`node-icons.ts`) gives each kind a codicon and a theme color; connections
   show their engine glyph, and their color reaches the label through file decorations
-  (`node-uris.ts`, `ExplorerDecorations`). Folders come from `src/core/connection/folders.ts`.
+  (`node-uris.ts`, `ExplorerDecorations`). Databases and schemas paint their icon in that color
+  (`NodeContext.tint`, resolved by `connectionTint` when the node is drawn), the database in front
+  keeping its green. Folders come from `src/core/connection/folders.ts`.
 - **The database in front**: `selectedScopes` and `changedScopes` (`src/core/editor/selection.ts`)
   decide which database and schema stand out; only the nodes whose mark changed are redrawn, without
   reading the catalog.

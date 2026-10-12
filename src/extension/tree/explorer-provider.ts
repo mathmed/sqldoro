@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
+import { connectionTint } from '../../core/connection/labels.ts'
 import { type SelectedScope, showsScope } from '../../core/editor/selection.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { Logger } from '../../core/platform.ts'
@@ -272,12 +273,25 @@ export class ExplorerProvider implements vscode.TreeDataProvider<ExplorerNode>, 
       session: (connectionId) => sessions.session(connectionId)?.engineSession,
       filter: this.#filter,
       isProduction: (environment) => isProduction(environment, policy()),
+      tint: (connectionId) => tintOf(this.#dependencies, connectionId),
       log,
       summaryOf: (node) => this.#loaded.get(node.connectionId)?.summaries.get(node.id),
       selected: (connectionId) => selection.selected(connectionId),
       extensionUri,
     }
   }
+}
+
+// Read when a node is drawn: a node drawn again after the connections were edited shows the new color.
+// A node of a connection deleted meanwhile shows none.
+function tintOf(
+  { connections, policy }: Pick<ExplorerDependencies, 'connections' | 'policy'>,
+  connectionId: string,
+): string {
+  const connection = connections().find(({ id }) => id === connectionId)
+  return connection === undefined
+    ? ''
+    : connectionTint(connection, isProduction(connection.environment, policy()))
 }
 
 // A node the user opened or closed shows so when VS Code makes it again; undefined keeps the state

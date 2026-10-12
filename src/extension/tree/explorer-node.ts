@@ -35,6 +35,9 @@ export interface NodeContext {
   readonly filter: string
   // Whether an environment tag counts as production, as the settings say.
   readonly isProduction: (environment: string) => boolean
+  // The theme color of a connection, as its label shows it (production in red, then its color, then
+  // that of its environment); empty for none.
+  readonly tint: (connectionId: string) => string
   readonly log: Logger
   // What a node said of its children when they loaded (how many tables), until the next refresh.
   readonly summaryOf: (node: Pick<ExplorerNode, 'connectionId' | 'id'>) => string | undefined
