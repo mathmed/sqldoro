@@ -6,6 +6,20 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Added
+
+- **Tooltips on every button of the result toolbar**: each names its action and its shortcut
+  (**Preview Changes… (Ctrl+S)**, **Delete Rows (Delete)**, **Edit the Query (Ctrl+Shift+E)**), says
+  why it is off when it is, and the **Sort and Filter on the Server** toggle says whether it is on.
+  Buttons that are off keep their tooltip on hover, and screen readers hear the same names.
+
+### Fixed
+
+- **Editing MySQL rows no longer requires the server to be in strict mode.** sqldoro turns strict
+  mode on in its own session for the apply only, then puts the session's `sql_mode` back: the
+  server, other clients and the queries of the editor keep theirs, and a value a column cannot hold
+  is still refused instead of cut.
+
 ## [0.1.1] - 2026-10-12
 
 ### Added

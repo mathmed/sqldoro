@@ -16,7 +16,7 @@ import {
 import type { EditPlan } from '../../core/edits/plan.ts'
 import type { EditStatement } from '../../core/edits/statements.ts'
 import type { ApplyReport } from '../../core/edits/tab-editor.ts'
-import type { EngineSession } from '../../core/engine/engine.ts'
+import type { EngineSession, RestoreSession } from '../../core/engine/engine.ts'
 import { QueryCancelledError } from '../../core/engine/query.ts'
 import type { Logger } from '../../core/platform.ts'
 import { plural } from '../../core/results/tabs.ts'
@@ -41,6 +41,7 @@ interface Batch {
 const CANCELLED = 'The apply was cancelled.'
 const NOT_ROLLED_BACK =
   'sqldoro could not roll them back, so it closed the connection of this editor: the server rolled them back.'
+const NOT_STRICT = 'the session could not be put in strict mode'
 
 function ignore(): void {
   // The statements of the changes return no rows.
@@ -66,16 +67,69 @@ export async function runBatch(
   if (mode === undefined) {
     return notApplied(FAILED_TRANSACTION)
   }
-  const problem = await parts.session.engineSession.writeProblem()
-  if (problem !== undefined) {
-    return notApplied(problem)
-  }
-  const report =
+  const report = await strictly(context, parts, async (batch) =>
     mode === BatchMode.Joined
-      ? await joined(context, parts, plan)
-      : await inTransaction(context, parts, { plan, mode })
+      ? joined(batch, parts, plan)
+      : inTransaction(batch, parts, { plan, mode }),
+  )
   logReport(context.log, parts, { plan, report })
   return report
+}
+
+// The session refuses the values its columns cannot hold while the changes run (MySQL outside
+// strict mode would cut them), then gets back the settings the user's statements run with,
+// whatever became of the changes. A session the batch had to close has nothing to put back.
+async function strictly(
+  context: BatchContext,
+  parts: RunParts,
+  batch: (context: BatchContext) => Promise<ApplyReport>,
+): Promise<ApplyReport> {
+  const restore = await parts.session.engineSession
+    .startStrictWrites()
+    .catch((error: unknown) => notApplied(`${NOT_STRICT}: ${describeError(error)}`))
+  if (typeof restore !== 'function') {
+    return restore
+  }
+  const closing = closingOf(context)
+  const report = await batch(closing.context).catch(async (error: unknown) => {
+    await restoreSession(context, restore)
+    throw error
+  })
+  const failure = closing.isClosed() ? undefined : await restoreSession(context, restore)
+  return failure === undefined ? report : { ...report, message: `${report.message} ${failure}` }
+}
+
+// The context of a batch, which tells whether the batch closed the session.
+function closingOf(context: BatchContext): {
+  readonly context: BatchContext
+  readonly isClosed: () => boolean
+} {
+  const closed = { isClosed: false }
+  return {
+    context: {
+      ...context,
+      closeSession: async (uri) => {
+        closed.isClosed = true
+        await context.closeSession(uri)
+      },
+    },
+    isClosed: () => closed.isClosed,
+  }
+}
+
+// What the user needs to hear when the session could not be put back: its statements would run in
+// strict mode, which the user did not choose. Undefined once it is back.
+async function restoreSession(
+  context: BatchContext,
+  restore: RestoreSession,
+): Promise<string | undefined> {
+  const failure = await failureOf(restore())
+  if (failure === undefined) {
+    return undefined
+  }
+  const reason = describeError(failure)
+  context.log.error(`Could not turn strict mode off again after the edits of a result: ${reason}`)
+  return `sqldoro could not turn strict mode off again in the session of this editor (${reason}): it stays on until the connection is disconnected.`
 }
 
 // The transaction of the editor opens first in manual mode, and hears what became of the changes.

@@ -205,17 +205,6 @@ describe('applyEdits', () => {
     )
   })
 
-  it('should not apply anything where the server could change values silently', async () => {
-    harness.engine.writeProblem = 'MySQL is not in strict mode.'
-    const result = await editableResult(harness)
-    await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
-
-    await previewAndApply(result)
-
-    expect(sent()).toStrictEqual([ORDERS_QUERY])
-    expect(editingOf(result.tab).notice).toBe('Nothing was applied: MySQL is not in strict mode.')
-  })
-
   it('should apply nothing once the editor is closed', async () => {
     const result = await editableResult(harness)
     await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })

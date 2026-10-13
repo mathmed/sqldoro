@@ -177,35 +177,3 @@ describe('describeTable (MySQL)', () => {
     },
   )
 })
-
-describe('writeProblem (MySQL)', () => {
-  it.each([
-    'STRICT_TRANS_TABLES',
-    'ONLY_FULL_GROUP_BY,STRICT_ALL_TABLES,NO_ZERO_DATE',
-    'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES',
-  ])('should accept a session whose sql_mode is %s', async (mode) => {
-    answerBy([['SELECT @@SESSION.sql_mode', { result: [{ mode }] }]])
-    const sut = await connected()
-
-    await expect(sut.writeProblem()).resolves.toBeUndefined()
-  })
-
-  it.each(['', 'ONLY_FULL_GROUP_BY', 'NOT_STRICT_TRANS_TABLES_X'])(
-    'should explain that a session whose sql_mode is "%s" could change values',
-    async (mode) => {
-      answerBy([['SELECT @@SESSION.sql_mode', { result: [{ mode }] }]])
-      const sut = await connected()
-
-      await expect(sut.writeProblem()).resolves.toBe(
-        'MySQL is not in strict mode in this session (sql_mode): it could cut or change the values sqldoro writes instead of refusing them. Turn strict mode on to edit rows.',
-      )
-    },
-  )
-
-  it('should count a session that does not answer as not strict', async () => {
-    answerBy([['SELECT @@SESSION.sql_mode', { result: [] }]])
-    const sut = await connected()
-
-    await expect(sut.writeProblem()).resolves.toMatch(/^MySQL is not in strict mode/)
-  })
-})

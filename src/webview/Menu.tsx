@@ -68,8 +68,9 @@ function useOpenMenu(
   }
 }
 
-// A button that opens a menu under it. The menu takes the focus; Escape closes it and gives the
-// focus back to the button, and a click outside dismisses it.
+// A button that opens a menu under it; one that is off keeps its tooltip (aria-disabled). The menu
+// takes the focus; Escape closes it and gives the focus back to the button, and a click outside
+// dismisses it.
 export const MenuButton = (props: MenuButtonProps): ReactElement => {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -84,9 +85,11 @@ export const MenuButton = (props: MenuButtonProps): ReactElement => {
         title={props.tooltip}
         aria-haspopup="menu"
         aria-expanded={menu.place !== undefined}
-        disabled={props.isDisabled}
+        aria-disabled={props.isDisabled}
         onClick={(event) => {
-          menu.toggle(event.currentTarget)
+          if (!props.isDisabled) {
+            menu.toggle(event.currentTarget)
+          }
         }}
       >
         <Icon name={props.icon} />

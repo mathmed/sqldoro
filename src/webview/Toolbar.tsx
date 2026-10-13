@@ -9,6 +9,7 @@ import { IconName } from './icons.tsx'
 import { MenuButton, type MenuItem } from './Menu.tsx'
 import { QuickSearch } from './QuickSearch.tsx'
 import { ToolButton, ToolGroup, ToolToggle } from './tool-buttons.tsx'
+import { toggleTooltip, toolLabel, ToolName, ToolNote, toolTooltip } from './tool-labels.ts'
 import type { QueryModeSwitch } from './view-context.ts'
 import { type ToolbarPanels, ViewTools } from './ViewTools.tsx'
 import { WhereEditor } from './WhereEditor.tsx'
@@ -46,7 +47,6 @@ interface ToolsProps {
   readonly actions: ToolbarActions
 }
 
-const SHOWN_NOTE = 'the columns shown, in their order'
 const COPY_FORMATS: readonly (readonly [ExportFormat, string])[] = [
   [ExportFormat.Csv, 'Copy as CSV'],
   [ExportFormat.Json, 'Copy as JSON'],
@@ -89,8 +89,8 @@ export const Toolbar = (props: ToolbarProps): ReactElement => {
 const MoreTools = ({ tab, actions }: ToolsProps): ReactElement | null =>
   tab.queryBox === null ? null : (
     <MenuButton
-      label="More Actions"
-      tooltip="More actions"
+      label={toolLabel(ToolName.MoreActions)}
+      tooltip={toolLabel(ToolName.MoreActions)}
       icon={IconName.More}
       items={[{ label: 'Open in SQL Editor', isDisabled: false, onSelect: actions.openInEditor }]}
       isDisabled={false}
@@ -108,16 +108,16 @@ const RunTools = ({ tab, actions }: ToolsProps): ReactElement | null => {
       {tab.status === TabStatus.Running ? (
         <ToolButton
           icon={IconName.Stop}
-          label="Cancel"
-          tooltip="Cancel the query on the server"
+          label={toolLabel(ToolName.CancelQuery)}
+          tooltip={toolLabel(ToolName.CancelQuery)}
           isDisabled={false}
           onClick={actions.cancel}
         />
       ) : (
         <ToolButton
           icon={IconName.Refresh}
-          label="Refresh"
-          tooltip="Read the rows again, in the same view"
+          label={toolLabel(ToolName.Refresh)}
+          tooltip={toolLabel(ToolName.Refresh)}
           isDisabled={false}
           onClick={actions.refresh}
         />
@@ -134,23 +134,34 @@ const CopyTools = ({
 }: ToolsProps & { readonly hasSelection: boolean }): ReactElement => (
   <ToolGroup label="Copy and export">
     <MenuButton
-      label="Copy the selection"
-      tooltip={`Copy the selection: ${SHOWN_NOTE}`}
+      label={toolLabel(ToolName.CopySelection)}
+      tooltip={toolTooltip(
+        ToolName.CopySelection,
+        hasSelection ? ToolNote.Shown : ToolNote.NoSelection,
+      )}
       icon={IconName.Copy}
       items={[...formatItems(COPY_FORMATS, actions.copy), copyRowsItem(actions)]}
       isDisabled={!hasSelection}
       hasChevron
     />
     <MenuButton
-      label="Export the result"
-      tooltip={`Export the result: ${SHOWN_NOTE}`}
+      label={toolLabel(ToolName.ExportResult)}
+      tooltip={toolTooltip(ToolName.ExportResult, exportNote(tab))}
       icon={IconName.Export}
       items={formatItems(EXPORT_FORMATS, actions.export)}
-      isDisabled={tab.status === TabStatus.Running || tab.columns.length === 0}
+      isDisabled={exportNote(tab) !== ToolNote.Shown}
       hasChevron
     />
   </ToolGroup>
 )
+
+// What the export takes, or why there is nothing to export yet.
+function exportNote(tab: ResultTab): ToolNote {
+  if (tab.status === TabStatus.Running) {
+    return ToolNote.Running
+  }
+  return tab.columns.length === 0 ? ToolNote.NoColumns : ToolNote.Shown
+}
 
 // INSERT statements that write the selected rows whole, hidden columns too.
 function copyRowsItem(actions: ToolbarActions): MenuItem {
@@ -192,8 +203,8 @@ const ReadTools = ({
       {canToggle ? (
         <ToolToggle
           icon={IconName.Server}
-          label="Sort and filter on the server"
-          tooltip="Sort and filter on the server: the query runs again with the view, over every row"
+          label={toolLabel(ToolName.ServerSide)}
+          tooltip={toggleTooltip(ToolName.ServerSide, isServerSide)}
           isOn={isServerSide}
           isDisabled={tab.status === TabStatus.Running}
           onChange={actions.setServerSide}
@@ -212,8 +223,8 @@ function canToggleServer(tab: ResultTab): boolean {
 const LoadAllButton = ({ onClick }: { readonly onClick: () => void }): ReactElement => (
   <ToolButton
     icon={IconName.LoadAll}
-    label="Load All Rows"
-    tooltip="Run the query again without the automatic limit"
+    label={toolLabel(ToolName.LoadAllRows)}
+    tooltip={toolTooltip(ToolName.LoadAllRows, ToolNote.LoadAll)}
     isDisabled={false}
     onClick={onClick}
   />

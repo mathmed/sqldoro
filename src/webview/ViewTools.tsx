@@ -3,6 +3,7 @@ import type { ReactElement } from 'react'
 import { type ResultTab, TabKind, TabStatus } from '../core/results/protocol.ts'
 import { Icon, IconName } from './icons.tsx'
 import { ToolGroup } from './tool-buttons.tsx'
+import { toolLabel, ToolName, ToolNote, toolTooltip } from './tool-labels.ts'
 import type { WhereSql } from './where-source.ts'
 
 // What the toolbar opens over the grid, under the button that opens it.
@@ -30,14 +31,14 @@ export const ViewTools = ({
     <ToolGroup label="View">
       <PanelButton
         icon={IconName.Columns}
-        label="Columns"
+        label={toolLabel(ToolName.ChooseColumns)}
         tooltip={columnsTooltip(panels.hiddenColumns)}
         onOpen={panels.openColumns}
       />
       {tab.references.length === 0 ? null : (
         <PanelButton
           icon={IconName.References}
-          label="References"
+          label={toolLabel(ToolName.ShowReferences)}
           tooltip={referencesTooltip(panels.openReferences !== undefined)}
           onOpen={panels.openReferences}
         />
@@ -47,14 +48,11 @@ export const ViewTools = ({
 }
 
 function columnsTooltip(hidden: number): string {
-  const tooltip = 'Choose the columns shown and their order'
-  return hidden === 0 ? tooltip : `${tooltip} (${String(hidden)} hidden)`
+  return toolTooltip(ToolName.ChooseColumns, hidden === 0 ? '' : `${String(hidden)} hidden`)
 }
 
 function referencesTooltip(hasRow: boolean): string {
-  return hasRow
-    ? 'The rows of other tables that reference the selected row'
-    : 'Select a row to see the rows of other tables that reference it'
+  return toolTooltip(ToolName.ShowReferences, hasRow ? '' : ToolNote.NoRow)
 }
 
 interface PanelButtonProps {
@@ -72,7 +70,7 @@ const PanelButton = ({ icon, label, tooltip, onOpen }: PanelButtonProps): ReactE
     aria-label={label}
     aria-haspopup="dialog"
     title={tooltip}
-    disabled={onOpen === undefined}
+    aria-disabled={onOpen === undefined}
     onClick={(event) => {
       onOpen?.(event.currentTarget)
     }}

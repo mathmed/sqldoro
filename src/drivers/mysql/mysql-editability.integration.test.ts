@@ -93,13 +93,4 @@ describe('which results of a real MySQL server the grid edits', () => {
   ])('should not edit the rows of %s', async (sql, problem) => {
     await expect(editabilityOf(server, sql)).resolves.toStrictEqual({ problem })
   })
-
-  it('should refuse to write outside strict mode', async () => {
-    const loose = await mysqlEngine.connect(connectRequest(MYSQL))
-    await query(loose, "SET SESSION sql_mode = ''")
-
-    await expect(session.writeProblem()).resolves.toBeUndefined()
-    await expect(loose.writeProblem()).resolves.toMatch(/not in strict mode/)
-    await loose.close()
-  })
 })

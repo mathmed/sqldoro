@@ -24,10 +24,6 @@ FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND NON_UNIQUE = 0
 ORDER BY INDEX_NAME <> 'PRIMARY', INDEX_NAME, SEQ_IN_INDEX`
 
-const STRICT_MODE = 'SELECT @@SESSION.sql_mode AS mode'
-const STRICT_MODES: readonly string[] = ['STRICT_TRANS_TABLES', 'STRICT_ALL_TABLES']
-const NOT_STRICT =
-  'MySQL is not in strict mode in this session (sql_mode): it could cut or change the values sqldoro writes instead of refusing them. Turn strict mode on to edit rows.'
 const YES = 'YES'
 // The only engine whose changes a rollback undoes, among the ones MySQL ships.
 const TRANSACTIONAL_ENGINE = 'innodb'
@@ -65,13 +61,6 @@ function namedBy(table: readonly string[]): readonly [string, string] | undefine
   return table.length === TABLE_KEY_PARTS && schema !== undefined && name !== undefined
     ? [schema, name]
     : undefined
-}
-
-// Outside strict mode MySQL stores a value it cannot hold as the nearest one it can, with a warning.
-export async function writeProblem(connection: Connection): Promise<string | undefined> {
-  const [row] = await queryRows(connection, STRICT_MODE, [])
-  const modes = (row === undefined ? '' : readString(row, 'mode')).split(',')
-  return STRICT_MODES.some((mode) => modes.includes(mode)) ? undefined : NOT_STRICT
 }
 
 // Views have no engine: what makes them read-only is said elsewhere.

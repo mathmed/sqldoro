@@ -208,10 +208,14 @@ describe('describeTableAt (PostgreSQL)', () => {
   })
 })
 
-describe('writeProblem (PostgreSQL)', () => {
-  it('should have none: PostgreSQL refuses what a column cannot hold', async () => {
+describe('startStrictWrites (PostgreSQL)', () => {
+  it('should change nothing: PostgreSQL refuses what a column cannot hold', async () => {
     const sut = await connected()
+    const sent = pg.clients.flatMap((client) => client.queries).length
 
-    await expect(sut.writeProblem()).resolves.toBeUndefined()
+    const restore = await sut.startStrictWrites()
+    await restore()
+
+    expect(pg.clients.flatMap((client) => client.queries)).toHaveLength(sent)
   })
 })

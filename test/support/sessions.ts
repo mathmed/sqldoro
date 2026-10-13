@@ -22,6 +22,9 @@ import type { TableDescription } from '../../src/core/engine/table.ts'
 import { TransactionStatus } from '../../src/core/engine/transaction-status.ts'
 import { fakeSession } from '../fakes/engine.ts'
 
+export const STRICT_WRITES_ON = 'strict writes on'
+export const STRICT_WRITES_OFF = 'strict writes off'
+
 export interface Answer {
   readonly columns?: readonly ResultColumn[]
   readonly rows?: readonly Row[]
@@ -44,8 +47,12 @@ export class ScriptedEngine {
   readonly describeTable = vi.fn(async (...[, table]: [string, readonly string[]]) =>
     Promise.resolve(this.tables.get(JSON.stringify(table))),
   )
-  // Why the server would change the values written, as MySQL outside strict mode.
-  writeProblem: string | undefined = undefined
+  // What the session went through, in order: the SQL of each statement, and the strict writes
+  // turned on (STRICT_WRITES_ON) and the session put back (STRICT_WRITES_OFF).
+  readonly timeline: string[] = []
+  // The failures of the server when it turns strict writes on, or puts the session back.
+  strictWritesError: Error | undefined = undefined
+  restoreError: Error | undefined = undefined
   // The foreign keys of the tables of the catalog, those that point at them, and the tables by where
   // they are: by placeKey.
   readonly foreignKeys = new Map<string, readonly ForeignKeyInfo[]>()
@@ -61,7 +68,7 @@ export class ScriptedEngine {
       useScope: this.useScope,
       transactionStatus: async () => Promise.resolve(this.status),
       describeTable: this.describeTable,
-      writeProblem: async () => Promise.resolve(this.writeProblem),
+      startStrictWrites: async () => this.#startStrictWrites(),
       listForeignKeys: async (table) =>
         Promise.resolve(this.foreignKeys.get(placeKey(table)) ?? []),
       listReferences: async (table) => Promise.resolve(this.references.get(placeKey(table)) ?? []),
@@ -72,8 +79,23 @@ export class ScriptedEngine {
     })
   }
 
+  async #startStrictWrites(): Promise<() => Promise<void>> {
+    if (this.strictWritesError !== undefined) {
+      return Promise.reject(this.strictWritesError)
+    }
+    this.timeline.push(STRICT_WRITES_ON)
+    return Promise.resolve(async () => {
+      if (this.restoreError !== undefined) {
+        return Promise.reject(this.restoreError)
+      }
+      this.timeline.push(STRICT_WRITES_OFF)
+      return Promise.resolve()
+    })
+  }
+
   #execute(request: QueryRequest): QueryExecution {
     this.requests.push(request)
+    this.timeline.push(request.sql)
     const answer = this.answer(request)
     const { promise, resolve, reject } = Promise.withResolvers<QueryResult>()
     void promise.catch(() => undefined)

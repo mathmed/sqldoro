@@ -142,7 +142,7 @@
   border-radius: 5px;
 }
 
-.tool-button:hover:not(:disabled),
+.tool-button:hover:not(:disabled, [aria-disabled='true']),
 .tool-button[aria-expanded='true'] {
   background: var(--vscode-toolbar-hoverBackground);
 }
@@ -424,7 +424,7 @@
   height: 14px;
 }
 
-.header-action:hover:not(:disabled),
+.header-action:hover:not(:disabled, [aria-disabled='true']),
 .header-action[aria-expanded='true'] {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);

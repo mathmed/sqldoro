@@ -68,7 +68,7 @@ describe('the columns a result shows', () => {
     fireEvent.mouseDown(cellAt(0, 0))
     fireEvent.mouseDown(cellAt(0, 1), { shiftKey: true })
 
-    pickFromMenu('Copy the selection', 'Copy as CSV')
+    pickFromMenu('Copy Selection', 'Copy as CSV')
 
     expect(view.sent('copy')).toStrictEqual([
       {
@@ -107,7 +107,7 @@ describe('the Columns panel', () => {
     expect(listed()).toStrictEqual(['name#2', 'id', 'name'])
     fireEvent.keyDown(panel(), { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Columns' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Columns' }))
 
     expect(
       within(panel())
@@ -119,7 +119,7 @@ describe('the Columns panel', () => {
 
   it('should show and hide columns, all of them, none, or the others', () => {
     columns({ order: [], hidden: ['name'] })
-    fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Columns' }))
 
     fireEvent.click(checkbox(0))
     fireEvent.click(checkbox(1))
@@ -139,7 +139,7 @@ describe('the Columns panel', () => {
 
   it('should find a column by its name, and move columns only in the whole list', () => {
     columns({ order: [], hidden: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Columns' }))
 
     fireEvent.change(within(panel()).getByRole('searchbox'), { target: { value: 'NAM' } })
 
@@ -151,7 +151,7 @@ describe('the Columns panel', () => {
 
   it('should move a column with Alt+Up and Alt+Down, or by dragging it', () => {
     columns({ order: [], hidden: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Columns' }))
 
     fireEvent.keyDown(item(0), { key: 'ArrowDown', altKey: true })
     fireEvent.keyDown(item(0), { key: 'ArrowDown' })

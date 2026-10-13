@@ -97,7 +97,12 @@ export interface EngineSession {
   // The same, for a table named by where it is (a table a navigation leads to before any of its
   // rows were read); undefined when there is no such table.
   readonly describeTableAt: (table: ObjectRef) => Promise<TableDescription | undefined>
-  // Why the server could change the values sqldoro writes instead of refusing them (MySQL outside
-  // strict mode), for people; undefined when it refuses them.
-  readonly writeProblem: () => Promise<string | undefined>
+  // Makes the session refuse the values its columns cannot hold instead of changing them (MySQL
+  // outside strict mode cuts or rounds them), for sqldoro's own writes, and returns what puts the
+  // session back as it was: the user's statements keep their settings. Nothing changes on the
+  // server, nor in other sessions.
+  readonly startStrictWrites: () => Promise<RestoreSession>
 }
+
+// Puts a session back as it was before startStrictWrites.
+export type RestoreSession = () => Promise<void>

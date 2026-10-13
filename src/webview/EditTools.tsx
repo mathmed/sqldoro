@@ -6,6 +6,7 @@ import { EditingState, type TabEditing } from '../core/results/tab-editing.ts'
 import type { EditActions } from './edit-messages.ts'
 import { IconName } from './icons.tsx'
 import { ToolButton, ToolGroup } from './tool-buttons.tsx'
+import { toolLabel, ToolName, ToolNote, toolTooltip } from './tool-labels.ts'
 
 interface EditToolsProps {
   readonly tab: ResultTab
@@ -14,62 +15,55 @@ interface EditToolsProps {
 }
 
 interface EditSpec {
-  readonly label: string
+  readonly name: ToolName
   readonly icon: IconName
   readonly kind: EditKind
-  readonly tooltip: string
   readonly isOnSelection: boolean
   readonly isAdding: boolean
 }
 
 const ROW_EDITS: readonly EditSpec[] = [
   {
-    label: 'Add Row',
+    name: ToolName.AddRow,
     icon: IconName.Add,
     kind: EditKind.Insert,
-    tooltip: 'Add a row',
     isOnSelection: false,
     isAdding: true,
   },
   {
-    label: 'Duplicate',
+    name: ToolName.DuplicateRows,
     icon: IconName.Duplicate,
     kind: EditKind.Duplicate,
-    tooltip: 'Duplicate the selected rows',
     isOnSelection: true,
     isAdding: true,
   },
   {
-    label: 'Delete',
+    name: ToolName.DeleteRows,
     icon: IconName.Trash,
     kind: EditKind.Delete,
-    tooltip: 'Mark the selected rows for deletion (Delete)',
     isOnSelection: true,
     isAdding: false,
   },
 ]
 const CELL_EDITS: readonly EditSpec[] = [
   {
-    label: 'Set NULL',
+    name: ToolName.SetNull,
     icon: IconName.SetNull,
     kind: EditKind.SetNull,
-    tooltip: 'Set the selected cells to NULL',
     isOnSelection: true,
     isAdding: false,
   },
   {
-    label: 'Set Default',
+    name: ToolName.SetDefault,
     icon: IconName.SetDefault,
     kind: EditKind.SetDefault,
-    tooltip: 'Set the selected cells to their default',
     isOnSelection: true,
     isAdding: false,
   },
   {
-    label: 'Revert',
+    name: ToolName.RevertCells,
     icon: IconName.Discard,
     kind: EditKind.Revert,
-    tooltip: 'Revert the changes of the selected cells',
     isOnSelection: true,
     isAdding: false,
   },
@@ -79,9 +73,12 @@ const SHOWN_STATES: ReadonlySet<string> = new Set([
   EditingState.Applying,
   EditingState.ReadOnly,
 ])
-const PREVIEW_TOOLTIP = 'Preview the statements of the changes, then apply them (Ctrl+S)'
+
 // While the rows cannot change, every tool is off.
 const IDLE_STATES: ReadonlySet<string> = new Set([EditingState.Applying, EditingState.ReadOnly])
+
+// Why a button is off, in the order a user should hear it: the first reason that holds.
+type Reasons = readonly (readonly [boolean, string])[]
 
 // What can be done to the rows of a result that can be edited: preview or revert the changes, add,
 // duplicate and delete rows, and change cells. Each acts on the selection unless it adds a row or
@@ -91,17 +88,27 @@ export const EditTools = ({ tab, hasSelection, actions }: EditToolsProps): React
   if (!SHOWN_STATES.has(editing.state)) {
     return null
   }
-  const isIdle = IDLE_STATES.has(editing.state)
-  const isEnabled = (spec: EditSpec): boolean =>
-    !isIdle &&
-    (!spec.isOnSelection || hasSelection) &&
-    (!spec.isAdding || editing.insertProblem === '')
-  const groups = { isEnabled, actions, problems: problemsOf(editing) }
+  const offReason = (spec: EditSpec, selectionNote: string): string =>
+    firstReason([
+      ...idleReasons(editing),
+      [spec.isOnSelection && !hasSelection, selectionNote],
+      [spec.isAdding, editing.insertProblem],
+    ])
   return (
     <>
       <ChangeTools editing={editing} actions={actions} />
-      <EditGroup label="Rows" specs={ROW_EDITS} {...groups} />
-      <EditGroup label="Cells" specs={CELL_EDITS} {...groups} />
+      <EditGroup
+        label="Rows"
+        specs={ROW_EDITS}
+        offReason={(spec) => offReason(spec, ToolNote.NoSelectedRows)}
+        actions={actions}
+      />
+      <EditGroup
+        label="Cells"
+        specs={CELL_EDITS}
+        offReason={(spec) => offReason(spec, ToolNote.NoSelectedCells)}
+        actions={actions}
+      />
     </>
   )
 }
@@ -115,21 +122,21 @@ const ChangeTools = ({
   readonly actions: EditActions
 }): ReactElement => {
   const hasChanges = editing.rows.length + editing.newRows.length + editing.hiddenRows > 0
-  const isDisabled = IDLE_STATES.has(editing.state) || !hasChanges
+  const reason = firstReason([...idleReasons(editing), [!hasChanges, ToolNote.NoChanges]])
   return (
     <ToolGroup label="Changes">
       <ToolButton
         icon={IconName.Save}
-        label="Preview Changes…"
-        tooltip={readOnlyTooltip(editing, PREVIEW_TOOLTIP)}
-        isDisabled={isDisabled}
+        label={toolLabel(ToolName.PreviewChanges)}
+        tooltip={toolTooltip(ToolName.PreviewChanges, reason)}
+        isDisabled={reason !== ''}
         onClick={actions.preview}
       />
       <ToolButton
         icon={IconName.ClearAll}
-        label="Revert All"
-        tooltip={readOnlyTooltip(editing, 'Revert every change')}
-        isDisabled={isDisabled}
+        label={toolLabel(ToolName.RevertAll)}
+        tooltip={toolTooltip(ToolName.RevertAll, reason)}
+        isDisabled={reason !== ''}
         onClick={() => {
           actions.onResult(EditKind.RevertAll)
         }}
@@ -138,54 +145,36 @@ const ChangeTools = ({
   )
 }
 
+// Read-only rows say why; while the changes apply, nothing else can change.
+function idleReasons(editing: TabEditing): Reasons {
+  return [
+    [editing.state === EditingState.ReadOnly, `read-only: ${editing.problem}`],
+    [IDLE_STATES.has(editing.state), ToolNote.Applying],
+  ]
+}
+
+// Empty when no reason holds: the button is on.
+function firstReason(reasons: Reasons): string {
+  return reasons.find(([isOff, reason]) => isOff && reason !== '')?.[1] ?? ''
+}
+
 interface EditGroupProps {
   readonly label: string
   readonly specs: readonly EditSpec[]
-  readonly isEnabled: (spec: EditSpec) => boolean
+  // Why the button of an edit is off; empty when it is on.
+  readonly offReason: (spec: EditSpec) => string
   readonly actions: EditActions
-  readonly problems: Problems
 }
 
-// Why the rows cannot be edited, and why rows cannot be added: the tooltips of the buttons they
-// turn off.
-interface Problems {
-  readonly readOnly: string
-  readonly insert: string
-}
-
-function problemsOf(editing: TabEditing): Problems {
-  return {
-    readOnly: editing.state === EditingState.ReadOnly ? editing.problem : '',
-    insert: editing.insertProblem,
-  }
-}
-
-function readOnlyTooltip(editing: TabEditing, tooltip: string): string {
-  return editing.state === EditingState.ReadOnly ? `Read-only: ${editing.problem}` : tooltip
-}
-
-function specTooltip(spec: EditSpec, problems: Problems): string {
-  if (problems.readOnly !== '') {
-    return `Read-only: ${problems.readOnly}`
-  }
-  return spec.isAdding && problems.insert !== '' ? problems.insert : spec.tooltip
-}
-
-const EditGroup = ({
-  label,
-  specs,
-  isEnabled,
-  actions,
-  problems,
-}: EditGroupProps): ReactElement => (
+const EditGroup = ({ label, specs, offReason, actions }: EditGroupProps): ReactElement => (
   <ToolGroup label={label}>
     {specs.map((spec) => (
       <ToolButton
         key={spec.kind}
         icon={spec.icon}
-        label={spec.label}
-        tooltip={specTooltip(spec, problems)}
-        isDisabled={!isEnabled(spec)}
+        label={toolLabel(spec.name)}
+        tooltip={toolTooltip(spec.name, offReason(spec))}
+        isDisabled={offReason(spec) !== ''}
         onClick={() => {
           if (spec.isOnSelection) {
             actions.onSelection(spec.kind)

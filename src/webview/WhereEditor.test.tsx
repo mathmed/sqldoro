@@ -174,7 +174,7 @@ describe('the expand button of the WHERE', () => {
     const toggle = vi.fn()
     view = shownView({ changes: TABLE, context: { queryMode: { isOn: false, toggle } } })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit the Query' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the Query (Ctrl+Shift+E)' }))
 
     expect(toggle).toHaveBeenCalledOnce()
     expect(view.sent('openInEditor')).toStrictEqual([])

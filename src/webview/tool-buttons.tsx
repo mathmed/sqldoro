@@ -12,6 +12,17 @@ export interface ToolButtonProps {
   readonly onClick: () => void
 }
 
+// A button that is off stays a button that can be hovered and focused (aria-disabled, not
+// disabled, which takes the hover away in some browsers): its tooltip still says what it does, or
+// why it is off. Its clicks do nothing.
+function whenEnabled(isDisabled: boolean, onClick: () => void): () => void {
+  return () => {
+    if (!isDisabled) {
+      onClick()
+    }
+  }
+}
+
 // A compact button that is only an icon, with a tooltip, as in VS Code's toolbars.
 export const ToolButton = (props: ToolButtonProps): ReactElement => (
   <button
@@ -19,8 +30,8 @@ export const ToolButton = (props: ToolButtonProps): ReactElement => (
     className="tool-button"
     aria-label={props.label}
     title={props.tooltip}
-    disabled={props.isDisabled}
-    onClick={props.onClick}
+    aria-disabled={props.isDisabled}
+    onClick={whenEnabled(props.isDisabled, props.onClick)}
   >
     <Icon name={props.icon} />
   </button>
@@ -39,10 +50,10 @@ export const ToolToggle = (props: ToolToggleProps): ReactElement => (
     aria-label={props.label}
     aria-pressed={props.isOn}
     title={props.tooltip}
-    disabled={props.isDisabled}
-    onClick={() => {
+    aria-disabled={props.isDisabled}
+    onClick={whenEnabled(props.isDisabled, () => {
       props.onChange(!props.isOn)
-    }}
+    })}
   >
     <Icon name={props.icon} />
   </button>

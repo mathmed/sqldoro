@@ -3,7 +3,14 @@ import type { JSX } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resultTab } from '../../test/fixtures/results.ts'
-import { cellAt, GRID_ROWS, LONG_TEXT, pickFromMenu, theGrid } from '../../test/webview/grid.ts'
+import {
+  cellAt,
+  GRID_ROWS,
+  isOff,
+  LONG_TEXT,
+  pickFromMenu,
+  theGrid,
+} from '../../test/webview/grid.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { CellMessage, ResultTab } from '../core/results/protocol.ts'
 import { NO_ANSWERS } from './host-answers.ts'
@@ -89,7 +96,7 @@ describe('ResultView', () => {
     fireEvent.mouseDown(cellAt(0, 0))
     fireEvent.mouseDown(cellAt(1, 1), { shiftKey: true })
     fireEvent.keyDown(theGrid(), { key: 'c', ctrlKey: true })
-    pickFromMenu('Copy the selection', 'Copy as JSON')
+    pickFromMenu('Copy Selection', 'Copy as JSON')
 
     const block = { firstRow: 0, lastRow: 1, columns: [0, 1] }
     expect(sent('copy')).toStrictEqual([
@@ -104,9 +111,7 @@ describe('ResultView', () => {
     fireEvent.keyDown(theGrid(), { key: 'c', ctrlKey: true })
 
     expect(sent('copy')).toStrictEqual([])
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Copy the selection' }).disabled,
-    ).toBe(true)
+    expect(isOff(screen.getByRole('button', { name: 'Copy Selection' }))).toBe(true)
   })
 
   it('should keep the selection inside rows that shrink, and drop it without rows', () => {
@@ -179,7 +184,7 @@ describe('ResultView', () => {
     view()
 
     fireEvent.click(screen.getByRole('button', { name: 'id' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Sort and filter on the server' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sort and Filter on the Server' }))
     fireEvent.click(screen.getByRole('button', { name: 'name' }))
 
     expect(sent('setView')).toStrictEqual([
@@ -203,7 +208,7 @@ describe('ResultView', () => {
 
     expect(
       screen
-        .getByRole('button', { name: 'Sort and filter on the server' })
+        .getByRole('button', { name: 'Sort and Filter on the Server' })
         .getAttribute('aria-pressed'),
     ).toBe('true')
   })
@@ -213,7 +218,7 @@ describe('ResultView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Filter name' }))
     rerender(element({ status: 'running', summary: null }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel Query' }))
     fireEvent.keyDown(screen.getByRole('textbox', { name: 'Value of name' }), {
       key: 'Enter',
     })
@@ -233,7 +238,7 @@ describe('ResultView', () => {
   it('should export the result', () => {
     view()
 
-    pickFromMenu('Export the result', 'Export as SQL…')
+    pickFromMenu('Export Result', 'Export as SQL…')
 
     expect(sent('export')).toStrictEqual([{ type: 'export', tabId: 'tab-1', format: 'sql' }])
   })
