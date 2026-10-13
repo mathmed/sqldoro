@@ -19,13 +19,20 @@ button {
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
+button:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--vscode-button-secondaryHoverBackground);
 }
 
-button:disabled {
+/* A button that is off with aria-disabled keeps its hover, and so its tooltip. */
+button:disabled,
+button[aria-disabled='true'] {
   opacity: 0.5;
   cursor: default;
+}
+
+/* The tooltip is the button's: the icon in it does not take the pointer. */
+button .icon {
+  pointer-events: none;
 }
 
 button.primary {

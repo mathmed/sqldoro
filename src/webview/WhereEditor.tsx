@@ -1,8 +1,10 @@
 import { type KeyboardEvent, type ReactElement, useRef, useState } from 'react'
 
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
-import { Icon, IconName } from './icons.tsx'
+import { IconName } from './icons.tsx'
 import { SqlSpans } from './SqlSpans.tsx'
+import { ToolButton } from './tool-buttons.tsx'
+import { toolLabel, ToolName, ToolNote, toolTooltip } from './tool-labels.ts'
 import { type FieldKeys, useSqlField } from './use-sql-field.ts'
 import type { WhereCompleter } from './use-where-completion.ts'
 import type { WhereSql } from './where-source.ts'
@@ -66,18 +68,18 @@ const WhereButtons = ({
 }: WhereButtonsProps): ReactElement => (
   <>
     {canClear ? (
-      <WhereButton
+      <ToolButton
         icon={IconName.Close}
-        label="Clear the WHERE condition"
-        tooltip="Clear the WHERE condition and read every row"
+        label={toolLabel(ToolName.ClearWhere)}
+        tooltip={toolTooltip(ToolName.ClearWhere, isRunning ? ToolNote.Running : ToolNote.ReadAll)}
         isDisabled={isRunning}
         onClick={onClear}
       />
     ) : null}
-    <WhereButton
+    <ToolButton
       icon={IconName.Expand}
-      label="Edit the Query"
-      tooltip="Edit the whole query of this table above the rows (Ctrl+Shift+E)"
+      label={toolLabel(ToolName.EditQuery)}
+      tooltip={toolTooltip(ToolName.EditQuery, ToolNote.WholeQuery)}
       isDisabled={false}
       onClick={onEditQuery}
     />
@@ -101,33 +103,6 @@ function useWhereDraft(tab: ResultTab, onFilter: (condition: string) => void): W
   }
   return { draft, setDraft, apply }
 }
-
-interface WhereButtonProps {
-  readonly icon: IconName
-  readonly label: string
-  readonly tooltip: string
-  readonly isDisabled: boolean
-  readonly onClick: () => void
-}
-
-const WhereButton = ({
-  icon,
-  label,
-  tooltip,
-  isDisabled,
-  onClick,
-}: WhereButtonProps): ReactElement => (
-  <button
-    type="button"
-    className="tool-button"
-    aria-label={label}
-    title={tooltip}
-    disabled={isDisabled}
-    onClick={onClick}
-  >
-    <Icon name={icon} />
-  </button>
-)
 
 interface WhereInputProps {
   readonly props: WhereEditorProps

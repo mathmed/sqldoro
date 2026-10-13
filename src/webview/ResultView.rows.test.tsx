@@ -126,7 +126,7 @@ describe('ResultView, editing the rows', () => {
     fireEvent.mouseDown(cellAt(0, 0))
     fireEvent.mouseDown(cellAt(1, 1), { shiftKey: true })
 
-    fireEvent.click(buttonIn('Cells', 'Set NULL'))
+    fireEvent.click(buttonIn('Cells', 'Set to NULL'))
     fireEvent.click(buttonIn('Rows', 'Add Row'))
 
     const block = { firstRow: 0, lastRow: 1, columns: [0, 1] }
@@ -168,7 +168,7 @@ describe('ResultView, editing the rows', () => {
     fireEvent.mouseDown(cellAt(2, 1))
     fireEvent.mouseDown(cellAt(3, 1), { shiftKey: true })
 
-    pickFromMenu('Copy the selection', 'Copy Rows as INSERT (every column)')
+    pickFromMenu('Copy Selection', 'Copy Rows as INSERT (every column)')
 
     expect(sent('copy')).toStrictEqual([
       {

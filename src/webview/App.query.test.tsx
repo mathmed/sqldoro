@@ -2,6 +2,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { resultTab } from '../../test/fixtures/results.ts'
+import { isOff } from '../../test/webview/grid.ts'
 import {
   box,
   JOIN,
@@ -25,7 +26,7 @@ describe('the query box of a table panel', () => {
     openTable()
     expect(screen.queryByRole('textbox', { name: 'Query' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit the Query' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit the Query (Ctrl+Shift+E)' }))
 
     expect(box().value).toBe(ORDERS_SQL)
     expect(document.activeElement).toBe(box())
@@ -178,10 +179,7 @@ describe('leaving the query box', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Revert the Query' }))
     expect(box().value).toBe(ORDERS_SQL)
-    expect(screen.getByRole('button', { name: 'Revert the Query' })).toHaveProperty(
-      'disabled',
-      true,
-    )
+    expect(isOff(screen.getByRole('button', { name: 'Revert the Query' }))).toBe(true)
   })
 
   it('should open what it holds in a new SQL editor', () => {

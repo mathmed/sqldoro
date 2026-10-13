@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { editableTab, resultTab } from '../../test/fixtures/results.ts'
-import { buttonIn } from '../../test/webview/grid.ts'
+import { buttonIn, isOff } from '../../test/webview/grid.ts'
 import type { PendingRow, TabEditing } from '../core/results/tab-editing.ts'
 import type { EditActions } from './edit-messages.ts'
 import { EditTools } from './EditTools.tsx'
@@ -14,14 +14,14 @@ const CHANGED_ROW: PendingRow = {
   problem: '',
 }
 const BUTTONS = [
-  ['Changes', 'Preview Changes…'],
-  ['Changes', 'Revert All'],
+  ['Changes', 'Preview Changes… (Ctrl+S)'],
+  ['Changes', 'Revert All Changes'],
   ['Rows', 'Add Row'],
-  ['Rows', 'Duplicate'],
-  ['Rows', 'Delete'],
-  ['Cells', 'Set NULL'],
-  ['Cells', 'Set Default'],
-  ['Cells', 'Revert'],
+  ['Rows', 'Duplicate Rows'],
+  ['Rows', 'Delete Rows (Delete)'],
+  ['Cells', 'Set to NULL'],
+  ['Cells', 'Set to Default'],
+  ['Cells', 'Revert Cells'],
 ] as const
 
 function editActions(): EditActions {
@@ -43,7 +43,7 @@ function renderTools(
 }
 
 function enabledButtons(): string[] {
-  return BUTTONS.filter(([group, name]) => !buttonIn(group, name).disabled).map(([, name]) => name)
+  return BUTTONS.filter(([group, name]) => !isOff(buttonIn(group, name))).map(([, name]) => name)
 }
 
 describe('EditTools', () => {
@@ -60,14 +60,21 @@ describe('EditTools', () => {
     renderTools({})
 
     expect(enabledButtons()).toStrictEqual(['Add Row'])
-    expect(buttonIn('Rows', 'Delete').title).toBe('Mark the selected rows for deletion (Delete)')
-    expect(buttonIn('Cells', 'Set NULL').title).toBe('Set the selected cells to NULL')
+    expect(buttonIn('Rows', 'Add Row').title).toBe('Add Row')
+    expect(buttonIn('Rows', 'Delete Rows (Delete)').title).toBe(
+      'Delete Rows (Delete): select rows first',
+    )
+    expect(buttonIn('Cells', 'Set to NULL').title).toBe('Set to NULL: select cells first')
   })
 
   it('should offer the changes, those of hidden rows too', () => {
     renderTools({ hiddenRows: 1 })
 
-    expect(enabledButtons()).toStrictEqual(['Preview Changes…', 'Revert All', 'Add Row'])
+    expect(enabledButtons()).toStrictEqual([
+      'Preview Changes… (Ctrl+S)',
+      'Revert All Changes',
+      'Add Row',
+    ])
   })
 
   it('should send each edit on the selection, or on the whole result', () => {
@@ -92,11 +99,11 @@ describe('EditTools', () => {
   it('should say why rows cannot be added', () => {
     renderTools({ insertProblem: 'The column note has no default.' }, { hasSelection: true })
 
-    for (const name of ['Add Row', 'Duplicate']) {
-      expect(buttonIn('Rows', name).disabled).toBe(true)
-      expect(buttonIn('Rows', name).title).toBe('The column note has no default.')
+    for (const name of ['Add Row', 'Duplicate Rows']) {
+      expect(isOff(buttonIn('Rows', name))).toBe(true)
+      expect(buttonIn('Rows', name).title).toBe(`${name}: The column note has no default.`)
     }
-    expect(buttonIn('Rows', 'Delete').disabled).toBe(false)
+    expect(isOff(buttonIn('Rows', 'Delete Rows (Delete)'))).toBe(false)
   })
 
   it('should disable every button while the changes apply', () => {
@@ -115,8 +122,12 @@ describe('EditTools', () => {
     )
 
     expect(enabledButtons()).toStrictEqual([])
-    expect(buttonIn('Rows', 'Add Row').title).toBe('Read-only: The result has no key.')
-    expect(buttonIn('Changes', 'Preview Changes…').title).toBe('Read-only: The result has no key.')
-    expect(buttonIn('Changes', 'Revert All').title).toBe('Read-only: The result has no key.')
+    expect(buttonIn('Rows', 'Add Row').title).toBe('Add Row: read-only: The result has no key.')
+    expect(buttonIn('Changes', 'Preview Changes… (Ctrl+S)').title).toBe(
+      'Preview Changes… (Ctrl+S): read-only: The result has no key.',
+    )
+    expect(buttonIn('Changes', 'Revert All Changes').title).toBe(
+      'Revert All Changes: read-only: The result has no key.',
+    )
   })
 })

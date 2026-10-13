@@ -3,6 +3,7 @@ import type { JSX } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resultTab } from '../../test/fixtures/results.ts'
+import { isOff } from '../../test/webview/grid.ts'
 import { type FakeVsCodeApi, fakeVsCodeApi } from '../../test/webview/vscode-api.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import { NO_ANSWERS } from './host-answers.ts'
@@ -186,8 +187,8 @@ describe('ResultView, the WHERE of a table', () => {
     render(element({ canRefresh: true, tableFilter: 'id > 1', status: 'running', summary: null }))
 
     expect(where().disabled).toBe(true)
-    expect(
-      screen.getByRole<HTMLButtonElement>('button', { name: 'Clear the WHERE condition' }).disabled,
-    ).toBe(true)
+    const clear = screen.getByRole('button', { name: 'Clear the WHERE condition' })
+    expect(isOff(clear)).toBe(true)
+    expect(clear.title).toBe('Clear the WHERE condition: the query is still running')
   })
 })

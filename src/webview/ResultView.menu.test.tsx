@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { cellAt, theGrid } from '../../test/webview/grid.ts'
+import { cellAt, isOff, theGrid } from '../../test/webview/grid.ts'
 import { shownView, type ShownView } from '../../test/webview/result-view.ts'
 import type { ReferenceCountsMessage, ResultTab } from '../core/results/protocol.ts'
 
@@ -120,12 +120,10 @@ describe('the menu of a cell', () => {
 describe('the rows that reference a row', () => {
   it('should list the referencing tables of the selected row from the toolbar', () => {
     linked()
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'References' }).disabled).toBe(
-      true,
-    )
+    expect(isOff(screen.getByRole('button', { name: 'Show References' }))).toBe(true)
     fireEvent.mouseDown(cellAt(0, 1))
 
-    fireEvent.click(screen.getByRole('button', { name: 'References' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show References' }))
 
     expect(references().textContent).toBe(
       'Rows that reference row 1orders (customer_id)Opennotes (customer_id)OpenCount Rows',

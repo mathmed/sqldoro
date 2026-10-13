@@ -36,3 +36,8 @@ export function pickFromMenu(button: string, item: string): void {
     within(screen.getByRole('menu', { name: button })).getByRole('menuitem', { name: item }),
   )
 }
+
+// Buttons that are off say so (aria-disabled) and keep their tooltip.
+export function isOff(element: HTMLElement): boolean {
+  return element.getAttribute('aria-disabled') === 'true'
+}
