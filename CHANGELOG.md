@@ -6,6 +6,8 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-13
+
 ### Added
 
 - **Tooltips on every button of the result toolbar**: each names its action and its shortcut
@@ -89,6 +91,7 @@ statements hard and the everyday ones quick. Open source (MIT), with no telemetr
 - A reproducible `.vsix` that ships only what the extension needs, with the licenses of the bundled
   libraries in `ThirdPartyNotices.txt`; short README and contributor docs.
 
-[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/mathmed/sqldoro/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mathmed/sqldoro/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mathmed/sqldoro/releases/tag/v0.1.0
