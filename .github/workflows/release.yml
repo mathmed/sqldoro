@@ -1,9 +1,17 @@
 name: Release
 
-# A version tag (v1.2.3) checks the release (the tag names the version of package.json, and
-# CHANGELOG.md dates its section), runs every gate of ci.yml, then attaches the .vsix those gates
-# built and smoke-tested to a DRAFT GitHub release, with the CHANGELOG section as its notes. Nothing
-# is published: the owner reviews the draft and publishes it by hand (see docs/RELEASING.md).
+# A release starts when the release pull request (docs/RELEASING.md) lands on main: the version of
+# package.json has no tag yet. `detect` notices it (on every other push to main that touches
+# package.json it finds the tag and the run ends there), `check` checks the release (CHANGELOG.md
+# dates the section of that version), `gates` runs every gate of ci.yml on that commit, and only then
+# `tag-and-draft` creates the annotated tag vX.Y.Z on that exact commit (github.sha), pushes it, and
+# attaches the .vsix the gates built and smoke-tested to a DRAFT GitHub release, with the CHANGELOG
+# section as its notes. A failed check or gate leaves no tag and no draft. Nothing is published: the
+# owner reviews the draft and publishes it by hand.
+#
+# Pushing a version tag by hand (git push origin v1.2.3) still releases that tag: the same jobs, minus
+# the tagging. The tag this workflow pushes with its GITHUB_TOKEN starts no workflow run of its own
+# (GitHub never starts runs for events made with GITHUB_TOKEN), so a release never runs twice.
 #
 # Publishing the GitHub release then publishes the same .vsix to the VS Code Marketplace and to Open
 # VSX, but only behind a manual switch that is off: the repository variable PUBLISH_EXTENSION must be
@@ -11,6 +19,9 @@ name: Release
 # run in the "publish" environment, where required reviewers can add a last approval.
 on:
   push:
+    branches: ["main"]
+    # Path filters only apply to the branch: a pushed version tag always starts a run.
+    paths: ["package.json"]
     tags: ["v*.*.*"]
   release:
     types: [published]
@@ -18,25 +29,47 @@ on:
 permissions:
   contents: read
 
+# A tag (pushed, or the tag of a published release) runs once at a time; a push to main gets a group
+# of its own, so that no later push replaces it while it waits. The tag-and-draft job queues per
+# version, whatever started the run.
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ startsWith(github.ref, 'refs/tags/') && github.ref || github.sha }}
   cancel-in-progress: false
 
 jobs:
-  check:
+  detect:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      should-release: ${{ steps.plan.outputs.should-release }}
+      should-create-tag: ${{ steps.plan.outputs.should-create-tag }}
     steps:
       - uses: actions/checkout@v7
-      # The release script only uses Node.js built-ins: no npm ci needed.
+      # The release script only uses Node.js built-ins and git: no npm ci needed.
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+      - name: Decide whether this push releases, and with which tag
+        id: plan
+        run: node scripts/release.ts plan --ref "$GITHUB_REF"
+
+  check:
+    needs: detect
+    if: needs.detect.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    env:
+      TAG: ${{ needs.detect.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
       - name: Check the tag, package.json and CHANGELOG.md
         id: check
-        run: node scripts/release.ts check --tag "$GITHUB_REF_NAME" --notes release-notes.md
+        run: node scripts/release.ts check --tag "$TAG" --notes release-notes.md
       - uses: actions/upload-artifact@v7
         with:
           name: release-notes
@@ -48,22 +81,39 @@ jobs:
     needs: check
     uses: ./.github/workflows/ci.yml
     # A called workflow gets no more than this. ci.yml's quality-report job asks to comment on pull
-    # requests; it does not run for a tag, but GitHub checks what it asks for anyway.
+    # requests; it does not run for a push, but GitHub checks what it asks for anyway.
     permissions:
       contents: read
       pull-requests: write
 
-  draft:
-    needs: [check, gates]
+  tag-and-draft:
+    needs: [detect, check, gates]
     runs-on: ubuntu-latest
     permissions:
-      # Creates the draft release and uploads the .vsix to it.
+      # Pushes the tag, creates the draft release and uploads the .vsix to it.
       contents: write
+    # Two runs of the same version (a rerun, a tag pushed by hand meanwhile) never tag at once.
+    concurrency:
+      group: release-tag-${{ needs.detect.outputs.tag }}
+      cancel-in-progress: false
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
+      TAG: ${{ needs.detect.outputs.tag }}
+      VERSION: ${{ needs.check.outputs.version }}
       VSIX: sqldoro-${{ needs.check.outputs.version }}.vsix
     steps:
+      # Only a push to main tags: a tag pushed by hand is already there.
+      - uses: actions/checkout@v7
+        if: needs.detect.outputs.should-create-tag == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.detect.outputs.should-create-tag == 'true'
+        with:
+          node-version-file: package.json
+      # The commit the gates checked, not whatever main points at now. A rerun finds its tag there
+      # and keeps it; a tag on another commit fails the job and is never moved.
+      - name: Tag the commit
+        if: needs.detect.outputs.should-create-tag == 'true'
+        run: node scripts/release.ts tag --tag "$TAG" --commit "$GITHUB_SHA"
       # The .vsix the package job of the gates built, which the smoke job installed and tested.
       - uses: actions/download-artifact@v8
         with:
@@ -74,7 +124,7 @@ jobs:
       - name: Draft the release
         run: >-
           gh release create "$TAG" "$VSIX" --repo "$GITHUB_REPOSITORY" --draft --verify-tag
-          --title "sqldoro ${{ needs.check.outputs.version }}" --notes-file release-notes.md
+          --title "sqldoro $VERSION" --notes-file release-notes.md
       - name: Summary
         run: |
           {

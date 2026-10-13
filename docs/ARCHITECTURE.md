@@ -226,7 +226,7 @@ flowchart LR
   package["package: build, pack and check the .vsix<br/>(artifact sqldoro-vsix)"] --> smoke["smoke: install that .vsix<br/>in a real VS Code"]
   pr --> mutation["mutation (changed core files)"]
   lint & quality & integration & architecture & package & smoke & mutation --> report["quality-report: one PR comment"]
-  tag["tag v1.2.3"] --> check["check tag / package.json / CHANGELOG"] --> gates["every gate of ci.yml"] --> draft["draft GitHub release with the .vsix"]
+  merge["release PR merged on main<br/>(or a tag v1.2.3 pushed by hand)"] --> detect["detect: the version has no tag yet"] --> check["check tag / package.json / CHANGELOG"] --> gates["every gate of ci.yml"] --> draft["tag v1.2.3 on that commit,<br/>draft GitHub release with the .vsix"]
   draft -->|"owner publishes it"| publish["Marketplace and Open VSX<br/>(off: PUBLISH_EXTENSION)"]
 ```
 

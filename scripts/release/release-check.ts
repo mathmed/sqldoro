@@ -1,10 +1,5 @@
 import { findRelease, isReleaseDate, type Release } from './changelog.ts'
-
-// v1.2.3 or v1.2.3-rc.1: the tags that start a release.
-const TAG_PREFIX = 'v'
-const PRE_RELEASE_SEPARATOR = '-'
-const CORE_VERSION = /^\d+\.\d+\.\d+$/u
-const PRE_RELEASE = /^[0-9A-Za-z.-]+$/u
+import { versionOf } from './version-tag.ts'
 
 export interface ReleaseInputs {
   readonly tag: string
@@ -30,18 +25,6 @@ export function checkRelease({ tag, packageVersion, changelog }: ReleaseInputs):
   return release !== undefined && problems.length === 0
     ? { isReady: true, version, notes: release.notes }
     : { isReady: false, problems }
-}
-
-// The version a tag names: v1.2.3 is 1.2.3, v1.2.3-rc.1 is 1.2.3-rc.1.
-function versionOf(tag: string): string | undefined {
-  const version = tag.slice(TAG_PREFIX.length)
-  return tag.startsWith(TAG_PREFIX) && isVersion(version) ? version : undefined
-}
-
-function isVersion(version: string): boolean {
-  const [core = '', ...preRelease] = version.split(PRE_RELEASE_SEPARATOR)
-  const label = preRelease.join(PRE_RELEASE_SEPARATOR)
-  return CORE_VERSION.test(core) && (preRelease.length === 0 || PRE_RELEASE.test(label))
 }
 
 function packageProblems(tag: string, version: string, packageVersion: string): string[] {
