@@ -206,7 +206,10 @@ a usable key stay read-only, and the grid says why.
   reads (`isReadOnlyQuery`).
 - **Navigation**: links come from the catalog, never the query text (`TableMetadata`,
   `src/core/navigation/links.ts`, `keys.ts`). Table panels keep a trail of steps
-  (`src/core/navigation/history.ts`, `TableNavigations`). Peeks and reference counts go through
+  (`src/core/navigation/history.ts`, `TableNavigations`): following a link adds a step in place by
+  default (`NavigationStart.isInPlace`), after the same drop-changes confirmation as a new run;
+  Ctrl+click, a middle click or **Open in New Tab** opens a panel that starts from the trail.
+  Results of SQL editors keep no trail, so their links always open a table panel. Peeks and reference counts go through
   `readThroughGuards` / `runApprovedRead`, which refuse anything that is not a read.
 
 ## The connection form

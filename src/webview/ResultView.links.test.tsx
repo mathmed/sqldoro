@@ -55,20 +55,40 @@ describe('the links of a result', () => {
     expect(cellAt(0, 0).className).not.toContain('is-link')
   })
 
-  it('should open the row with Ctrl+click, Cmd+click or the arrow, and not with a plain click', () => {
-    linked()
+  it('should open the row in a new tab with Ctrl+click or Cmd+click, and not with a plain click', () => {
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
 
     fireEvent.click(cellAt(0, 1))
     fireEvent.click(cellAt(0, 1), { ctrlKey: true })
     fireEvent.click(cellAt(2, 1), { metaKey: true })
-    fireEvent.click(arrowOf(3))
     fireEvent.click(cellAt(1, 1), { ctrlKey: true })
 
+    expect(view.sent('navigate')).toStrictEqual([navigation(0, false), navigation(2, false)])
+  })
+
+  it('should follow the arrow in place in a table panel, and in a new tab with a modifier or a middle click', () => {
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
+
+    fireEvent.click(arrowOf(3))
+    fireEvent.click(arrowOf(0), { ctrlKey: true })
+    fireEvent.click(arrowOf(2), { metaKey: true })
+    fireEvent(arrowOf(3), new MouseEvent('auxclick', { bubbles: true, button: 1 }))
+    fireEvent(arrowOf(3), new MouseEvent('auxclick', { bubbles: true, button: 2 }))
+
     expect(view.sent('navigate')).toStrictEqual([
+      navigation(3, true),
       navigation(0, false),
       navigation(2, false),
       navigation(3, false),
     ])
+  })
+
+  it('should open the row of the arrow in a panel of its own where the panel keeps no trail', () => {
+    linked()
+
+    fireEvent.click(arrowOf(3))
+
+    expect(view.sent('navigate')).toStrictEqual([navigation(3, false)])
   })
 
   it('should open the row in place with Alt+click in a table panel only', () => {
@@ -80,6 +100,15 @@ describe('the links of a result', () => {
     fireEvent.click(cellAt(0, 1), { altKey: true })
 
     expect(view.sent('navigate')).toStrictEqual([navigation(0, true)])
+  })
+
+  it('should follow the link in place from the keyboard in a table panel', () => {
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
+    fireEvent.mouseDown(cellAt(2, 1))
+
+    fireEvent.keyDown(theGrid(), { key: 'Enter', ctrlKey: true })
+
+    expect(view.sent('navigate')).toStrictEqual([navigation(2, true)])
   })
 
   it('should open and peek from the keyboard', () => {
@@ -137,11 +166,29 @@ describe('peeking at the row a link points at', () => {
       answers: { peek: PEEK },
     })
     const popup = screen.getByRole('dialog', { name: 'Referenced row' })
-    expect(popup.textContent).toBe('people #annnameannage42OpenOpen Here')
-    fireEvent.click(within(popup).getByRole('button', { name: 'Open Here' }))
+    expect(popup.textContent).toBe('people #annnameannage42OpenOpen in New Tab')
+    fireEvent.click(within(popup).getByRole('button', { name: 'Open' }))
 
     expect(view.sent('navigate')).toStrictEqual([navigation(0, true)])
     expect(screen.queryByRole('dialog', { name: 'Referenced row' })).toBeNull()
+  })
+
+  it('should open the row it peeks at in a new tab', () => {
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
+    fireEvent.mouseDown(cellAt(0, 1))
+    fireEvent.keyDown(theGrid(), { key: 'Enter', altKey: true })
+    view.rerender({
+      changes: { ...LINKED, canRefresh: true, queryBox: TABLE_BOX },
+      answers: { peek: PEEK },
+    })
+
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Referenced row' })).getByRole('button', {
+        name: 'Open in New Tab',
+      }),
+    )
+
+    expect(view.sent('navigate')).toStrictEqual([navigation(0, false)])
   })
 
   it('should say why the row cannot be shown, and close with Escape', () => {

@@ -3,8 +3,9 @@ import type { NavigationStart } from '../core/results/protocol-parts.ts'
 import { type ResultTab, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ResultsApi } from './results-api.ts'
 
-// What the links of a result do: open the row a foreign key points at (in a panel of its own, or
-// in place in a table panel), peek at it, count and open the rows that reference a row.
+// What the links of a result do: open the row a foreign key points at (in place in a table panel, as
+// a link of a browser does, or in a new tab), peek at it, count and open the rows that reference a
+// row.
 export interface LinkActions {
   // Whether the cell points at a row: its column is in a foreign key, and it is not NULL.
   readonly isLink: (position: CellPosition, value: unknown) => boolean
@@ -12,7 +13,8 @@ export interface LinkActions {
   readonly peek: (position: CellPosition) => void
   readonly countReferences: (row: number) => void
   readonly openReference: (row: number, reference: number, isInPlace: boolean) => void
-  // Only a table panel keeps a trail to come back along: elsewhere everything opens a panel.
+  // Only a table panel keeps a trail to come back along: elsewhere everything opens a panel, and
+  // asking for in place opens one too.
   readonly canOpenInPlace: boolean
 }
 

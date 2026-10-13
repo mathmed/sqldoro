@@ -6,6 +6,15 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Changed
+
+- **Following a link opens it in place.** In a table panel, the arrow of a foreign key cell,
+  `Ctrl+Enter`, **Open Referenced Row** and the **Open** buttons of the peek and of the references
+  show the rows in the same panel, with **Back** and the trail to return, as DB clients do.
+  `Ctrl+click` (`Cmd+click`), a middle click on the arrow and **Open in New Tab** open them in a new
+  panel. Changes not applied still ask before they are dropped. Links in the results of an SQL
+  editor open a table panel, as before.
+
 ## [0.1.2] - 2026-10-13
 
 ### Added

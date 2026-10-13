@@ -173,6 +173,37 @@ describe('navigating, at the edges', () => {
     expect(nav.harness.tables.navigations.current(nav.orders.uri)?.id).toBe(0)
   })
 
+  it('should follow a link in place once the user drops the changes of the rows', async () => {
+    nav = await navigationHarness()
+    const tab = tabOf(nav.harness, nav.orders.uri)
+    await vi.waitFor(() => {
+      expect(tab.toTab().editing.state).toBe('editable')
+    })
+    nav.send({
+      type: 'edit',
+      edit: { kind: 'set', block: { firstRow: 1, lastRow: 1, columns: [1] }, input: 'B-2' },
+    })
+    await vi.waitFor(() => {
+      expect(tab.toTab().editing.rows).toHaveLength(1)
+    })
+    window.showWarningMessage.mockResolvedValueOnce('Drop the Changes and Run')
+    const before = nav.sent().length
+
+    nav.send({ type: 'navigate', row: 1, column: NOTE_COLUMN, isInPlace: true })
+    await nav.settled(before + 1)
+
+    expect(window.showWarningMessage).toHaveBeenCalledWith(
+      'The results of this editor have changes that were not applied.',
+      { modal: true, detail: 'Running a query replaces the results, and drops their changes.' },
+      'Drop the Changes and Run',
+    )
+    expect(nav.harness.tables.navigations.current(nav.orders.uri)).toMatchObject({
+      id: 1,
+      table: { name: 'notes' },
+    })
+    expect(webviewPanels).toHaveLength(1)
+  })
+
   it('should ignore what names a tab that is gone, a view that changed or a tab of a query', async () => {
     nav = await navigationHarness()
     const { panel, tab } = await editableResult(nav.harness)

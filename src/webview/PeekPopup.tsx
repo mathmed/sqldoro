@@ -91,9 +91,13 @@ const PeekActions = ({ props }: { readonly props: PeekPopupProps }): ReactElemen
   }
   return (
     <span className="popover-actions">
-      <TextButton label="Open" title="Open the row (Ctrl+click)" onClick={open(false)} />
+      <TextButton label="Open" title="Open the row (Ctrl+Enter)" onClick={open(true)} />
       {props.links.canOpenInPlace ? (
-        <TextButton label="Open Here" title="Open the row here (Alt+click)" onClick={open(true)} />
+        <TextButton
+          label="Open in New Tab"
+          title="Open the row in a new tab (Ctrl+click)"
+          onClick={open(false)}
+        />
       ) : null}
     </span>
   )

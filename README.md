@@ -39,7 +39,9 @@ VSIX…**. It needs VS Code 1.140 or later.
   filters, quick search, show, hide and reorder columns, copy and export to CSV, JSON or SQL. `NULL`,
   `BIGINT`, `DECIMAL` and dates are shown exactly as the server sent them.
 - **Foreign key navigation**: follow a link to the row it points at, peek at it, or list the rows
-  that reference a row; table panels keep a trail with back and forward.
+  that reference a row. In a table panel a link opens in place, like a link of a browser, with a
+  trail to go back and forward; `Ctrl+click`, a middle click or **Open in New Tab** opens it in a
+  new panel.
 - **Inline editing** of one table's rows: preview the exact SQL and bound values, then apply in one
   transaction; a row someone else changed is reported as a conflict, never overwritten.
 - **Tooling**: DDL, `EXPLAIN` and `EXPLAIN ANALYZE`, and a query history per connection.
@@ -95,7 +97,8 @@ Every command is in the Command Palette under **sqldoro:** and in the menus wher
 | `Delete`                                | Mark the selected rows for deletion.                                         |
 | `Ctrl+S` (`Cmd+S`)                      | Preview the pending changes.                                                 |
 | `Ctrl+C` (`Cmd+C`)                      | Copy the selected cells as TSV.                                              |
-| `Ctrl+click` (`Cmd+click`), `Alt+click` | On a link: open the row it points at in a new panel, or in place.            |
+| `Ctrl+Enter` (`Cmd+Enter`), `Alt+click` | On a link: open the row it points at in place (in a table panel).            |
+| `Ctrl+click` (`Cmd+click`)              | On a link: open the row it points at in a new panel.                         |
 | `Alt+Enter`                             | On a link: peek at the row it points at.                                     |
 | `Alt+Left`, `Alt+Right`                 | In a table panel: back and forward along the trail.                          |
 | `Ctrl+Shift+E` (`Cmd+Shift+E`)          | In a table panel: switch between the WHERE and the query box.                |

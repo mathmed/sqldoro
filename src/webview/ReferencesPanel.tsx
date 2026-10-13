@@ -86,9 +86,9 @@ const OpenButtons = ({ props, reference }: OpenButtonsProps): ReactElement => {
   }
   return (
     <span className="reference-actions">
-      <TextButton label="Open" onClick={open(false)} />
+      <TextButton label="Open" title="Open the rows here" onClick={open(true)} />
       {props.links.canOpenInPlace ? (
-        <TextButton label="Here" title="Open here (Alt+click)" onClick={open(true)} />
+        <TextButton label="New Tab" title="Open the rows in a new tab" onClick={open(false)} />
       ) : null}
     </span>
   )
