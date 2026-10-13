@@ -19,7 +19,8 @@ import { closeConnection, openConnection } from './mysql-connection.ts'
 import { objectDdl, useDatabase } from './mysql-ddl.ts'
 import { MYSQL_DIALECT } from './mysql-dialect.ts'
 import { executeQuery, type QueryTarget } from './mysql-query.ts'
-import { describeTable, writeProblem } from './mysql-tables.ts'
+import { startStrictWrites } from './mysql-strict-writes.ts'
+import { describeTable } from './mysql-tables.ts'
 
 const DEFAULT_PORT = 3306
 const VERSION = 'SELECT VERSION() AS version'
@@ -85,7 +86,7 @@ function createSession(
     useScope: async (scope) => useDatabase(connection, scope.database),
     execute: (query) => executeQuery(target, query),
     transactionStatus: async () => statusOf(await runQuery(connection, STATUS_PROBE, [])),
-    writeProblem: async () => writeProblem(connection),
+    startStrictWrites: async () => startStrictWrites(connection),
   }
 }
 

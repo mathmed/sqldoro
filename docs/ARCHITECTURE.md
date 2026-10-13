@@ -100,9 +100,11 @@ flowchart TB
 ```
 
 Only sqldoro's own statements bypass the guard: catalog queries, `START TRANSACTION`, `COMMIT`,
-`ROLLBACK`, the savepoints of an apply and the transaction status probe. After each statement sqldoro
-asks the server whether a transaction is open (`EngineSession.transactionStatus`). The automatic
-`LIMIT` is a pure rewrite in the core (`LIMIT n + 1` where safe, a driver row cap elsewhere).
+`ROLLBACK`, the savepoints of an apply, the transaction status probe, and the `sql_mode` an apply
+turns strict on MySQL and puts back after it (`EngineSession.startStrictWrites`). After each
+statement sqldoro asks the server whether a transaction is open (`EngineSession.transactionStatus`).
+The automatic `LIMIT` is a pure rewrite in the core (`LIMIT n + 1` where safe, a driver row cap
+elsewhere).
 
 ## Editing rows
 
@@ -123,14 +125,22 @@ sequenceDiagram
   P->>Q: perform(RunWork: the plan + the query that reads the rows again)
   Q-->>P: approval (read-only blocked, production confirmed)
   P->>B: apply the plan
+  B->>S: startStrictWrites (MySQL: strict sql_mode in this session only)
   B->>S: START TRANSACTION or SAVEPOINT
   loop each statement
     B->>B: approval.classOf(statement)
     B->>S: execute: exactly one row must change
   end
   B->>S: COMMIT, or ROLLBACK on any failure or conflict
+  B->>S: put the session's own sql_mode back, whatever happened
   P-->>W: outcome per row, then the rows read again
 ```
+
+MySQL outside strict mode stores a value a column cannot hold as the nearest one it can (cut,
+rounded) with only a warning. An apply turns strict mode on in the editor's own session for its
+statements only, then puts the session's `sql_mode` back, even when the apply fails or is
+cancelled: the server, other sessions and the user's own queries keep theirs. If it cannot put it
+back, the apply's message and the log say so.
 
 `src/core/edits/` decides what can be edited from what the drivers report (the origin of each result
 column, `EngineSession.describeTable`) and fails closed: joins, views, expressions and tables without

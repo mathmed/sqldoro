@@ -43,6 +43,12 @@ const TRANSACTION_STATUSES: ReadonlyMap<string, TransactionStatus> = new Map([
 // Objects of public (extensions, shared functions) stay reachable from another schema.
 const PUBLIC_SCHEMA = 'public'
 
+// PostgreSQL always refuses a value its column cannot hold: its writes need no other setting, and
+// there is nothing to put back.
+async function keepSession(): Promise<void> {
+  // Nothing was changed.
+}
+
 // A connection of the session to one database, with the backend that serves it.
 interface DatabaseClient {
   readonly client: Client
@@ -202,8 +208,7 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
     transactionStatus: async () => transactionStatusOf(clients.current.client),
     describeTable: async (database, table) => describeTable(await clients.in(database), table),
     describeTableAt: async (table) => describeTableAt(await clients.in(table.database), table),
-    // PostgreSQL refuses a value its column cannot hold.
-    writeProblem: async () => Promise.resolve(undefined),
+    startStrictWrites: async () => Promise.resolve(keepSession),
   }
 }
 

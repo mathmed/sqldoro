@@ -162,7 +162,9 @@ For a hypothetical engine **Acme** (client library `acme-client`):
      unknown or not visible (never an error);
    - `execute`: stream rows through `onRows`, stop at `maxRows`, report each column's `origin`, keep
      `DECIMAL`, `BIGINT` and dates as text, `cancel` from a second connection;
-   - `transactionStatus` (ask the server), `describeTable` (what editing needs) and `writeProblem`.
+   - `transactionStatus` (ask the server), `describeTable` (what editing needs) and
+     `startStrictWrites` (make the session refuse what a column cannot hold for an apply, and
+     return what puts it back as it was).
 3. **Register it** in `src/extension/factories/engines.ts`:
    `new EngineRegistry([mysqlEngine, postgresEngine, acmeEngine])`.
 4. **Keep the contracts**: the driver imports only the core and `acme-client`; add `acme-client` to

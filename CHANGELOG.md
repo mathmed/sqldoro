@@ -6,6 +6,13 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Editing MySQL rows no longer requires the server to be in strict mode.** sqldoro turns strict
+  mode on in its own session for the apply only, then puts the session's `sql_mode` back: the
+  server, other clients and the queries of the editor keep theirs, and a value a column cannot hold
+  is still refused instead of cut.
+
 ## [0.1.1] - 2026-10-12
 
 ### Added
