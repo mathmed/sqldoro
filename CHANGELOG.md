@@ -8,6 +8,12 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ### Changed
 
+- **Confirming a write no longer means typing.** An `UPDATE` or `DELETE` without a real `WHERE`, and
+  any write on production, now ask once per run in a modal dialog that names the connection, its
+  environment, the statements and their tables, with a button that runs them (**Run on Shop**,
+  **Run the UPDATE of Every Row**); **Cancel** or `Escape` runs nothing. Typing stays for the
+  riskiest case only: an `UPDATE` or `DELETE` of every row on production still waits for its table
+  name. What needs a confirmation, read-only connections and the log are unchanged.
 - **Following a link opens it in place.** In a table panel, the arrow of a foreign key cell,
   `Ctrl+Enter`, **Open Referenced Row** and the **Open** buttons of the peek and of the references
   show the rows in the same panel, with **Back** and the trail to return, as DB clients do.

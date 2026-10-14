@@ -855,7 +855,7 @@
           "default": [
             "prod"
           ],
-          "markdownDescription": "The environment tags treated as production: every statement that writes there asks you to type the name of the connection, a connection given one of these tags becomes read-only, and editors show it in red. `prod` always counts: this list can only add to it."
+          "markdownDescription": "The environment tags treated as production: every run that writes there asks for a confirmation in a dialog (an `UPDATE` or `DELETE` of every row also asks you to type its table), a connection given one of these tags becomes read-only, and editors show it in red. `prod` always counts: this list can only add to it."
         },
         "sqldoro.transactions.defaultMode": {
           "type": "string",

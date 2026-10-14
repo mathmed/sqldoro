@@ -127,8 +127,11 @@ permissions of the database user**, so connect with the least privilege the work
 - **Read-only by default**: a read-only connection refuses anything that is not a read, and its
   sessions are also opened read-only on the server, which catches what the classifier cannot see
   (procedures, triggers, functions).
-- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE` waits for the table name to be
-  typed; on production, any write waits for the connection name.
+- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE`, and any write on production,
+  wait for a modal dialog that names the connection, its environment, the statements and their
+  tables: one dialog per run, run with its button (**Run on Shop**, **Run the UPDATE of Every
+  Row**), refused with **Cancel** or `Escape`. Only the riskiest case, an `UPDATE` or `DELETE` of
+  every row on production, also asks for the table name to be typed.
 - **Production** connections (tagged `prod`) start read-only and show in red in the status bar, the
   editor tab and the results.
 - **Automatic `LIMIT`** on queries that read; **Load All Rows** runs them again without it.

@@ -84,16 +84,15 @@ describe('assessRun on a writable connection', () => {
     },
   )
 
-  it('should ask for the table before an UPDATE or a DELETE that reaches every row', () => {
+  it('should ask for a button before an UPDATE or a DELETE that reaches every row', () => {
     expect(assess('UPDATE orders SET paid = true', WRITABLE)).toStrictEqual({
       verdict: Verdict.Confirm,
       confirmations: [
         {
           kind: 'unfilteredWrite',
-          title: 'UPDATE of every row of orders',
-          prompt:
-            'This UPDATE changes every row of orders: it has no WHERE. Type orders to run it anyway.',
-          expected: 'orders',
+          style: 'button',
+          reason: 'This UPDATE changes every row of orders: it has no WHERE.',
+          button: 'Run the UPDATE of Every Row',
           logLine: 'UPDATE of every row of orders (it has no WHERE) confirmed',
         },
       ],
@@ -101,20 +100,22 @@ describe('assessRun on a writable connection', () => {
   })
 
   it('should explain a WHERE that is always true, and ask for each statement', () => {
-    expect(assess('DELETE FROM a WHERE 1 = 1; DELETE FROM (SELECT 1)', WRITABLE)).toMatchObject({
+    expect(assess('DELETE FROM a WHERE 1 = 1; DELETE FROM (SELECT 1)', WRITABLE)).toStrictEqual({
       verdict: Verdict.Confirm,
       confirmations: [
         {
-          prompt:
-            'This DELETE deletes every row of a: its WHERE is always true. Type a to run it anyway.',
-          expected: 'a',
+          kind: 'unfilteredWrite',
+          style: 'button',
+          reason: 'This DELETE deletes every row of a: its WHERE is always true.',
+          button: 'Run the DELETE of Every Row',
           logLine: 'DELETE of every row of a (its WHERE is always true) confirmed',
         },
         {
-          title: 'DELETE of every row of its table',
-          prompt:
-            'This DELETE deletes every row of its table: it has no WHERE. Type DELETE to run it anyway.',
-          expected: 'DELETE',
+          kind: 'unfilteredWrite',
+          style: 'button',
+          reason: 'This DELETE deletes every row of its table: it has no WHERE.',
+          button: 'Run the DELETE of Every Row',
+          logLine: 'DELETE of every row of its table (it has no WHERE) confirmed',
         },
       ],
     })
@@ -122,7 +123,7 @@ describe('assessRun on a writable connection', () => {
 })
 
 describe('assessRun on production', () => {
-  it('should ask for the name of the connection once for the writes of a run', () => {
+  it('should ask for a button that names the connection, once for the writes of a run', () => {
     expect(
       assess(
         'SELECT 1; UPDATE t SET a = 1 WHERE id = 1; UPDATE t SET a = 2 WHERE id = 2',
@@ -133,25 +134,57 @@ describe('assessRun on production', () => {
       confirmations: [
         {
           kind: 'production',
-          title: 'PROD: Shop',
-          prompt: '"Shop" is tagged PROD and this run changes it (UPDATE). Type Shop to run it.',
-          expected: 'Shop',
+          style: 'button',
+          reason: '"Shop" is tagged PROD and this run changes it (UPDATE).',
+          button: 'Run on Shop',
           logLine: 'PROD write on "Shop" (UPDATE) confirmed',
         },
       ],
     })
   })
 
-  it('should ask for the table first, then for the connection', () => {
+  it('should have the table typed for an UPDATE or a DELETE of every row, and the run confirmed', () => {
     const sut = assess('DELETE FROM t; CREATE TABLE u (a int)', {
       ...PRODUCTION,
       environment: 'staging',
     })
 
-    expect(sut).toMatchObject({
+    expect(sut).toStrictEqual({
+      verdict: Verdict.Confirm,
       confirmations: [
-        { kind: 'unfilteredWrite', expected: 't' },
-        { kind: 'production', title: 'STAGING: Shop', expected: 'Shop' },
+        {
+          kind: 'unfilteredWrite',
+          style: 'typed',
+          reason: 'This DELETE deletes every row of t: it has no WHERE.',
+          button: 'Run the DELETE of Every Row',
+          logLine: 'DELETE of every row of t (it has no WHERE) confirmed',
+          title: 'DELETE of every row of t on "Shop" (STAGING)',
+          prompt:
+            'This DELETE deletes every row of t on "Shop" (STAGING): it has no WHERE. Type t to run it anyway.',
+          expected: 't',
+        },
+        {
+          kind: 'production',
+          style: 'button',
+          reason: '"Shop" is tagged STAGING and this run changes it (DELETE, CREATE).',
+          button: 'Run on Shop',
+          logLine: 'STAGING write on "Shop" (DELETE, CREATE) confirmed',
+        },
+      ],
+    })
+  })
+
+  it('should have the verb typed when the table of every row is not known', () => {
+    expect(assess('UPDATE (SELECT 1) SET a = 1', PRODUCTION)).toMatchObject({
+      confirmations: [
+        {
+          style: 'typed',
+          title: 'UPDATE of every row of its table on "Shop" (PROD)',
+          prompt:
+            'This UPDATE changes every row of its table on "Shop" (PROD): it has no WHERE. Type UPDATE to run it anyway.',
+          expected: 'UPDATE',
+        },
+        { kind: 'production' },
       ],
     })
   })

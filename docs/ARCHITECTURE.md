@@ -88,16 +88,20 @@ flowchart TB
   perform --> classify["classify each statement (core, with the dialect's lexical rules):<br/>read · write · DDL · transaction · session · unknown (fails closed)<br/>+ every-row UPDATE / DELETE"]
   classify --> policy["guard policy (core): connection read-only? production?"]
   policy -->|"read-only and not a read"| block["blocked, with Allow Writes…<br/>(a separate, confirmed setting change)"]
-  policy -->|"every-row UPDATE / DELETE"| typeTable["type the table name"]
-  policy -->|"write on production"| typeName["type the connection name"]
+  policy -->|"every-row UPDATE / DELETE, or a write on production"| dialog["one modal dialog for the run:<br/>connection, environment, verbs, tables · Run button"]
+  dialog -->|"every-row UPDATE / DELETE on production"| typeTable["then type the table name"]
+  dialog --> approval["approval: the statements and their classes"]
   policy -->|"allowed"| approval
-  typeTable --> approval["approval: the statements and their classes"]
-  typeName --> approval
+  typeTable --> approval
   approval --> runJob["runJob / edit-batch: refuse SQL the approval does not cover"]
   runJob --> execute["EngineSession.execute"]
   execute --> server[("database: read-only session<br/>on read-only connections")]
   perform -.-> log["output channel: decisions with connection,<br/>verbs and tables, never SQL text or values"]
 ```
+
+`assessRun` gives each confirmation a `ConfirmationStyle` (`Button`, or `Typed` for an `UPDATE` or
+`DELETE` of every row on production) and `confirmationDialog` composes the single dialog of the run;
+the host only renders them (`StatementGuard`, `typed-confirmation.ts`).
 
 Only sqldoro's own statements bypass the guard: catalog queries, `START TRANSACTION`, `COMMIT`,
 `ROLLBACK`, the savepoints of an apply, the transaction status probe, and the `sql_mode` an apply

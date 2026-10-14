@@ -101,49 +101,94 @@ describe('StatementGuard.approve', () => {
     registration.dispose()
   })
 
-  it('should run an UPDATE of every row only once its table is typed, and log the override', async () => {
-    window.showInputBox.mockResolvedValue(' orders ')
+  it('should run an UPDATE of every row once its button is pressed, and log the override', async () => {
+    window.showWarningMessage.mockResolvedValue('Run the UPDATE of Every Row')
 
     const approval = await sut.approve(request(['UPDATE orders SET paid = true']))
 
     expect(approval).toBeDefined()
-    expect(inputBox()).toMatchObject({
-      title: 'UPDATE of every row of orders',
-      prompt:
-        'This UPDATE changes every row of orders: it has no WHERE. Type orders to run it anyway.',
-      placeHolder: 'orders',
-      ignoreFocusOut: true,
-    })
-    expect(inputBox().validateInput('order')).toBe('Type orders exactly to confirm')
-    expect(inputBox().validateInput('orders')).toBeUndefined()
+    expect(window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(
+      'Run on "Shop"?',
+      { modal: true, detail: 'This UPDATE changes every row of orders: it has no WHERE.' },
+      'Run the UPDATE of Every Row',
+    )
+    expect(window.showInputBox).not.toHaveBeenCalled()
     expect(log.warn).toHaveBeenCalledWith(
       'Guard override on "Shop": UPDATE of every row of orders (it has no WHERE) confirmed',
     )
   })
 
-  it.each([undefined, 'ORDERS'])(
-    'should run nothing when the table is not typed (%s)',
-    async (typed) => {
-      window.showInputBox.mockResolvedValue(typed)
+  it('should run nothing when the dialog is cancelled', async () => {
+    window.showWarningMessage.mockResolvedValue(undefined)
 
-      await expect(sut.approve(request(['DELETE FROM orders']))).resolves.toBeUndefined()
-      expect(log.info).toHaveBeenCalledWith('Guard: not confirmed, nothing ran on "Shop"')
-    },
-  )
+    await expect(sut.approve(request(['DELETE FROM orders']))).resolves.toBeUndefined()
+    expect(log.info).toHaveBeenCalledWith('Guard: not confirmed, nothing ran on "Shop"')
+    expect(log.warn).not.toHaveBeenCalled()
+  })
 
-  it('should ask for the name of a production connection after the table, and stop at the first refusal', async () => {
-    window.showInputBox.mockResolvedValueOnce('t').mockResolvedValueOnce('Shop')
+  it('should ask once for the writes of a production connection, with a button that names it', async () => {
+    window.showWarningMessage.mockResolvedValue('Run on Shop')
+    const production = on({ environment: EnvironmentTag.Production })
+
+    const approval = await sut.approve(
+      request(['INSERT INTO t VALUES (1)', 'UPDATE t SET a = 1 WHERE id = 1'], production),
+    )
+
+    expect(approval).toBeDefined()
+    expect(window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(
+      'Run on "Shop" (PROD)?',
+      { modal: true, detail: '"Shop" is tagged PROD and this run changes it (INSERT, UPDATE).' },
+      'Run on Shop',
+    )
+    expect(window.showInputBox).not.toHaveBeenCalled()
+    expect(log.warn).toHaveBeenCalledWith(
+      'Guard override on "Shop": PROD write on "Shop" (INSERT, UPDATE) confirmed',
+    )
+  })
+
+  it('should have the table typed after the dialog for a DELETE of every row on production', async () => {
+    window.showWarningMessage.mockResolvedValue('Run on Shop')
+    window.showInputBox.mockResolvedValue(' t ')
     const production = on({ environment: EnvironmentTag.Production })
 
     await expect(sut.approve(request(['DELETE FROM t'], production))).resolves.toBeDefined()
-    expect(
-      window.showInputBox.mock.calls.map(([options]) => (options as { title: string }).title),
-    ).toStrictEqual(['DELETE of every row of t', 'PROD: Shop'])
+    expect(inputBox()).toMatchObject({
+      title: 'DELETE of every row of t on "Shop" (PROD)',
+      prompt:
+        'This DELETE deletes every row of t on "Shop" (PROD): it has no WHERE. Type t to run it anyway.',
+      placeHolder: 't',
+      ignoreFocusOut: true,
+    })
+    expect(inputBox().validateInput('T')).toBe('Type t exactly to confirm')
+    expect(inputBox().validateInput('t')).toBeUndefined()
+    expect(log.warn.mock.calls).toStrictEqual([
+      ['Guard override on "Shop": DELETE of every row of t (it has no WHERE) confirmed'],
+      ['Guard override on "Shop": PROD write on "Shop" (DELETE) confirmed'],
+    ])
+  })
 
-    window.showInputBox.mockReset()
-    window.showInputBox.mockResolvedValue(undefined)
+  it.each([undefined, 'T'])(
+    'should run nothing on production when the table is not typed (%s)',
+    async (typed) => {
+      window.showWarningMessage.mockResolvedValue('Run on Shop')
+      window.showInputBox.mockResolvedValue(typed)
+      const production = on({ environment: EnvironmentTag.Production })
+
+      await expect(
+        sut.approve(request(['DELETE FROM a', 'DELETE FROM b'], production)),
+      ).resolves.toBeUndefined()
+      expect(window.showInputBox).toHaveBeenCalledOnce()
+      expect(log.info).toHaveBeenCalledWith('Guard: not confirmed, nothing ran on "Shop"')
+      expect(log.warn).not.toHaveBeenCalled()
+    },
+  )
+
+  it('should not ask to type anything when the production dialog is cancelled', async () => {
+    window.showWarningMessage.mockResolvedValue(undefined)
+    const production = on({ environment: EnvironmentTag.Production })
+
     await expect(sut.approve(request(['DELETE FROM t'], production))).resolves.toBeUndefined()
-    expect(window.showInputBox).toHaveBeenCalledOnce()
+    expect(window.showInputBox).not.toHaveBeenCalled()
   })
 
   it('should warn before DDL in a transaction where it commits at once, and run it only if asked', async () => {

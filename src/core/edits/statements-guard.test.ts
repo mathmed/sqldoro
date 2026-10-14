@@ -85,13 +85,13 @@ describe.each(TARGETS)('the guard, on the statements of edits (%s)', (...[, targ
     })
   })
 
-  it('should ask for the name of a production connection, once for the whole batch', () => {
+  it('should ask for the button of a production connection, once for the whole batch', () => {
     const classes = statements.map((statement) => classifyStatement(statement.sql, dialect))
     const decision = assessRun(classes, { ...WRITABLE, environment: 'prod' }, POLICY)
 
     expect(decision).toMatchObject({ verdict: Verdict.Confirm })
     expect(decision.verdict === Verdict.Confirm && decision.confirmations).toStrictEqual([
-      expect.objectContaining({ kind: 'production', expected: 'Shop' }),
+      expect.objectContaining({ kind: 'production', style: 'button', button: 'Run on Shop' }),
     ])
   })
 

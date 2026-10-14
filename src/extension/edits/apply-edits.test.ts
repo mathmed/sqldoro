@@ -113,23 +113,29 @@ describe('applyEdits', () => {
     })
   })
 
-  it('should ask for the name of a production connection, then for the number of rows it deletes', async () => {
+  it('should ask for the button of a production connection, then for the number of rows it deletes', async () => {
     harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
-    window.showInputBox.mockResolvedValueOnce('Shop').mockResolvedValueOnce('1')
+    window.showWarningMessage.mockResolvedValue('Run on Shop')
+    window.showInputBox.mockResolvedValueOnce('1')
     const result = await editableResult(harness)
     await edit(result, { kind: EditKind.Delete, block: cell(1, 0) })
 
     await previewAndApply(result)
 
+    expect(window.showWarningMessage).toHaveBeenCalledExactlyOnceWith(
+      'Run on "Shop" (PROD)?',
+      { modal: true, detail: '"Shop" is tagged PROD and this run changes it (DELETE).' },
+      'Run on Shop',
+    )
     expect(
       window.showInputBox.mock.calls.map(([options]) => (options as { title: string }).title),
-    ).toStrictEqual(['PROD: Shop', 'Delete 1 row of sales.orders'])
+    ).toStrictEqual(['Delete 1 row of sales.orders'])
     expect(sent()).toContain('COMMIT')
   })
 
-  it('should run nothing on production until its name is typed', async () => {
+  it('should run nothing on production until its dialog is confirmed', async () => {
     harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
-    window.showInputBox.mockResolvedValue(undefined)
+    window.showWarningMessage.mockResolvedValue(undefined)
     const result = await editableResult(harness)
     await edit(result, { kind: EditKind.Set, block: cell(1, 2), input: 'x' })
 

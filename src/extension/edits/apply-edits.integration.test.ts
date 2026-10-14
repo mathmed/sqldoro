@@ -21,7 +21,7 @@ import {
   POSTGRES,
   waitUntilReady,
 } from '../../../test/integration/servers.ts'
-import { answerInputs } from '../../../test/support/prompts.ts'
+import { answerDialogs, answerInputs } from '../../../test/support/prompts.ts'
 import { resetVscode, settings, webviewPanels, window } from '../../../test/vscode.ts'
 import { EnvironmentTag } from '../../core/connection/connection.ts'
 import { EditKind } from '../../core/edits/edit-kind.ts'
@@ -36,6 +36,9 @@ interface Case extends EditorTarget {
   readonly setup: readonly string[]
   readonly duplicate: RegExp
 }
+
+// The button of the dialog that runs a write on a production connection.
+const RUN_ON_CONNECTION = `Run on ${CONNECTION_NAME}`
 
 const CASES: readonly Case[] = [
   {
@@ -188,21 +191,23 @@ describe.each(CASES)('the edits of the grid applied on a real $name server', (ta
     ])
   })
 
-  it('should ask for the name of a production connection, then the number of rows to delete', async () => {
+  it('should ask to run on a production connection, then for the number of rows to delete', async () => {
     editor = await openGrid(target, { environment: EnvironmentTag.Production })
     edit(editor, { kind: EditKind.Delete, block: FIRST_TWO_ROWS })
 
-    answerInputs(undefined)
+    answerDialogs(undefined)
     const declined = await previewAndApply(editor)
     expect(declined.notice).toBe('Nothing was applied: the changes did not run.')
     await expect(rows()).resolves.toStrictEqual(SEEDED)
 
-    answerInputs(CONNECTION_NAME, undefined)
+    answerDialogs(RUN_ON_CONNECTION)
+    answerInputs(undefined)
     const notConfirmed = await previewAndApply(editor)
     expect(notConfirmed.notice).toBe('Nothing was applied: the deletion was not confirmed.')
     await expect(rows()).resolves.toStrictEqual(SEEDED)
 
-    answerInputs(CONNECTION_NAME, '2')
+    answerDialogs(RUN_ON_CONNECTION)
+    answerInputs('2')
     const applied = await previewAndApply(editor)
     expect(applied.notice).toBe(`Applied 2 deletions on ${target.label}.`)
     await expect(rows()).resolves.toStrictEqual([[3, 'C', null]])
