@@ -4,6 +4,7 @@ import { type FakeClient, pg, pgRequest } from '../../../test/fakes/pg.ts'
 import { queryRequest } from '../../../test/fakes/query-request.ts'
 import { POSTGRES_DIALECT as EXPECTED_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { POSTGRES_LEXICAL } from '../../../test/fixtures/lexical.ts'
+import { expectCompleted } from '../../../test/support/keywords.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { postgresEngine } from './postgres-engine.ts'
 
@@ -54,6 +55,46 @@ describe('the PostgreSQL dialect', () => {
       keywords: [],
     })
     expect(postgresEngine.dialect.keywords).toContain('ILIKE')
+  })
+
+  it('should complete the statements of administration PostgreSQL runs', () => {
+    expectCompleted(postgresEngine.dialect, {
+      statements: [
+        'GRANT SELECT ON orders TO app',
+        'REVOKE SELECT ON orders FROM app',
+        'VACUUM orders',
+        'ANALYZE orders',
+        'CLUSTER orders',
+        'REINDEX TABLE orders',
+        'CHECKPOINT',
+        "COMMENT ON TABLE orders IS 'paid'",
+        'REFRESH MATERIALIZED VIEW totals',
+        'REASSIGN OWNED BY app TO admin',
+        'LISTEN paid',
+        'NOTIFY paid',
+        'UNLISTEN paid',
+        'DISCARD ALL',
+        'DECLARE c CURSOR FOR SELECT 1',
+        'FETCH 1 FROM c',
+        'MOVE c',
+        'CLOSE c',
+        'ABORT',
+        'MERGE INTO orders USING paid ON true WHEN MATCHED THEN DELETE',
+        'COPY orders TO STDOUT',
+        'LOCK TABLE orders',
+        'RESET ALL',
+        'CALL refresh_totals()',
+        'DO $$ BEGIN END $$',
+        'PREPARE s AS SELECT 1',
+        'DEALLOCATE s',
+        'IMPORT FOREIGN SCHEMA remote FROM SERVER other INTO local',
+        'BEGIN',
+        'START TRANSACTION',
+        'SAVEPOINT a',
+        'RELEASE SAVEPOINT a',
+      ],
+      words: ['TRANSACTION', 'MATERIALIZED', 'PRIVILEGES'],
+    })
   })
 })
 

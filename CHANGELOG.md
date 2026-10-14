@@ -28,6 +28,15 @@ All notable changes to sqldoro are documented in this file. The format is based 
   panel. Changes not applied still ask before they are dropped. Links in the results of an SQL
   editor open a table panel, as before.
 
+### Fixed
+
+- **The autocomplete knows the statements of administration.** MySQL editors now suggest `FLUSH`
+  and `PRIVILEGES`, and both dialects the first word of the statements of administration sqldoro's
+  guards classify:
+  `GRANT`, `REVOKE`, `ANALYZE`, `RENAME`, `LOCK`, `RESET`, `CALL`, `PREPARE`, `START TRANSACTION`,
+  `SAVEPOINT`... with `KILL`, `OPTIMIZE`, `UNLOCK`, `PURGE`, `REPAIR`, `CHECKSUM`, `SHUTDOWN` on MySQL
+  and `CHECKPOINT`, `CLUSTER`, `REINDEX`, `REFRESH`, `LISTEN`, `NOTIFY`, `MERGE` on PostgreSQL.
+
 ## [0.1.2] - 2026-10-13
 
 ### Added

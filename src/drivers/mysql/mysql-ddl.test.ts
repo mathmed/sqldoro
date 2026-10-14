@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { answerBy, mysql, mysqlRequest } from '../../../test/fakes/mysql2.ts'
 import { MYSQL_DIALECT as EXPECTED_DIALECT } from '../../../test/fixtures/dialects.ts'
 import { MYSQL_LEXICAL } from '../../../test/fixtures/lexical.ts'
+import { expectCompleted } from '../../../test/support/keywords.ts'
 import { ObjectKind } from '../../core/engine/catalog.ts'
 import type { EngineSession } from '../../core/engine/engine.ts'
 import { mysqlEngine } from './mysql-engine.ts'
@@ -36,6 +37,62 @@ describe('the MySQL dialect', () => {
       keywords: [],
     })
     expect(mysqlEngine.dialect.keywords).toContain('SHOW')
+  })
+
+  it('should complete the statements of administration MySQL runs, FLUSH PRIVILEGES among them', () => {
+    expectCompleted(mysqlEngine.dialect, {
+      statements: [
+        'FLUSH PRIVILEGES',
+        'GRANT SELECT ON shop.* TO app',
+        'REVOKE SELECT ON shop.* FROM app',
+        'KILL 12',
+        'OPTIMIZE TABLE orders',
+        'ANALYZE TABLE orders',
+        'CHECK TABLE orders',
+        'CHECKSUM TABLE orders',
+        'REPAIR TABLE orders',
+        'RENAME TABLE orders TO old_orders',
+        'LOCK TABLES orders READ',
+        'UNLOCK TABLES',
+        'RESET BINARY LOGS AND GTIDS',
+        'PURGE BINARY LOGS BEFORE NOW()',
+        'CALL refresh_totals()',
+        "PREPARE s FROM 'SELECT 1'",
+        'DEALLOCATE PREPARE s',
+        'BEGIN',
+        'START TRANSACTION',
+        'SAVEPOINT before_import',
+        'RELEASE SAVEPOINT before_import',
+        "INSTALL PLUGIN audit SONAME 'audit.so'",
+        'UNINSTALL PLUGIN audit',
+        'SHUTDOWN',
+        'RESTART',
+        "HELP 'contents'",
+        'HANDLER orders OPEN',
+        "XA START 'x'",
+        'CHANGE REPLICATION SOURCE TO SOURCE_HOST = 2',
+        'STOP REPLICA',
+        "LOAD DATA INFILE 'orders.csv' INTO TABLE orders",
+        "BINLOG 'abc'",
+        'CACHE INDEX orders IN hot',
+        "CLONE LOCAL DATA DIRECTORY = '/tmp/clone'",
+        'DO SLEEP(1)',
+        "IMPORT TABLE FROM '/tmp/orders.sdi'",
+        'USE shop',
+        'SHOW GRANTS',
+        'DESCRIBE orders',
+      ],
+      words: [
+        'PRIVILEGES',
+        'GRANTS',
+        'TABLES',
+        'LOGS',
+        'TRANSACTION',
+        'PLUGIN',
+        'REPLICA',
+        'INFILE',
+      ],
+    })
   })
 })
 
