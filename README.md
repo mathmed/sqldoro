@@ -35,6 +35,9 @@ VSIX…**. It needs VS Code 1.140 or later.
   run the panel's whole query in the query box above the rows.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or a script, cancel on the server, errors underlined, autocomplete.
+  Statements without a result set (`UPDATE`, `ALTER TABLE`) show their outcome ("UPDATE: 3 rows
+  affected · 12 ms") in the result panel when it is open, in a notification otherwise: no empty
+  grid.
 - **Result grid**, virtualized in rows and columns (a million rows scroll smoothly): sort, column
   filters, quick search, show, hide and reorder columns, copy and export to CSV, JSON or SQL. `NULL`,
   `BIGINT`, `DECIMAL` and dates are shown exactly as the server sent them.

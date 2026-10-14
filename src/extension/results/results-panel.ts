@@ -4,6 +4,7 @@ import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import type { Dialect } from '../../core/engine/dialect.ts'
 import type { Crumb } from '../../core/navigation/history.ts'
 import type { Logger } from '../../core/platform.ts'
+import { needsView } from '../../core/results/outcome.ts'
 import { panelConnection, panelTitle } from '../../core/results/panel-connection.ts'
 import { parseWebviewMessage } from '../../core/results/parse-webview-message.ts'
 import type { PanelConnection } from '../../core/results/protocol-parts.ts'
@@ -11,6 +12,7 @@ import {
   type HostMessage,
   HostMessageType,
   type QueryBoxMessage,
+  type ResultTab,
   type WebviewMessage,
 } from '../../core/results/protocol.ts'
 import type { ResultSet } from '../../core/results/result-set.ts'
@@ -18,6 +20,12 @@ import type { GuardPolicy } from '../../core/safety/guard.ts'
 import type { PanelActions } from './panel-actions.ts'
 import type { PanelRequests } from './panel-request-context.ts'
 import { handleRequest } from './panel-requests.ts'
+
+// Makes the webview of a panel the first time it shows: a run whose statements only have outcomes
+// to tell opens none.
+export interface PanelView {
+  readonly open: () => vscode.WebviewPanel
+}
 
 export interface PanelEnvironment {
   readonly now: () => number
@@ -29,9 +37,12 @@ export interface PanelEnvironment {
 // While rows stream in, a tab tells the webview about them at most this often.
 const PROGRESS_INTERVAL_MS = 100
 
-// The result webview of one editor: the tabs of its last run, and the rows the grid asks for.
+// The result webview of one editor: the tabs of its last run, and the rows the grid asks for. Its
+// webview opens when it is shown, or when a tab has what only a view shows (rows, a plan, an error):
+// a panel prepared for a run of statements without result sets stays closed.
 export class ResultsPanel {
-  readonly #panel: vscode.WebviewPanel
+  readonly #view: PanelView
+  #panel: vscode.WebviewPanel | undefined
   readonly #environment: PanelEnvironment
   readonly #tabs = new Map<string, ResultSet>()
   readonly #postedAt = new Map<string, number>()
@@ -45,8 +56,8 @@ export class ResultsPanel {
   #isReady = false
   readonly #readiness = Promise.withResolvers<undefined>()
 
-  constructor(panel: vscode.WebviewPanel, actions: PanelActions, environment: PanelEnvironment) {
-    this.#panel = panel
+  constructor(view: PanelView, actions: PanelActions, environment: PanelEnvironment) {
+    this.#view = view
     this.#environment = environment
     this.#requests = {
       actions,
@@ -70,8 +81,13 @@ export class ResultsPanel {
     return [...this.#tabs.values()].some((tab) => tab.editor.hasChanges)
   }
 
+  // The webview, opened if it was not.
   get panel(): vscode.WebviewPanel {
-    return this.#panel
+    return this.#webview()
+  }
+
+  get isOpen(): boolean {
+    return this.#panel !== undefined
   }
 
   // Resolves when the webview has loaded and asked for the tabs.
@@ -83,7 +99,12 @@ export class ResultsPanel {
     return this.#tabs.get(id)
   }
 
+  // Opens the webview, or brings it to the front.
   reveal(): void {
+    if (this.#panel === undefined) {
+      this.#webview()
+      return
+    }
     this.#panel.reveal(undefined, true)
   }
 
@@ -92,7 +113,7 @@ export class ResultsPanel {
     const shown = panelConnection(connection, policy)
     this.#connectionId = connection.id
     this.#connection = shown
-    this.#panel.title = panelTitle(this.#environment.title(), shown)
+    this.#retitle()
     this.#post({ type: HostMessageType.Connection, connection: shown })
   }
 
@@ -150,7 +171,7 @@ export class ResultsPanel {
       return
     }
     this.#postedAt.set(tab.id, now)
-    this.#post({ type: HostMessageType.Tab, tab: tab.toTab() })
+    this.#postTab(tab.toTab())
   }
 
   // Messages come from the webview: they are checked before anything is done with them.
@@ -180,7 +201,30 @@ export class ResultsPanel {
 
   #post(message: HostMessage): void {
     if (this.#isReady) {
-      void this.#panel.webview.postMessage(message)
+      void this.#webview().webview.postMessage(message)
+    }
+  }
+
+  #postTab(tab: ResultTab): void {
+    if (this.#panel === undefined && needsView(tab)) {
+      this.#webview()
+    }
+    this.#post({ type: HostMessageType.Tab, tab })
+  }
+
+  // A webview opened late takes the title of the connection shown meanwhile; once it loads, it gets
+  // the tabs (#ready).
+  #webview(): vscode.WebviewPanel {
+    if (this.#panel === undefined) {
+      this.#panel = this.#view.open()
+      this.#retitle()
+    }
+    return this.#panel
+  }
+
+  #retitle(): void {
+    if (this.#panel !== undefined && this.#connection !== undefined) {
+      this.#panel.title = panelTitle(this.#environment.title(), this.#connection)
     }
   }
 

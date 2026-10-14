@@ -8,6 +8,13 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ### Changed
 
+- **Statements without a result set no longer open an empty grid.** An `UPDATE`, `ALTER TABLE` or
+  `SET` run from an SQL editor shows its outcome in a line ("UPDATE: 3 rows affected · 12 ms",
+  "ALTER TABLE done · 40 ms") in the result panel when one is open for the editor; otherwise it
+  opens no panel and tells the outcome in a notification, and the query history keeps it as before.
+  A script that also reads opens the panel at once with the grids of its queries and the outcomes
+  of the other statements; a write that returns rows (`RETURNING`) and an error still open the panel,
+  with the server's message.
 - **Confirming a write no longer means typing.** An `UPDATE` or `DELETE` without a real `WHERE`, and
   any write on production, now ask once per run in a modal dialog that names the connection, its
   environment, the statements and their tables, with a button that runs them (**Run on Shop**,

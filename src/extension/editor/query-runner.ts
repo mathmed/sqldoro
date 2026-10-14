@@ -7,15 +7,18 @@ import { type PlannedStatement, planRun } from '../../core/editor/run-plan.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { HistoryEntry } from '../../core/history/history.ts'
 import type { Logger } from '../../core/platform.ts'
+import { runOutcomeText } from '../../core/results/outcome.ts'
 import { TabKind } from '../../core/results/protocol.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
 import { plural } from '../../core/results/tabs.ts'
+import { StatementCategory } from '../../core/safety/statement-class.ts'
 import type { Session } from '../../core/session/open-session.ts'
 import { changesSchema, isReadOnlyQuery } from '../../core/sql/statement-kind.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { Clock } from '../platform/clock.ts'
 import type { ResultsPanel } from '../results/results-panel.ts'
 import type { ResultsPanels } from '../results/results-panels.ts'
+import type { Approval } from '../safety/approval.ts'
 import type { StatementGuard } from '../safety/statement-guard.ts'
 import type { Settings } from '../settings.ts'
 import type { EditorTransactions } from '../transactions/editor-transactions.ts'
@@ -56,6 +59,15 @@ interface EditorStatements {
 const BUSY = 'A query is already running in this editor: cancel it first.'
 const DROP_CHANGES = 'Drop the Changes and Run'
 
+// When the result panel of a run opens: at once, or only once a tab needs it (a run of an editor
+// whose statements may have only outcomes to tell, such as an UPDATE or an ALTER TABLE).
+const PanelOpening = {
+  Now: 'now',
+  WhenNeeded: 'whenNeeded',
+} as const
+
+type PanelOpening = (typeof PanelOpening)[keyof typeof PanelOpening]
+
 // Runs the statements of SQL editors and of table panels, one run per source at a time, each on its
 // own connection, into its result panel. Nothing runs before the guards approve it.
 export class QueryRunner implements vscode.Disposable {
@@ -72,12 +84,14 @@ export class QueryRunner implements vscode.Disposable {
     return this.#runs.has(uri.toString())
   }
 
+  // Statements without a result set open no result panel: their outcomes go to the panel when it is
+  // open, to a notification otherwise, and to the history.
   async run(editor: vscode.TextEditor, scope: RunScope): Promise<void> {
     const { document } = editor
     if (!(await this.confirmDropChanges(document.uri))) {
       return
     }
-    await this.perform(document.uri, async (target) => {
+    await this.#perform(document.uri, PanelOpening.WhenNeeded, async (target) => {
       const statements = planRun(sourceOf(editor), scope, target.engine.dialect.lexical)
       if (statements.length === 0) {
         void vscode.window.showInformationMessage(
@@ -97,10 +111,14 @@ export class QueryRunner implements vscode.Disposable {
 
   // Runs what `plan` decides on the source `uri`: the document of an editor, or a table panel.
   async perform(uri: vscode.Uri, plan: RunPlanner): Promise<void> {
+    await this.#perform(uri, PanelOpening.Now, plan)
+  }
+
+  async #perform(uri: vscode.Uri, opening: PanelOpening, plan: RunPlanner): Promise<void> {
     const target = await this.#target(uri)
     const work = target === undefined ? undefined : await plan(target)
     if (target !== undefined && work !== undefined) {
-      await this.#withRun(target, work)
+      await this.#withRun(target, { work, opening })
     }
   }
 
@@ -211,7 +229,10 @@ export class QueryRunner implements vscode.Disposable {
   }
 
   // The guards see every statement before the session opens; nothing runs without their approval.
-  async #withRun(target: RunTarget, work: RunWork): Promise<void> {
+  async #withRun(
+    target: RunTarget,
+    { work, opening }: { readonly work: RunWork; readonly opening: PanelOpening },
+  ): Promise<void> {
     await this.exclusive(target.uri, async (run) => {
       const approval = await this.#dependencies.guard.approve({
         connection: target.connection,
@@ -221,7 +242,8 @@ export class QueryRunner implements vscode.Disposable {
       })
       // Cancelling while the guard waits for a confirmation runs nothing.
       if (approval !== undefined && !run.isCancelled) {
-        await work.run(await this.#prepare(target, { run, approval }))
+        const panelOpening = openingOf(opening, { work, approval })
+        await work.run(await this.#prepare(target, { run, approval }, panelOpening))
       }
     })
   }
@@ -231,6 +253,7 @@ export class QueryRunner implements vscode.Disposable {
   async #prepare(
     target: RunTarget,
     { run, approval }: Pick<RunParts, 'approval' | 'run'>,
+    opening: PanelOpening,
   ): Promise<RunParts> {
     const { connect, editorSessions, panels, settings } = this.#dependencies
     const catalog = (await connect(target.connection)).engineSession
@@ -239,22 +262,17 @@ export class QueryRunner implements vscode.Disposable {
       target.connection,
       target.scope,
     )
-    const panel = panels.show(target.uri)
+    const panel =
+      opening === PanelOpening.Now ? panels.show(target.uri) : panels.prepare(target.uri)
     panel.showConnection(target.connection, settings().policy)
     return { target, session, catalog, panel, run, approval }
   }
 
   async #runAll(parts: RunParts, { document, statements }: EditorStatements): Promise<void> {
+    const ran: ResultSet[] = []
     for (const [index, statement] of statements.entries()) {
-      const tab = new ResultSet({
-        values: [],
-        id: this.#dependencies.createId(),
-        sql: statement.sql,
-        kind: TabKind.Rows,
-        canServerView: isReadOnlyQuery(statement.sql, parts.target.engine.dialect.lexical),
-        canRefresh: false,
-      })
-      parts.panel.addTab(tab)
+      const tab = this.#statementTab(parts, statement.sql)
+      ran.push(tab)
       const isDone = await this.runJob(parts, {
         sql: statement.sql,
         values: [],
@@ -269,9 +287,23 @@ export class QueryRunner implements vscode.Disposable {
       }
       if (!isDone || parts.run.isCancelled) {
         this.#notRun(parts.panel, tab, statements.length - index - 1)
-        return
+        break
       }
     }
+    tellOutcomes(parts, ran)
+  }
+
+  #statementTab(parts: RunParts, sql: string): ResultSet {
+    const tab = new ResultSet({
+      values: [],
+      id: this.#dependencies.createId(),
+      sql,
+      kind: TabKind.Rows,
+      canServerView: isReadOnlyQuery(sql, parts.target.engine.dialect.lexical),
+      canRefresh: false,
+    })
+    parts.panel.addTab(tab)
+    return tab
   }
 
   // A statement of the user that ran: one that changed the schema refreshes the explorer.
@@ -286,5 +318,27 @@ export class QueryRunner implements vscode.Disposable {
       tab.addNotice(`${plural(remaining, 'statement', 'statements')} after this one did not run.`)
       panel.updateTab(tab, true)
     }
+  }
+}
+
+// A run that reads opens its panel at once, for its rows to show as they come.
+function openingOf(
+  opening: PanelOpening,
+  { work, approval }: { readonly work: RunWork; readonly approval: Approval },
+): PanelOpening {
+  const isReading = work.statements.some(
+    (sql) => approval.classOf(sql).category === StatementCategory.Read,
+  )
+  return isReading ? PanelOpening.Now : opening
+}
+
+// The statements of a run whose panel stayed closed had only outcomes to tell: a notification tells
+// them (the history keeps them too).
+function tellOutcomes(parts: RunParts, tabs: readonly ResultSet[]): void {
+  if (!parts.panel.isOpen) {
+    const shown = tabs.map((tab) => tab.toTab())
+    void vscode.window.showInformationMessage(
+      runOutcomeText(shown, parts.target.engine.dialect.lexical),
+    )
   }
 }

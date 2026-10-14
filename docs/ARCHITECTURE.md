@@ -171,6 +171,13 @@ a usable key stay read-only, and the grid says why.
   animations.
 - **Host side**: `src/extension/results/results-panel.ts` keeps the tabs and posts them;
   `panel-requests.ts` and `panel-navigation-requests.ts` handle the messages.
+- **Statements without a result set** (`UPDATE`, `ALTER TABLE`, `SET`) never open an empty grid.
+  `isOutcome` and `needsView` (`src/core/results/outcome.ts`) tell an outcome from what only a view
+  shows (rows, a plan, an error, a cancelled run). An editor run that reads nothing gets its panel
+  from `ResultsPanels.prepare`: an open panel shows the outcome (`OutcomeView`: "UPDATE: 3 rows
+  affected · 12 ms"); otherwise the panel's webview opens only when a tab needs it (a `RETURNING`,
+  an error), and when it never did the outcomes go to a notification (`runOutcomeText`) and, as
+  always, to the history.
 
 ## The explorer and finding tables
 

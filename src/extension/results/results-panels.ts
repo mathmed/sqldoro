@@ -66,14 +66,20 @@ export class ResultsPanels implements vscode.Disposable {
     return this.#panels.get(uri.toString())?.panel
   }
 
+  // The panel of the source, opened or brought to the front.
   show(uri: vscode.Uri): ResultsPanel {
-    const existing = this.get(uri)
-    if (existing !== undefined) {
-      existing.reveal()
-      return existing
+    const panel = this.get(uri) ?? this.#create(uri)
+    panel.reveal()
+    return panel
+  }
+
+  // The panel of the source for a run that may have only outcomes to tell: an open panel comes to
+  // the front; otherwise the panel opens only when a tab needs it.
+  prepare(uri: vscode.Uri): ResultsPanel {
+    const panel = this.get(uri) ?? this.#create(uri)
+    if (panel.isOpen) {
+      panel.reveal()
     }
-    const panel = this.#create(uri)
-    this.#panels.set(uri.toString(), { uri, panel })
     return panel
   }
 
@@ -85,14 +91,16 @@ export class ResultsPanels implements vscode.Disposable {
   }
 
   close(uri: vscode.Uri): void {
-    this.get(uri)?.panel.dispose()
+    this.closeWhere((candidate) => candidate.toString() === uri.toString())
   }
 
-  // Closes the panels whose source is one of these.
+  // Closes the panels whose source is one of these; one that never opened is just forgotten.
   closeWhere(isClosing: (uri: vscode.Uri) => boolean): void {
     for (const { uri, panel } of [...this.#panels.values()]) {
-      if (isClosing(uri)) {
+      if (isClosing(uri) && panel.isOpen) {
         panel.panel.dispose()
+      } else if (isClosing(uri)) {
+        this.#forget(uri, panel)
       }
     }
   }
@@ -103,11 +111,20 @@ export class ResultsPanels implements vscode.Disposable {
   }
 
   #create(uri: vscode.Uri): ResultsPanel {
-    const { extensionUri, now, log, actionsFor, titleOf } = this.#dependencies
-    const title = (): string => titleOf(uri)
-    const webviewPanel = createWebview(uri, title(), webviewRoot(extensionUri))
-    const environment: PanelEnvironment = { now, log, title }
-    const panel = new ResultsPanel(webviewPanel, actionsFor(uri), environment)
+    const { now, log, actionsFor, titleOf } = this.#dependencies
+    const environment: PanelEnvironment = { now, log, title: () => titleOf(uri) }
+    const panel: ResultsPanel = new ResultsPanel(
+      { open: () => this.#open(uri, panel) },
+      actionsFor(uri),
+      environment,
+    )
+    this.#panels.set(uri.toString(), { uri, panel })
+    return panel
+  }
+
+  #open(uri: vscode.Uri, panel: ResultsPanel): vscode.WebviewPanel {
+    const { extensionUri, log, titleOf } = this.#dependencies
+    const webviewPanel = createWebview(uri, titleOf(uri), webviewRoot(extensionUri))
     const listening = webviewPanel.webview.onDidReceiveMessage((data: unknown) => {
       panel.receive(data).catch((error: unknown) => {
         log.error(`The result view of ${uri.toString()} failed: ${describeError(error)}`)
@@ -115,11 +132,15 @@ export class ResultsPanels implements vscode.Disposable {
     })
     webviewPanel.onDidDispose(() => {
       listening.dispose()
-      this.#panels.delete(uri.toString())
-      warnOfDroppedChanges(panel, uri)
-      this.#closes.fire(uri)
+      this.#forget(uri, panel)
     })
-    return panel
+    return webviewPanel
+  }
+
+  #forget(uri: vscode.Uri, panel: ResultsPanel): void {
+    this.#panels.delete(uri.toString())
+    warnOfDroppedChanges(panel, uri)
+    this.#closes.fire(uri)
   }
 }
 

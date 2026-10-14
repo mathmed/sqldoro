@@ -117,4 +117,32 @@ describe('ResultsPanels', () => {
     expect(sut.get(ORDERS)).toBeUndefined()
     expect(sut.get(DOCUMENT)).toBeDefined()
   })
+
+  it('should prepare a panel that opens only when it is shown, and bring it to the front then', () => {
+    const sut = panels()
+
+    const prepared = sut.prepare(DOCUMENT)
+    expect(sut.prepare(DOCUMENT)).toBe(prepared)
+    expect(prepared.isOpen).toBe(false)
+    expect(webviewPanels).toHaveLength(0)
+    expect(sut.show(DOCUMENT)).toBe(prepared)
+    expect(webviewPanels).toHaveLength(1)
+    expect(webviewPanels[0]?.reveal).not.toHaveBeenCalled()
+    sut.prepare(DOCUMENT)
+
+    expect(webviewPanels[0]?.reveal).toHaveBeenCalledOnce()
+  })
+
+  it('should forget a panel that never opened when its source closes, without opening it', () => {
+    const sut = panels()
+    const closed: string[] = []
+    sut.onDidClose((uri) => closed.push(uri.toString()))
+    sut.prepare(DOCUMENT)
+
+    sut.close(DOCUMENT)
+
+    expect(sut.get(DOCUMENT)).toBeUndefined()
+    expect(closed).toStrictEqual([DOCUMENT.toString()])
+    expect(webviewPanels).toHaveLength(0)
+  })
 })

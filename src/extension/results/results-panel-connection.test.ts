@@ -19,11 +19,14 @@ let title: string
 
 function panel(): ResultsPanel {
   webviewPanel = createWebviewPanel('sqldoro.results', 'Results', {}, {})
-  return new ResultsPanel(webviewPanel as unknown as vscode.WebviewPanel, actions, {
+  const opened = webviewPanel as unknown as vscode.WebviewPanel
+  const sut = new ResultsPanel({ open: () => opened }, actions, {
     now: () => now,
     log,
     title: () => title,
   })
+  sut.reveal()
+  return sut
 }
 
 function tab(id = 't1'): ResultSet {
