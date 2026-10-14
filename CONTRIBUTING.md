@@ -107,7 +107,8 @@ Dependabot proposes grouped weekly updates after a cooldown (major 15 days, mino
   commit) and checks the `.vsix` against `scripts/package/vsix-rules.ts`: the allow list of
   `.vscodeignore`, the files the manifest names, a size budget. The build writes
   `dist/ThirdPartyNotices.txt` and fails on a license sqldoro cannot ship. CI uploads the
-  `sqldoro-vsix` artifact; releases are in [`docs/RELEASING.md`](docs/RELEASING.md).
+  `sqldoro-vsix` artifact; releases (**Actions → Release → Run workflow**) are in
+  [`docs/RELEASING.md`](docs/RELEASING.md).
 - **Icon**: `media/icon.png` is `media/icon.svg` rendered at 256×256 (on macOS:
   `sips -s format png media/icon.svg --out media/icon.png`); keep both in sync.
 - **Engine glyphs** (`media/explorer/<engine>-<connected|disconnected>-<light|dark>.svg`): a new
