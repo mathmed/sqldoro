@@ -6,48 +6,79 @@ import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } fr
 
 import { readText, writeText } from '../shared/files.ts'
 import { main, type ReleaseContext } from './cli.ts'
-import type { TagRepository } from './git-tags.ts'
+import type { ReleaseRemote } from './git-remote.ts'
 
-const COMMIT = 'a'.repeat(40)
-const OTHER_COMMIT = 'b'.repeat(40)
-const USAGE = `usage:
-  release check --tag <vX.Y.Z> [--notes <file>]   the tag matches package.json and CHANGELOG.md
-  release plan --ref <git ref>                    whether a push releases, and with which tag
-  release tag --tag <vX.Y.Z> --commit <sha>       tag that commit on origin, once`
+const BASE = 'a'.repeat(40)
+const COMMIT = 'b'.repeat(40)
+const OTHER_COMMIT = 'c'.repeat(40)
+// 23:30 in São Paulo is already the next day in UTC: the release is dated in UTC.
+const NOW = new Date('2026-10-14T23:30:00-03:00')
+const CHANGELOG = `# Changelog
 
-// The tags of origin are the external boundary of the script: this fake stands in for git.
-function tagRepository(tagCommits: ReadonlyMap<string, string> = new Map()): TagRepository {
+## [Unreleased]
+
+- Something new.
+
+## [0.1.0] - 2026-10-10
+
+- The first version.
+
+[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mathmed/sqldoro/releases/tag/v0.1.0
+`
+const LAND = ['land', '--tag', 'v0.1.1', '--commit', COMMIT, '--base', BASE]
+
+interface RemoteState {
+  readonly branches?: ReadonlyMap<string, string>
+  readonly tags?: ReadonlyMap<string, string>
+  readonly commit?: string
+}
+
+// origin is the external boundary of the script: this fake stands in for git.
+function fakeRemote({
+  branches = new Map(),
+  tags = new Map(),
+  commit = COMMIT,
+}: RemoteState = {}): ReleaseRemote {
   return {
-    tagCommits: vi.fn(async () => Promise.resolve(tagCommits)),
+    branchCommits: vi.fn(async () => Promise.resolve(branches)),
+    tagCommits: vi.fn(async () => Promise.resolve(tags)),
+    commitAll: vi.fn(async () => Promise.resolve(commit)),
+    pushCommit: vi.fn(async () => Promise.resolve()),
     pushTag: vi.fn(async () => Promise.resolve()),
+    deleteBranch: vi.fn(async () => Promise.resolve()),
   }
 }
 
 describe('release command line', () => {
   let root = ''
   let output = ''
+  let summary = ''
   let log: MockInstance<typeof console.log>
   let error: MockInstance<typeof console.error>
 
   function context(
-    tags: TagRepository = tagRepository(),
-    environment: NodeJS.ProcessEnv = { GITHUB_OUTPUT: output },
+    remote: ReleaseRemote = fakeRemote(),
+    environment: NodeJS.ProcessEnv = { GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary },
   ): ReleaseContext {
-    return { root, environment, tags }
+    return { root, environment, remote, now: () => NOW }
   }
 
   async function writeVersion(version: string): Promise<void> {
     await writeText(join(root, 'package.json'), JSON.stringify({ name: 'sqldoro', version }))
   }
 
+  function expectNothingPushed(remote: ReleaseRemote): void {
+    expect(remote.pushCommit).not.toHaveBeenCalled()
+    expect(remote.pushTag).not.toHaveBeenCalled()
+  }
+
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'sqldoro-release-'))
     output = join(root, 'output')
+    summary = join(root, 'summary.md')
     await writeVersion('0.1.0')
-    await writeText(
-      join(root, 'CHANGELOG.md'),
-      '# Changelog\n\n## [0.1.0] - 2026-10-10\n\n- The first version.\n',
-    )
+    await writeText(join(root, 'CHANGELOG.md'), CHANGELOG)
     log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   })
@@ -56,7 +87,49 @@ describe('release command line', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  describe('prepare', () => {
+    const PREPARE = ['prepare', '--ref', 'refs/heads/main', '--bump', 'patch']
+
+    it('should date the next version in CHANGELOG.md and give it to the next steps', async () => {
+      await expect(main(PREPARE, context())).resolves.toBe(0)
+
+      expect(await readText(join(root, 'CHANGELOG.md'))).toContain(
+        '## [Unreleased]\n\n## [0.1.1] - 2026-10-15\n\n- Something new.',
+      )
+      expect(log).toHaveBeenCalledWith('Preparing sqldoro 0.1.1 on release/v0.1.1')
+      expect(await readText(output)).toBe('version=0.1.1\ntag=v0.1.1\nbranch=release/v0.1.1\n')
+    })
+
+    it('should take the exact version asked for', async () => {
+      await expect(main([...PREPARE, '--version', '0.2.0'], context())).resolves.toBe(0)
+
+      expect(await readText(output)).toContain('version=0.2.0\n')
+    })
+
+    it('should change nothing when the version cannot be released', async () => {
+      const remote = fakeRemote({ tags: new Map([['v0.1.1', OTHER_COMMIT]]) })
+
+      await expect(main(PREPARE, context(remote))).resolves.toBe(1)
+
+      expect(error).toHaveBeenCalledWith('✘ v0.1.1 already exists')
+      expect(await readText(join(root, 'CHANGELOG.md'))).toBe(CHANGELOG)
+      await expect(readText(output)).rejects.toThrow()
+    })
+
+    it('should refuse a bump it does not know', async () => {
+      await expect(main(['prepare', '--bump', 'build'], context())).resolves.toBe(2)
+      expect(error).toHaveBeenCalledWith(expect.stringMatching(/^"build" is not a --bump\nusage:/u))
+    })
+  })
+
   describe('check', () => {
+    beforeEach(async () => {
+      await writeText(
+        join(root, 'CHANGELOG.md'),
+        '# Changelog\n\n## [0.1.0] - 2026-10-10\n\n- The first version.\n',
+      )
+    })
+
     it('should write the notes and give the version to the next steps', async () => {
       const notes = join(root, 'notes.md')
 
@@ -71,8 +144,8 @@ describe('release command line', () => {
     it('should only check, without notes or GitHub Actions', async () => {
       const args = ['check', '--tag', 'v0.1.0']
 
-      await expect(main(args, context(tagRepository(), { GITHUB_OUTPUT: '' }))).resolves.toBe(0)
-      await expect(main(args, context(tagRepository(), {}))).resolves.toBe(0)
+      await expect(main(args, context(fakeRemote(), { GITHUB_OUTPUT: '' }))).resolves.toBe(0)
+      await expect(main(args, context(fakeRemote(), {}))).resolves.toBe(0)
     })
 
     it('should fail and list the problems of a tag that cannot be released', async () => {
@@ -85,125 +158,175 @@ describe('release command line', () => {
     })
   })
 
-  describe('plan', () => {
-    it('should release and tag the version of package.json that has no tag', async () => {
-      const tags = tagRepository(new Map([['v0.0.9', OTHER_COMMIT]]))
+  describe('commit', () => {
+    it('should commit the release and push it to its branch only', async () => {
+      const remote = fakeRemote()
 
-      await expect(main(['plan', '--ref', 'refs/heads/main'], context(tags))).resolves.toBe(0)
+      await expect(main(['commit', '--tag', 'v0.1.1'], context(remote))).resolves.toBe(0)
 
-      expect(log).toHaveBeenCalledWith('v0.1.0 does not exist yet: releasing it, then tagging it')
-      expect(await readText(output)).toBe(
-        'tag=v0.1.0\nshould-release=true\nshould-create-tag=true\n',
-      )
-    })
-
-    it('should do nothing for a version that is tagged already', async () => {
-      const tags = tagRepository(new Map([['v0.1.0', COMMIT]]))
-
-      await expect(main(['plan', '--ref', 'refs/heads/main'], context(tags))).resolves.toBe(0)
-
-      expect(log).toHaveBeenCalledWith('v0.1.0 already exists: nothing to release')
-      expect(await readText(output)).toBe(
-        'tag=v0.1.0\nshould-release=false\nshould-create-tag=false\n',
-      )
-    })
-
-    it('should release a pushed tag without tagging it again', async () => {
-      const tags = tagRepository(new Map([['v0.1.0', COMMIT]]))
-
-      await expect(main(['plan', '--ref', 'refs/tags/v0.1.0'], context(tags))).resolves.toBe(0)
-
-      expect(log).toHaveBeenCalledWith('Releasing the pushed tag v0.1.0')
-      expect(await readText(output)).toBe(
-        'tag=v0.1.0\nshould-release=true\nshould-create-tag=false\n',
-      )
+      expect(remote.commitAll).toHaveBeenCalledExactlyOnceWith('chore: release 0.1.1')
+      expect(remote.pushCommit).toHaveBeenCalledExactlyOnceWith(COMMIT, 'release/v0.1.1')
+      expect(log).toHaveBeenCalledWith(`Committed sqldoro 0.1.1 as ${COMMIT} on release/v0.1.1`)
+      expect(await readText(output)).toBe(`commit=${COMMIT}\n`)
     })
 
     it('should refuse an output that would span several lines', async () => {
-      await writeVersion('0.1.0\nshould-release=false')
+      const remote = fakeRemote({ commit: `${COMMIT}\nbranch=main` })
 
-      await expect(main(['plan', '--ref', 'refs/heads/main'], context())).rejects.toThrow(
-        'the output "tag" would span several lines',
+      await expect(main(['commit', '--tag', 'v0.1.1'], context(remote))).rejects.toThrow(
+        'the output "commit" would span several lines',
       )
-      await expect(readText(output)).rejects.toThrow()
     })
 
-    it('should refuse to plan without the pushed ref', async () => {
-      await expect(main(['plan'], context())).resolves.toBe(2)
-      expect(error).toHaveBeenCalledWith(`plan needs the --ref that was pushed\n${USAGE}`)
+    it('should refuse a tag that is not a version', async () => {
+      const remote = fakeRemote()
+
+      await expect(main(['commit', '--tag', 'latest'], context(remote))).resolves.toBe(2)
+      expect(remote.commitAll).not.toHaveBeenCalled()
     })
   })
 
-  describe('tag', () => {
-    it('should push the annotated tag of the version on the commit', async () => {
-      const tags = tagRepository(new Map([['v0.0.9', OTHER_COMMIT]]))
+  describe('land', () => {
+    it('should fast-forward main to the release commit, then tag it', async () => {
+      const remote = fakeRemote({ branches: new Map([['main', BASE]]) })
 
-      const exitCode = await main(['tag', '--tag', 'v0.1.0', '--commit', COMMIT], context(tags))
+      await expect(main(LAND, context(remote))).resolves.toBe(0)
 
-      expect(exitCode).toBe(0)
-      expect(tags.pushTag).toHaveBeenCalledExactlyOnceWith({
-        name: 'v0.1.0',
-        message: 'sqldoro 0.1.0',
+      expect(remote.pushCommit).toHaveBeenCalledExactlyOnceWith(COMMIT, 'main')
+      expect(remote.pushTag).toHaveBeenCalledExactlyOnceWith({
+        name: 'v0.1.1',
+        message: 'sqldoro 0.1.1',
         commit: COMMIT,
       })
-      expect(log).toHaveBeenCalledWith(`Tagged ${COMMIT} as v0.1.0`)
-    })
-
-    it('should keep the tag a previous attempt pushed on the same commit', async () => {
-      const tags = tagRepository(new Map([['v0.1.0', COMMIT]]))
-
-      const exitCode = await main(['tag', '--tag', 'v0.1.0', '--commit', COMMIT], context(tags))
-
-      expect(exitCode).toBe(0)
-      expect(tags.pushTag).not.toHaveBeenCalled()
-      expect(log).toHaveBeenCalledWith(`v0.1.0 already tags ${COMMIT}: kept as it is`)
-    })
-
-    it('should fail without moving a tag that is on another commit', async () => {
-      const tags = tagRepository(new Map([['v0.1.0', OTHER_COMMIT]]))
-
-      const exitCode = await main(['tag', '--tag', 'v0.1.0', '--commit', COMMIT], context(tags))
-
-      expect(exitCode).toBe(1)
-      expect(tags.pushTag).not.toHaveBeenCalled()
-      expect(error).toHaveBeenCalledWith(
-        `✘ v0.1.0 already tags ${OTHER_COMMIT}, not ${COMMIT}: it is not moved`,
+      expect(vi.mocked(remote.pushCommit).mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(remote.pushTag).mock.invocationCallOrder[0] ?? 0,
       )
+      expect(log).toHaveBeenCalledWith(`main fast-forwarded to ${COMMIT}`)
+      expect(log).toHaveBeenCalledWith(`Tagged ${COMMIT} as v0.1.1`)
     })
 
-    it('should take the full hash of a SHA-256 repository', async () => {
-      const commit = 'c'.repeat(64)
-      const tags = tagRepository()
+    it('should keep what a previous attempt landed', async () => {
+      const remote = fakeRemote({
+        branches: new Map([['main', COMMIT]]),
+        tags: new Map([['v0.1.1', COMMIT]]),
+      })
 
-      await expect(
-        main(['tag', '--tag', 'v0.1.0', '--commit', commit], context(tags)),
-      ).resolves.toBe(0)
-      expect(tags.pushTag).toHaveBeenCalledOnce()
+      await expect(main(LAND, context(remote))).resolves.toBe(0)
+
+      expectNothingPushed(remote)
+      expect(log).toHaveBeenCalledWith(`main is already at ${COMMIT}`)
+      expect(log).toHaveBeenCalledWith(`v0.1.1 already tags ${COMMIT}`)
+    })
+
+    it('should leave main untouched and say so when main moved', async () => {
+      const remote = fakeRemote({ branches: new Map([['main', OTHER_COMMIT]]) })
+
+      await expect(main(LAND, context(remote))).resolves.toBe(1)
+
+      expectNothingPushed(remote)
+      const problem =
+        `main moved while the release ran: it was prepared on ${BASE}, and main is now at ` +
+        `${OTHER_COMMIT}. main, the tags and the releases are untouched: run the Release workflow ` +
+        'again to release from the new main.'
+      expect(error).toHaveBeenCalledWith(`✘ ${problem}`)
+      expect(await readText(summary)).toBe(`**Not released.** ${problem}\n`)
+    })
+
+    it('should touch nothing when the tag is on another commit', async () => {
+      const remote = fakeRemote({
+        branches: new Map([['main', BASE]]),
+        tags: new Map([['v0.1.1', OTHER_COMMIT]]),
+      })
+
+      await expect(main(LAND, context(remote, {}))).resolves.toBe(1)
+
+      expectNothingPushed(remote)
+      expect(error).toHaveBeenCalledWith(`✘ v0.1.1 already tags ${OTHER_COMMIT}, not ${COMMIT}`)
     })
 
     it.each([
-      { arguments: 'no tag', args: ['--commit', COMMIT] },
-      { arguments: 'a tag that is not a version', args: ['--tag', 'latest', '--commit', COMMIT] },
-      { arguments: 'no commit', args: ['--tag', 'v0.1.0'] },
-      { arguments: 'a short commit', args: ['--tag', 'v0.1.0', '--commit', COMMIT.slice(0, 7)] },
-      { arguments: 'a longer commit', args: ['--tag', 'v0.1.0', '--commit', `${COMMIT}0`] },
+      { arguments: 'no tag', args: ['--commit', COMMIT, '--base', BASE] },
       {
-        arguments: 'an uppercase commit',
-        args: ['--tag', 'v0.1.0', '--commit', COMMIT.toUpperCase()],
+        arguments: 'a tag that is not a version',
+        args: ['--tag', 'latest', '--commit', COMMIT, '--base', BASE],
+      },
+      { arguments: 'no base', args: ['--tag', 'v0.1.1', '--commit', COMMIT] },
+      {
+        arguments: 'a short commit',
+        args: ['--tag', 'v0.1.1', '--commit', 'bbbbbbb', '--base', BASE],
+      },
+      {
+        arguments: 'a longer commit',
+        args: ['--tag', 'v0.1.1', '--commit', `${COMMIT}0`, '--base', BASE],
+      },
+      {
+        arguments: 'an uppercase base',
+        args: ['--tag', 'v0.1.1', '--commit', COMMIT, '--base', BASE.toUpperCase()],
       },
     ])('should refuse $arguments', async ({ args }) => {
-      const tags = tagRepository()
+      const remote = fakeRemote()
 
-      await expect(main(['tag', ...args], context(tags))).resolves.toBe(2)
-      expect(tags.pushTag).not.toHaveBeenCalled()
+      await expect(main(['land', ...args], context(remote))).resolves.toBe(2)
+      expectNothingPushed(remote)
       expect(error).toHaveBeenCalledWith(
-        `tag needs a version --tag and the full hash of the --commit\n${USAGE}`,
+        expect.stringMatching(
+          /^land needs a version --tag and the full hashes of --commit and --base\nusage:/u,
+        ),
+      )
+    })
+
+    it('should take the full hashes of a SHA-256 repository', async () => {
+      const base = 'd'.repeat(64)
+      const commit = 'e'.repeat(64)
+      const remote = fakeRemote({ branches: new Map([['main', base]]) })
+      const args = ['land', '--tag', 'v0.1.1', '--commit', commit, '--base', base]
+
+      await expect(main(args, context(remote))).resolves.toBe(0)
+      expect(remote.pushCommit).toHaveBeenCalledExactlyOnceWith(commit, 'main')
+    })
+  })
+
+  describe('cleanup', () => {
+    it('should delete the release branch', async () => {
+      const remote = fakeRemote({ branches: new Map([['release/v0.1.1', COMMIT]]) })
+
+      await expect(main(['cleanup', '--branch', 'release/v0.1.1'], context(remote))).resolves.toBe(
+        0,
+      )
+
+      expect(remote.deleteBranch).toHaveBeenCalledExactlyOnceWith('release/v0.1.1')
+      expect(log).toHaveBeenCalledWith('Deleted release/v0.1.1')
+    })
+
+    it('should do nothing when the branch is gone already', async () => {
+      const remote = fakeRemote({ branches: new Map([['main', COMMIT]]) })
+
+      await expect(main(['cleanup', '--branch', 'release/v0.1.1'], context(remote))).resolves.toBe(
+        0,
+      )
+
+      expect(remote.deleteBranch).not.toHaveBeenCalled()
+      expect(log).toHaveBeenCalledWith('release/v0.1.1 is already gone')
+    })
+
+    it('should never delete another branch', async () => {
+      const remote = fakeRemote({ branches: new Map([['main', COMMIT]]) })
+
+      await expect(main(['cleanup', '--branch', 'main'], context(remote))).resolves.toBe(2)
+
+      expect(remote.deleteBranch).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalledWith(
+        expect.stringMatching(/^"main" is not a release branch\nusage:/u),
       )
     })
   })
 
-  it('should refuse an unknown command', async () => {
+  it('should refuse an unknown command, and no command', async () => {
     await expect(main(['publish'], context())).resolves.toBe(2)
-    expect(error).toHaveBeenCalledWith(`unknown command "publish"\n${USAGE}`)
+    expect(error).toHaveBeenCalledWith(
+      expect.stringMatching(/^unknown command "publish"\nusage:\n {2}release prepare/u),
+    )
+    await expect(main([], context())).resolves.toBe(2)
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^unknown command ""\n/u))
   })
 })

@@ -5,8 +5,16 @@ on:
     branches: ["**"]
   push:
     branches: ["main"]
-  # The release workflow runs the same gates on a version tag before it drafts the release.
+  # The release workflow runs the same gates on the release commit before it lands and drafts it.
   workflow_call:
+    inputs:
+      ref:
+        description: >-
+          The commit every job checks out (the release commit); empty checks out the commit that
+          started the run, as on a pull request or a push.
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -22,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -45,6 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -109,6 +121,8 @@ jobs:
         ports: ["32222:22"]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -129,6 +143,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -153,6 +169,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -186,6 +204,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
@@ -222,6 +242,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
       # The report script only uses Node.js built-ins: no npm ci needed.
       - uses: actions/setup-node@v7
         with:
