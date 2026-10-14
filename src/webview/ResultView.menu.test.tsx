@@ -63,7 +63,7 @@ describe('the menu of a cell', () => {
 
     expect(menuItems()).toStrictEqual([
       'Open Referenced Row',
-      'Open Referenced Row Here',
+      'Open in New Tab',
       'Peek Referenced Row',
       'Rows That Reference This Row…',
       'Copy',
@@ -84,7 +84,7 @@ describe('the menu of a cell', () => {
   it('should open, peek, copy and show the whole value from the menu', () => {
     linked()
     fireEvent.contextMenu(cellAt(0, 1))
-    expect(menuItems()).not.toContain('Open Referenced Row Here')
+    expect(menuItems()).not.toContain('Open in New Tab')
     pick('Open Referenced Row')
     fireEvent.contextMenu(cellAt(0, 1))
     pick('Peek Referenced Row')
@@ -105,6 +105,21 @@ describe('the menu of a cell', () => {
       },
     ])
     expect(screen.getByRole('complementary', { name: /name/ }).textContent).toContain('ann')
+  })
+
+  it('should open the row in place or in a new tab from the menu of a table panel', () => {
+    linked({ canRefresh: true, queryBox: TABLE_BOX })
+
+    fireEvent.contextMenu(cellAt(0, 1))
+    pick('Open Referenced Row')
+    fireEvent.contextMenu(cellAt(2, 1))
+    pick('Open in New Tab')
+
+    const start = { type: 'navigate', tabId: 'tab-1', viewVersion: 0, column: 1 }
+    expect(view.sent('navigate')).toStrictEqual([
+      { ...start, row: 0, isInPlace: true },
+      { ...start, row: 2, isInPlace: false },
+    ])
   })
 
   it('should open the menu from the keyboard', () => {
@@ -148,15 +163,15 @@ describe('the rows that reference a row', () => {
     ).toStrictEqual(['12,345 rows', '?'])
   })
 
-  it('should open the rows of a referencing table, here in a table panel', () => {
+  it('should open the rows of a referencing table here in a table panel, or in a new tab', () => {
     linked({ canRefresh: true, queryBox: TABLE_BOX })
     fireEvent.contextMenu(cellAt(0, 1))
     pick('Rows That Reference This Row…')
 
-    fireEvent.click(within(referenceItem(0)).getByRole('button', { name: 'Here' }))
+    fireEvent.click(within(referenceItem(0)).getByRole('button', { name: 'Open' }))
     fireEvent.contextMenu(cellAt(0, 1))
     pick('Rows That Reference This Row…')
-    fireEvent.click(within(referenceItem(1)).getByRole('button', { name: 'Open' }))
+    fireEvent.click(within(referenceItem(1)).getByRole('button', { name: 'New Tab' }))
 
     const start = { type: 'openReference', tabId: 'tab-1', viewVersion: 0, row: 0 }
     expect(view.sent('openReference')).toStrictEqual([

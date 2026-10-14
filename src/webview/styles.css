@@ -715,3 +715,28 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* What a statement without a result set did, in place of a grid. */
+.outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.outcome-text,
+.outcome-notice {
+  margin: 0;
+}
+
+.outcome-notice {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
+}
+
+.outcome-sql {
+  overflow: hidden;
+  font-family: var(--grid-font);
+  color: var(--vscode-descriptionForeground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 
 import { EditKind } from '../core/edits/edit-kind.ts'
+import { isOutcome } from '../core/results/outcome.ts'
 import type { PanelConnection } from '../core/results/protocol-parts.ts'
 import type { ResultTab } from '../core/results/protocol.ts'
 import { wholeValue } from './cell-values.ts'
@@ -37,7 +38,8 @@ interface ResultViewProps {
 
 // The result of one statement: its actions, its rows or plan, what happened and the editing of its
 // rows, with the preview of their changes. The grid shows the columns the layout shows, in its
-// order; the panels over it open one at a time.
+// order; the panels over it open one at a time. A statement without a result set shows only its
+// outcome: no toolbar, no grid.
 export const ResultView = (props: ResultViewProps): ReactElement => {
   const model = useResultModel(props, props.context.sql)
   const { tab, api, store, answers } = model.projection
@@ -47,18 +49,19 @@ export const ResultView = (props: ResultViewProps): ReactElement => {
   })
   const { connection, indicator } = props.context
   const waiting = useWaiting({ tab, store, incoming: props.incoming, indicator })
+  const isBare = isOutcome(props.tab)
   return (
     <section
       {...panelRole(tab, props.hasTabs)}
       id="result-panel"
       className={viewClassName(waiting)}
     >
-      <ResultToolbar model={model} queryMode={props.context.queryMode} />
+      {isBare ? null : <ResultToolbar model={model} queryMode={props.context.queryMode} />}
       <div className="result-body">
         <ResultMain model={model} edit={edit} context={props.context} waiting={waiting} />
         <DetailPanel model={model} />
       </div>
-      <ResultFooter model={model} connection={connection} />
+      {isBare ? null : <ResultFooter model={model} connection={connection} />}
       <ChangesPreview tab={tab} edits={model.edits} connection={connection} />
       <OverlayView model={model} />
     </section>

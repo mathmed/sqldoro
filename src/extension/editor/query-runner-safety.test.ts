@@ -64,21 +64,24 @@ describe('QueryRunner and the guards', () => {
     expect(sent()).toStrictEqual(['SELECT 1', 'SHOW search_path'])
   })
 
-  it('should run a DELETE of every row once its table is typed, and only then', async () => {
-    window.showInputBox.mockResolvedValueOnce(undefined).mockResolvedValueOnce('t')
+  it('should run a DELETE of every row once its button is pressed, and only then', async () => {
+    window.showWarningMessage
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('Run the DELETE of Every Row')
 
     const editor = await runIn('DELETE FROM t')
     expect(sent()).toStrictEqual([])
     await harness.runner.run(editor, RunScope.All)
 
     expect(sent()).toStrictEqual(['DELETE FROM t'])
+    expect(window.showInputBox).not.toHaveBeenCalled()
   })
 
   it('should run nothing when the run is cancelled while a confirmation waits', async () => {
     const editor = (await sqlEditor(harness, 'DELETE FROM t')) as unknown as vscode.TextEditor
-    window.showInputBox.mockImplementation(async () => {
+    window.showWarningMessage.mockImplementation(async () => {
       await harness.runner.cancel(editor.document.uri)
-      return Promise.resolve('t')
+      return Promise.resolve('Run the DELETE of Every Row')
     })
 
     await harness.runner.run(editor, RunScope.All)
@@ -87,14 +90,28 @@ describe('QueryRunner and the guards', () => {
     expect(harness.connect).not.toHaveBeenCalled()
   })
 
-  it('should ask for the name of a production connection before writing to it', async () => {
+  it('should ask for the button of a production connection before writing to it', async () => {
     harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
-    window.showInputBox.mockResolvedValue('Shop')
+    window.showWarningMessage.mockResolvedValue('Run on Shop')
 
     await runIn('INSERT INTO t VALUES (1)')
 
-    expect(window.showInputBox).toHaveBeenCalledOnce()
+    expect(window.showWarningMessage).toHaveBeenCalledOnce()
+    expect(window.showInputBox).not.toHaveBeenCalled()
     expect(sent()).toStrictEqual(['INSERT INTO t VALUES (1)'])
+  })
+
+  it('should have the table typed after the button for a DELETE of every row on production', async () => {
+    harness.connections.set('shop', { ...SHOP, environment: EnvironmentTag.Production })
+    window.showWarningMessage.mockResolvedValue('Run on Shop')
+    window.showInputBox.mockResolvedValueOnce(undefined).mockResolvedValueOnce('t')
+
+    const editor = await runIn('DELETE FROM t')
+    expect(sent()).toStrictEqual([])
+    await harness.runner.run(editor, RunScope.All)
+
+    expect(window.showWarningMessage).toHaveBeenCalledTimes(2)
+    expect(sent()).toStrictEqual(['DELETE FROM t'])
   })
 
   it('should refuse a statement the guards did not approve, and say so in its tab', async () => {

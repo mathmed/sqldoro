@@ -21,3 +21,13 @@ export async function askTyped(confirmation: TypedConfirmation): Promise<boolean
   })
   return typed !== undefined && isConfirmed(typed, confirmation.expected)
 }
+
+// Each in turn: the first one not typed stops.
+export async function askEveryTyped(confirmations: readonly TypedConfirmation[]): Promise<boolean> {
+  for (const confirmation of confirmations) {
+    if (!(await askTyped(confirmation))) {
+      return false
+    }
+  }
+  return true
+}

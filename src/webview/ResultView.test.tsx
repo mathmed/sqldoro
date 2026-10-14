@@ -250,10 +250,11 @@ describe('ResultView', () => {
     unmount()
 
     view({
+      sql: 'UPDATE t SET a = 1',
       columns: [],
       summary: { durationMs: 1, affectedRows: 3, isTruncated: false, autoLimit: null },
     })
     expect(screen.queryByRole('grid')).toBeNull()
-    expect(screen.getByRole('status').textContent).toBe('3 rows affected in 1 ms')
+    expect(screen.getByRole('status').textContent).toBe('UPDATE: 3 rows affected · 1 ms')
   })
 })

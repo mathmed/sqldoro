@@ -1,12 +1,14 @@
 import type { ReactElement } from 'react'
 
 import { withNoneHidden } from '../core/grid/column-layout.ts'
+import { isOutcome } from '../core/results/outcome.ts'
 import { TabKind, TabStatus, WebviewMessageType } from '../core/results/protocol.ts'
 import type { ViewSpec } from '../core/results/view.ts'
 import { requestCell } from './cell-values.ts'
 import type { GridEdit } from './grid-props.ts'
 import { Grid } from './Grid.tsx'
 import { LoadingOverlay, Skeleton } from './LoadingCard.tsx'
+import { OutcomeView } from './OutcomeView.tsx'
 import { PlanView } from './PlanView.tsx'
 import { gridColumns, gridLinks, type ResultModel } from './result-model.ts'
 import type { ViewContext } from './view-context.ts'
@@ -19,7 +21,7 @@ interface ResultMainProps {
   readonly waiting: Waiting
 }
 
-// The rows or the plan of the result. While the view waits (a statement runs, the rows of a new
+// The rows or the plan of the result, or the outcome of a statement without a result set. While the view waits (a statement runs, the rows of a new
 // view are on their way), what it shows stays as it is; a wait long enough to notice dims it and
 // shows a card that says what the view waits for. Before the first rows of a result, a skeleton
 // stands where they go.
@@ -47,6 +49,9 @@ const ResultContent = ({ model, edit, context, waiting }: ResultMainProps): Reac
   const { tab, source } = model.projection
   if (tab.kind === TabKind.Plan) {
     return <PlanView lines={tab.plan} />
+  }
+  if (isOutcome(source.tab)) {
+    return <OutcomeView tab={source.tab} sql={context.sql} />
   }
   if (tab.columns.length === 0) {
     return source.tab.columns.length === 0 ? null : <AllHidden model={model} />

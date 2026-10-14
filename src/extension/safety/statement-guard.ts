@@ -5,6 +5,11 @@ import type { Dialect } from '../../core/engine/dialect.ts'
 import type { Logger } from '../../core/platform.ts'
 import { classifyStatement } from '../../core/safety/classify.ts'
 import {
+  type ConfirmationDialog,
+  confirmationDialog,
+  typedConfirmations,
+} from '../../core/safety/confirmation-dialog.ts'
+import {
   assessRun,
   type Confirmation,
   type GuardPolicy,
@@ -19,7 +24,7 @@ import {
 import { type EditorTransaction, implicitCommitWarning } from '../../core/safety/transaction.ts'
 import { CommandId } from '../command-id.ts'
 import { Approval } from './approval.ts'
-import { askTyped } from './typed-confirmation.ts'
+import { askEveryTyped } from './typed-confirmation.ts'
 
 export interface StatementGuardDependencies {
   readonly policy: () => GuardPolicy
@@ -77,16 +82,19 @@ export class StatementGuard {
     )
   }
 
-  // Each confirmation in turn: the first one dismissed stops the run.
+  // One dialog for the whole run, then what must be typed: the first one dismissed stops the run.
   async #confirmAll(
     confirmations: readonly Confirmation[],
     connection: ConnectionConfig,
   ): Promise<boolean> {
+    const isConfirmed =
+      (await askButton(confirmationDialog(confirmations, targetOf(connection)))) &&
+      (await askEveryTyped(typedConfirmations(confirmations)))
+    if (!isConfirmed) {
+      this.#dependencies.log.info(`Guard: not confirmed, nothing ran on "${connection.name}"`)
+      return false
+    }
     for (const confirmation of confirmations) {
-      if (!(await askTyped(confirmation))) {
-        this.#dependencies.log.info(`Guard: not confirmed, nothing ran on "${connection.name}"`)
-        return false
-      }
       this.#dependencies.log.warn(`Guard override on "${connection.name}": ${confirmation.logLine}`)
     }
     return true
@@ -129,6 +137,16 @@ function targetOf(connection: ConnectionConfig): GuardTarget {
     environment: connection.environment,
     isReadOnly: connection.isReadOnly,
   }
+}
+
+// A modal dialog: its button runs, Cancel or Escape does not.
+async function askButton(dialog: ConfirmationDialog): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(
+    dialog.message,
+    { modal: true, detail: dialog.detail },
+    dialog.button,
+  )
+  return choice === dialog.button
 }
 
 // Turning read-only off is a deliberate act of its own: the button opens it, it never re-runs the

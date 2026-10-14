@@ -88,16 +88,20 @@ flowchart TB
   perform --> classify["classify each statement (core, with the dialect's lexical rules):<br/>read · write · DDL · transaction · session · unknown (fails closed)<br/>+ every-row UPDATE / DELETE"]
   classify --> policy["guard policy (core): connection read-only? production?"]
   policy -->|"read-only and not a read"| block["blocked, with Allow Writes…<br/>(a separate, confirmed setting change)"]
-  policy -->|"every-row UPDATE / DELETE"| typeTable["type the table name"]
-  policy -->|"write on production"| typeName["type the connection name"]
+  policy -->|"every-row UPDATE / DELETE, or a write on production"| dialog["one modal dialog for the run:<br/>connection, environment, verbs, tables · Run button"]
+  dialog -->|"every-row UPDATE / DELETE on production"| typeTable["then type the table name"]
+  dialog --> approval["approval: the statements and their classes"]
   policy -->|"allowed"| approval
-  typeTable --> approval["approval: the statements and their classes"]
-  typeName --> approval
+  typeTable --> approval
   approval --> runJob["runJob / edit-batch: refuse SQL the approval does not cover"]
   runJob --> execute["EngineSession.execute"]
   execute --> server[("database: read-only session<br/>on read-only connections")]
   perform -.-> log["output channel: decisions with connection,<br/>verbs and tables, never SQL text or values"]
 ```
+
+`assessRun` gives each confirmation a `ConfirmationStyle` (`Button`, or `Typed` for an `UPDATE` or
+`DELETE` of every row on production) and `confirmationDialog` composes the single dialog of the run;
+the host only renders them (`StatementGuard`, `typed-confirmation.ts`).
 
 Only sqldoro's own statements bypass the guard: catalog queries, `START TRANSACTION`, `COMMIT`,
 `ROLLBACK`, the savepoints of an apply, the transaction status probe, and the `sql_mode` an apply
@@ -167,6 +171,13 @@ a usable key stay read-only, and the grid says why.
   animations.
 - **Host side**: `src/extension/results/results-panel.ts` keeps the tabs and posts them;
   `panel-requests.ts` and `panel-navigation-requests.ts` handle the messages.
+- **Statements without a result set** (`UPDATE`, `ALTER TABLE`, `SET`) never open an empty grid.
+  `isOutcome` and `needsView` (`src/core/results/outcome.ts`) tell an outcome from what only a view
+  shows (rows, a plan, an error, a cancelled run). An editor run that reads nothing gets its panel
+  from `ResultsPanels.prepare`: an open panel shows the outcome (`OutcomeView`: "UPDATE: 3 rows
+  affected · 12 ms"); otherwise the panel's webview opens only when a tab needs it (a `RETURNING`,
+  an error), and when it never did the outcomes go to a notification (`runOutcomeText`) and, as
+  always, to the history.
 
 ## The explorer and finding tables
 
@@ -206,7 +217,10 @@ a usable key stay read-only, and the grid says why.
   reads (`isReadOnlyQuery`).
 - **Navigation**: links come from the catalog, never the query text (`TableMetadata`,
   `src/core/navigation/links.ts`, `keys.ts`). Table panels keep a trail of steps
-  (`src/core/navigation/history.ts`, `TableNavigations`). Peeks and reference counts go through
+  (`src/core/navigation/history.ts`, `TableNavigations`): following a link adds a step in place by
+  default (`NavigationStart.isInPlace`), after the same drop-changes confirmation as a new run;
+  Ctrl+click, a middle click or **Open in New Tab** opens a panel that starts from the trail.
+  Results of SQL editors keep no trail, so their links always open a table panel. Peeks and reference counts go through
   `readThroughGuards` / `runApprovedRead`, which refuse anything that is not a read.
 
 ## The connection form

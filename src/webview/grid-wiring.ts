@@ -171,7 +171,8 @@ function valueAt(
   return store.row(position.row, tab.viewVersion)?.cells.at(position.column)
 }
 
-// The keys of a link act on the cell with the focus, where it is laid out.
+// The keys of a link act on the cell with the focus, where it is laid out: Ctrl+Enter follows the
+// link in place, where the panel keeps a trail.
 function linkKeys({ links, store, tab }: GridProps): {
   readonly openLink: (position: CellPosition) => boolean
   readonly peek: (position: CellPosition) => boolean
@@ -185,7 +186,7 @@ function linkKeys({ links, store, tab }: GridProps): {
     openLink: (position) => {
       const isOpening = isLink(position)
       if (isOpening) {
-        links.actions.open(position, false)
+        links.actions.open(position, true)
       }
       return isOpening
     },

@@ -13,11 +13,14 @@ let actions: FakePanelActions
 
 function panel(): ResultsPanel {
   webviewPanel = createWebviewPanel('sqldoro.results', 'orders — sales', {}, {})
-  return new ResultsPanel(webviewPanel as unknown as vscode.WebviewPanel, actions, {
+  const opened = webviewPanel as unknown as vscode.WebviewPanel
+  const sut = new ResultsPanel({ open: () => opened }, actions, {
     now: () => 0,
     log: recordingLogger(),
     title: () => 'orders — sales',
   })
+  sut.reveal()
+  return sut
 }
 
 // A tab of the rows of a table (which can be read again) or of a query, finished or still running.

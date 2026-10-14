@@ -1,7 +1,8 @@
 // Plays the user in front of VS Code's prompts: each helper queues the answers to the next quick
-// picks, input boxes or file dialogs. Quick pick answers name the item by its label, without the
-// leading $(icon); an undefined answer dismisses the prompt. Like VS Code, an input box refuses a
-// value its validation rejects.
+// picks, input boxes, warning dialogs or file dialogs. Quick pick answers name the item by its label,
+// without the leading $(icon), and dialog answers by their button; an undefined answer dismisses the
+// prompt. Like VS Code, an input box refuses a value its validation rejects, and a dialog only
+// answers one of its buttons.
 import type * as vscode from 'vscode'
 
 import { window } from '../vscode.ts'
@@ -61,6 +62,18 @@ export function answerQuickPicks(...labels: (string | undefined)[]): void {
 export function answerInputs(...values: (string | undefined)[]): void {
   window.showInputBox.mockImplementation(async (options?: PromptOptions) =>
     Promise.resolve(checked(next(values, options), options ?? {})),
+  )
+}
+
+export function answerDialogs(...buttons: (string | undefined)[]): void {
+  window.showWarningMessage.mockImplementation(
+    async (message: string, ...items: readonly unknown[]) => {
+      const button = next(buttons, { title: message })
+      if (button !== undefined && !items.includes(button)) {
+        throw new Error(`no "${button}" in the dialog "${message}"`)
+      }
+      return Promise.resolve(button)
+    },
   )
 }
 

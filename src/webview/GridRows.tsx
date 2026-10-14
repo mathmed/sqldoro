@@ -50,7 +50,7 @@ export interface CellEvents {
   readonly onCellOpen: (position: CellPosition) => void
   // A click on the number of a row: Shift extends the selection to it.
   readonly onRowDown: (row: number, isExtending: boolean) => void
-  // A link opens the row it points at, in a panel of its own or in place.
+  // A link opens the row it points at, in place where the panel keeps a trail or in a new tab.
   readonly onLinkOpen: (position: CellPosition, isInPlace: boolean) => void
   readonly onCellMenu: (position: CellPosition, place: PopupPlace) => void
   readonly onLinkHover: PeekHover
@@ -218,8 +218,8 @@ interface CellSituation {
   readonly events: CellEvents
 }
 
-// A press selects the cell; on a link, Ctrl (or Cmd) with a click opens the row it points at, and Alt
-// with a click opens it in place where the panel keeps a trail.
+// A press selects the cell; on a link, Ctrl (or Cmd) with a click opens the row it points at in a
+// new tab, as in a browser, and Alt with a click opens it in place where the panel keeps a trail.
 function cellHandlers(
   position: CellPosition,
   { isLink, layout, events }: CellSituation,
@@ -255,35 +255,54 @@ function openOnModifiedClick(
   }
 }
 
-// The arrow of a link: a click opens the row it points at, the pointer resting on it peeks at it.
-const LinkArrow = ({
-  position,
-  events,
-}: {
-  readonly position: CellPosition
-  readonly events: CellEvents
-}): ReactElement => (
+// The arrow of a link, followed like a link of a browser: a click opens the row it points at in
+// place (where the panel keeps a trail, elsewhere in a panel of its own), Ctrl (or Cmd) with a click
+// or a middle click in a new tab; the pointer resting on it peeks at it.
+const LinkArrow = (link: ArrowLink): ReactElement => (
   <button
     type="button"
     className="link-arrow"
     tabIndex={-1}
     aria-label="Open the referenced row"
-    title="Open the referenced row (Ctrl+click, or Ctrl+Enter); Alt+Enter peeks at it"
-    onMouseDown={(event) => {
-      event.stopPropagation()
-    }}
-    onClick={(event) => {
-      event.stopPropagation()
-      events.onLinkOpen(position, false)
-    }}
-    onMouseEnter={(event) => {
-      events.onLinkHover.enter(position, event.currentTarget)
-    }}
-    onMouseLeave={events.onLinkHover.leave}
+    title="Open the referenced row (Ctrl+Enter); Ctrl+click opens it in a new tab, Alt+Enter peeks at it"
+    {...arrowHandlers(link)}
   >
     <Icon name={IconName.ArrowLink} />
   </button>
 )
+
+interface ArrowLink {
+  readonly position: CellPosition
+  readonly events: CellEvents
+}
+
+const MIDDLE_BUTTON = 1
+
+function arrowHandlers({
+  position,
+  events,
+}: ArrowLink): Record<string, (event: MouseEvent) => void> {
+  return {
+    onMouseDown: (event) => {
+      event.stopPropagation()
+    },
+    onClick: (event) => {
+      event.stopPropagation()
+      events.onLinkOpen(position, !(event.ctrlKey || event.metaKey))
+    },
+    onAuxClick: (event) => {
+      if (event.button === MIDDLE_BUTTON) {
+        event.preventDefault()
+        event.stopPropagation()
+        events.onLinkOpen(position, false)
+      }
+    },
+    onMouseEnter: (event) => {
+      events.onLinkHover.enter(position, event.currentTarget)
+    },
+    onMouseLeave: events.onLinkHover.leave,
+  }
+}
 
 interface CellContentProps {
   readonly cell: CellState

@@ -35,11 +35,16 @@ VSIX…**. It needs VS Code 1.140 or later.
   run the panel's whole query in the query box above the rows.
 - **SQL editors** bound to a connection, database and schema, each on its own session: run the
   statement under the cursor or a script, cancel on the server, errors underlined, autocomplete.
+  Statements without a result set (`UPDATE`, `ALTER TABLE`) show their outcome ("UPDATE: 3 rows
+  affected · 12 ms") in the result panel when it is open, in a notification otherwise: no empty
+  grid.
 - **Result grid**, virtualized in rows and columns (a million rows scroll smoothly): sort, column
   filters, quick search, show, hide and reorder columns, copy and export to CSV, JSON or SQL. `NULL`,
   `BIGINT`, `DECIMAL` and dates are shown exactly as the server sent them.
 - **Foreign key navigation**: follow a link to the row it points at, peek at it, or list the rows
-  that reference a row; table panels keep a trail with back and forward.
+  that reference a row. In a table panel a link opens in place, like a link of a browser, with a
+  trail to go back and forward; `Ctrl+click`, a middle click or **Open in New Tab** opens it in a
+  new panel.
 - **Inline editing** of one table's rows: preview the exact SQL and bound values, then apply in one
   transaction; a row someone else changed is reported as a conflict, never overwritten.
 - **Tooling**: DDL, `EXPLAIN` and `EXPLAIN ANALYZE`, and a query history per connection.
@@ -95,7 +100,8 @@ Every command is in the Command Palette under **sqldoro:** and in the menus wher
 | `Delete`                                | Mark the selected rows for deletion.                                         |
 | `Ctrl+S` (`Cmd+S`)                      | Preview the pending changes.                                                 |
 | `Ctrl+C` (`Cmd+C`)                      | Copy the selected cells as TSV.                                              |
-| `Ctrl+click` (`Cmd+click`), `Alt+click` | On a link: open the row it points at in a new panel, or in place.            |
+| `Ctrl+Enter` (`Cmd+Enter`), `Alt+click` | On a link: open the row it points at in place (in a table panel).            |
+| `Ctrl+click` (`Cmd+click`)              | On a link: open the row it points at in a new panel.                         |
 | `Alt+Enter`                             | On a link: peek at the row it points at.                                     |
 | `Alt+Left`, `Alt+Right`                 | In a table panel: back and forward along the trail.                          |
 | `Ctrl+Shift+E` (`Cmd+Shift+E`)          | In a table panel: switch between the WHERE and the query box.                |
@@ -124,8 +130,11 @@ permissions of the database user**, so connect with the least privilege the work
 - **Read-only by default**: a read-only connection refuses anything that is not a read, and its
   sessions are also opened read-only on the server, which catches what the classifier cannot see
   (procedures, triggers, functions).
-- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE` waits for the table name to be
-  typed; on production, any write waits for the connection name.
+- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE`, and any write on production,
+  wait for a modal dialog that names the connection, its environment, the statements and their
+  tables: one dialog per run, run with its button (**Run on Shop**, **Run the UPDATE of Every
+  Row**), refused with **Cancel** or `Escape`. Only the riskiest case, an `UPDATE` or `DELETE` of
+  every row on production, also asks for the table name to be typed.
 - **Production** connections (tagged `prod`) start read-only and show in red in the status bar, the
   editor tab and the results.
 - **Automatic `LIMIT`** on queries that read; **Load All Rows** runs them again without it.

@@ -12,8 +12,8 @@ interface MenuTarget {
   readonly onDetail: (position: CellPosition) => void
 }
 
-// The menu of a cell: the row its link points at (opened, opened here, peeked at), the rows that
-// reference its row, copying the selection and its whole value.
+// The menu of a cell: the row its link points at (opened in place where the panel keeps a trail, in
+// a new tab, peeked at), the rows that reference its row, copying the selection and its whole value.
 export function cellMenuItems(model: ResultModel, target: MenuTarget): MenuItem[] {
   return [...linkItems(model, target), ...rowItems(model, target)]
 }
@@ -30,9 +30,9 @@ function linkItems(model: ResultModel, { position, place }: MenuTarget): MenuIte
     links.open(position, isInPlace)
   }
   return [
-    { label: 'Open Referenced Row', isDisabled: false, onSelect: open(false) },
+    { label: 'Open Referenced Row', isDisabled: false, onSelect: open(true) },
     ...(links.canOpenInPlace
-      ? [{ label: 'Open Referenced Row Here', isDisabled: false, onSelect: open(true) }]
+      ? [{ label: 'Open in New Tab', isDisabled: false, onSelect: open(false) }]
       : []),
     {
       label: 'Peek Referenced Row',

@@ -6,6 +6,37 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Changed
+
+- **Statements without a result set no longer open an empty grid.** An `UPDATE`, `ALTER TABLE` or
+  `SET` run from an SQL editor shows its outcome in a line ("UPDATE: 3 rows affected · 12 ms",
+  "ALTER TABLE done · 40 ms") in the result panel when one is open for the editor; otherwise it
+  opens no panel and tells the outcome in a notification, and the query history keeps it as before.
+  A script that also reads opens the panel at once with the grids of its queries and the outcomes
+  of the other statements; a write that returns rows (`RETURNING`) and an error still open the panel,
+  with the server's message.
+- **Confirming a write no longer means typing.** An `UPDATE` or `DELETE` without a real `WHERE`, and
+  any write on production, now ask once per run in a modal dialog that names the connection, its
+  environment, the statements and their tables, with a button that runs them (**Run on Shop**,
+  **Run the UPDATE of Every Row**); **Cancel** or `Escape` runs nothing. Typing stays for the
+  riskiest case only: an `UPDATE` or `DELETE` of every row on production still waits for its table
+  name. What needs a confirmation, read-only connections and the log are unchanged.
+- **Following a link opens it in place.** In a table panel, the arrow of a foreign key cell,
+  `Ctrl+Enter`, **Open Referenced Row** and the **Open** buttons of the peek and of the references
+  show the rows in the same panel, with **Back** and the trail to return, as DB clients do.
+  `Ctrl+click` (`Cmd+click`), a middle click on the arrow and **Open in New Tab** open them in a new
+  panel. Changes not applied still ask before they are dropped. Links in the results of an SQL
+  editor open a table panel, as before.
+
+### Fixed
+
+- **The autocomplete knows the statements of administration.** MySQL editors now suggest `FLUSH`
+  and `PRIVILEGES`, and both dialects the first word of the statements of administration sqldoro's
+  guards classify:
+  `GRANT`, `REVOKE`, `ANALYZE`, `RENAME`, `LOCK`, `RESET`, `CALL`, `PREPARE`, `START TRANSACTION`,
+  `SAVEPOINT`... with `KILL`, `OPTIMIZE`, `UNLOCK`, `PURGE`, `REPAIR`, `CHECKSUM`, `SHUTDOWN` on MySQL
+  and `CHECKPOINT`, `CLUSTER`, `REINDEX`, `REFRESH`, `LISTEN`, `NOTIFY`, `MERGE` on PostgreSQL.
+
 ## [0.1.2] - 2026-10-13
 
 ### Added
