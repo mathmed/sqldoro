@@ -4,8 +4,8 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { changedFiles } from '../../scripts/mutation/changed-files.ts'
 import { lastCommitTime } from '../../scripts/package/commit-time.ts'
+import { changedFiles } from '../../scripts/shared/git-files.ts'
 import { commitFiles, createRepository, git } from './git.ts'
 
 interface RepositoryState {

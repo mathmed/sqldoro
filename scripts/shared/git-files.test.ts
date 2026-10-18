@@ -4,10 +4,10 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { commitFiles, createRepository, git } from '../../test/support/git.ts'
-import { compareText } from '../shared/text.ts'
-import { changedFiles } from './changed-files.ts'
+import { changedFiles } from './git-files.ts'
+import { compareText } from './text.ts'
 
-describe('changedFiles', () => {
+describe('git files', () => {
   let repository = ''
 
   beforeEach(async () => {
@@ -16,6 +16,7 @@ describe('changedFiles', () => {
       ['kept.ts', 'a'],
       ['edited.ts', 'a'],
       ['deleted.ts', 'a'],
+      ['moved.ts', 'a'],
     ])
     await commitFiles(repository, base, 'base')
     await git(repository, 'switch', '--quiet', '--create', 'feature')
@@ -25,20 +26,27 @@ describe('changedFiles', () => {
     await rm(repository, { recursive: true, force: true })
   })
 
-  it('should list the files added or modified since the base, never the deleted ones', async () => {
+  async function changeTheBranch(): Promise<void> {
     await rm(join(repository, 'deleted.ts'))
+    await git(repository, 'mv', 'moved.ts', 'renamed.ts')
     const feature = new Map([
       ['edited.ts', 'b'],
-      ['added.ts', 'b'],
+      ['added café.ts', 'b'],
     ])
     await commitFiles(repository, feature, 'feature')
+  }
 
-    const files = await changedFiles(repository, 'main')
+  describe('changedFiles', () => {
+    it('should list the files added or modified since the base, never the deleted ones', async () => {
+      await changeTheBranch()
 
-    expect(files.toSorted(compareText)).toEqual(['added.ts', 'edited.ts'])
-  })
+      const sut = await changedFiles(repository, 'main')
 
-  it('should list nothing when the branch has no changes', async () => {
-    expect(await changedFiles(repository, 'main')).toEqual([])
+      expect(sut.toSorted(compareText)).toEqual(['added café.ts', 'edited.ts', 'renamed.ts'])
+    })
+
+    it('should list nothing when the branch has no changes', async () => {
+      expect(await changedFiles(repository, 'main')).toEqual([])
+    })
   })
 })
