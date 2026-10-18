@@ -11,6 +11,12 @@ export async function changedFiles(repository: string, baseRef: string): Promise
   return gitPaths(repository, 'diff', ['--name-only', '--diff-filter=d', `${baseRef}...HEAD`])
 }
 
+// Every path the branch adds, changes or deletes since the merge base with `baseRef`. A rename
+// lists both sides: moving a file out of a path counts as touching that path.
+export async function touchedFiles(repository: string, baseRef: string): Promise<string[]> {
+  return gitPaths(repository, 'diff', ['--name-only', '--no-renames', `${baseRef}...HEAD`])
+}
+
 // The files of the working tree git knows or would add: tracked or untracked, never ignored, and
 // still on disk.
 export async function workingTreeFiles(repository: string): Promise<string[]> {

@@ -956,6 +956,7 @@
     "dead-code": "knip --treat-config-hints-as-errors",
     "suppressions": "node scripts/suppressions.ts check",
     "suppressions:update": "node scripts/suppressions.ts update",
+    "risk": "node scripts/risk.ts",
     "smoke": "node scripts/smoke.ts",
     "mutation": "node scripts/mutation.ts full",
     "mutation:changed": "node scripts/mutation.ts changed"
@@ -1009,6 +1010,7 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "yaml": "^2.9.1"
   }
 }
