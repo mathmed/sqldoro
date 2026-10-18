@@ -18,7 +18,9 @@ findings. Never edit files, commit or push.
      the core; only `src/extension/factories/` instantiates drivers; the host and the webview never
      import each other.
    - **Pipeline**: no relaxed threshold, rule, contract, coverage exclusion or mutation scope; no new
-     `eslint-disable` without a real reason; no `ignore*` entry added to `knip.jsonc`.
+     `eslint-disable` without a real reason; no `ignore*` entry added to `knip.jsonc`; no raised
+     `suppressions-baseline.json` and no risk floor removed from `.github/risk-floors.yaml` without the
+     owner's approval.
    - **Correctness**: logic bugs and unhandled edge cases, above all in the safety guards (read-only
      mode, UPDATE/DELETE without WHERE, automatic LIMIT, manual transactions).
    - **Tests**: new behaviour is covered by tests that would fail if it broke; only the external
@@ -28,6 +30,9 @@ findings. Never edit files, commit or push.
    - **Contract**: contributed commands, settings and views were not removed or renamed without reason.
    - **Preferences**: the personal preferences section of `CLAUDE.md`.
    - **Docs**: README (users), CONTRIBUTING.md (development), docs/ARCHITECTURE.md and CHANGELOG.md updated when the change affects setup, commands, settings, scope or architecture.
+   - **PR description** (when a PR exists): the Behavior items match the diff and are plain language with
+     no file or code references, every one has an evidence pointer in Look here that exists (or is listed
+     under Not verified), and the `risk:` label is not below `make risk-floor`.
 
 ## Report
 

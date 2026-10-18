@@ -1,7 +1,7 @@
 ---
 name: coder
 model: opus
-description: Use for programming tasks in this repository — new features, bug fixes, refactors. Creates a branch, implements the change with tests, runs all checks, commits and opens a PR.
+description: Use for programming tasks in this repository — new features, bug fixes, refactors. Creates a branch, implements the change with tests, runs all checks, commits, pushes and leaves handoff notes for the pr-writer agent, which opens the PR. Opens the PR itself only as a fallback when pr-writer fails.
 tools: Bash, Read, Edit, Write, Glob, Grep
 ---
 
@@ -19,29 +19,90 @@ preferences.
    `src/webview` → the result grid and the connection form).
 5. Write tests next to the code (`*.test.ts`). Mock only the external boundary: the VS Code API
    through `test/vscode.ts`, database servers, the network, the clock.
-6. Run `make quality`, plus `make smoke` and `make mutation-changed` when the checklist asks for them,
-   and fix anything that fails by changing the code, never the checks.
+6. Run `make quality`, plus `make smoke`, `make mutation-changed` and `make integration` when the
+   checklist asks for them, and fix anything that fails by changing the code, never the checks. A new
+   suppression fails `make quality`: fix the cause instead.
 7. Run the pre-PR checklist from `CLAUDE.md`.
-8. Commit following the commit convention in `CLAUDE.md`.
+8. Commit following the commit convention in `CLAUDE.md`. Prefer one commit per logical step: the PR is
+   reviewed commit by commit.
 9. Push: `git push -u origin <branch>`.
 10. Check the branch is still in sync with main: `git fetch origin && git log HEAD..origin/main --oneline`.
-    If main moved, `git rebase origin/main`, resolve conflicts and run the checks again.
-11. Open the PR: `gh pr create --base main --title "<title>" --body "<body>"` using the template below.
+    If main moved, `git rebase origin/main`, resolve conflicts, run the checks again and push.
+11. Write the handoff notes (below).
 12. Go back to main: `git checkout main`.
-13. Return the PR URL.
+13. Hand over: return the branch, the base branch and the path of the handoff notes, and state that the
+    branch is ready for `pr-writer`. Do **not** open the PR: `pr-writer` describes it and opens it.
 
 If a question blocks progress and cannot be answered from the code or `CLAUDE.md`, stop and ask instead
-of guessing. For non-blocking doubts, take the most conservative option and mention it in the PR.
+of guessing. For non-blocking doubts, take the most conservative option and record it under Decisions.
 
-## PR template
+## Handoff notes
 
+Write them to `.handoff/<branch>.md`, replacing every `/` of the branch name with `-` (the directory is
+gitignored). `pr-writer` reads them next to the diff and flags anything the diff contradicts, so write facts,
+not a pitch:
+
+```markdown
+# Handoff: <branch>
+
+## Task
+
+<the original task, verbatim>
+
+## Done
+
+- <what changed and why, one line per item>
+
+## Decisions
+
+- <choices made, alternatives rejected and why, conservative options taken on non-blocking doubts>
+
+## Deploy notes
+
+- <release needs: repository variables or secrets, labels, the CHANGELOG.md entry, stored state an older
+  version cannot read, external configuration; or "None">
+
+## Not verified
+
+- <everything you did not or could not check, and why; or "nothing">
 ```
-## What
-<bullet points>
 
-## Why
-<motivation or context>
+Be explicit under **Not verified**: checks you did not run (`make smoke`, `make integration`,
+`make mutation-changed`), behavior against real dependencies you mocked (VS Code, the database servers, SSH),
+paths only CI or a release exercises, settings outside the repository. Do not assess the risk of the
+change: `pr-writer` assigns it.
 
-## How to test
-<steps to validate>
+## Fallback: pr-writer failed
+
+Only when you are told that `pr-writer` failed (or it cannot be run), open the PR yourself so delivery is
+never blocked:
+
+1. `gh pr list --head <branch> --state open` — if a PR already exists, do not open another one.
+2. Open it with the headings of `.github/pull_request_template.md` and a minimal body:
+   `gh pr create --base main --head <branch> --title "<type>: <short description>" --body-file <file>`.
+
+```markdown
+## Risk
+
+**unassessed** — pr-writer failed; the reviewer assigns the level and the `risk:<level>` label.
+
+## Summary
+
+<one sentence: what changes in behavior, and why>
+
+## Behavior
+
+Not filled: pr-writer failed. Review commit by commit.
+
+## Look here
+
+Not filled: pr-writer failed.
+
+## Deploy steps
+
+<the Deploy notes from the handoff notes, or "None: normal merge and deploy.">
+
+**Not verified:** <the Not verified list from the handoff notes>
 ```
+
+Do not add a `risk:` label: the Risk label check stays red until the reviewer sets one. Return the PR URL.
