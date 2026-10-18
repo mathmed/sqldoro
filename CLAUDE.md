@@ -22,12 +22,16 @@ make test              # unit tests with coverage (Vitest; thresholds are a ratc
 make lint-arch         # architecture contracts (dependency-cruiser)
 make dead-code         # unused files, exports and dependencies (knip)
 make audit             # known vulnerabilities in the dependencies (npm audit)
+make suppressions      # suppression ratchet: fails when eslint-disable, @ts-expect-error, skipped tests... differ from the baseline
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
+make suppressions-update # lower suppressions-baseline.json after removing suppressions (never raises it)
 make integration       # start the test servers (Docker Compose), run the integration tests against them
 make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
+make risk-floor        # minimum risk level of the branch vs BASE, from .github/risk-floors.yaml
+make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
 
@@ -42,7 +46,8 @@ src/drivers/    one folder per database (mysql/, postgres/) implementing the cor
 src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
-scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report
+scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
+                suppression ratchet, risk floors
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -126,7 +131,8 @@ test/           test support: the vscode and webview fakes for unit tests and th
 
 The pipeline started at zero: no baseline, no ignore list, no known violations. When a check fails,
 change the code, never the check. Relaxing, removing or adding an exception to any threshold, rule or
-contract needs the owner's explicit approval.
+contract needs the owner's explicit approval. The one committed baseline, `suppressions-baseline.json`,
+lists no violation: it counts the justified suppressions the rules allow, and only goes down.
 
 - **ESLint**: typescript-eslint `strictTypeChecked` and `stylisticTypeChecked`, SonarJS, the security
   rules and the project rules in `eslint.config.ts`, every one an error, `--max-warnings 0`. The
@@ -161,6 +167,24 @@ contract needs the owner's explicit approval.
   scope or lower the ratchet. Never commit `reports/` or `.stryker-tmp/`.
 - **Dead code**: knip reports unused files, exports, dependencies and stale configuration. Delete the
   unused code; do not add `ignore*` entries to `knip.jsonc`.
+- **Suppressions**: `make suppressions` (`scripts/suppressions.ts`, in `make quality`, the pre-commit
+  hook and the `lint` job) counts per file and kind every `eslint-disable` and inline `/* eslint */`
+  config, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `v8`/`c8`/`istanbul ignore`,
+  `Stryker disable`, `prettier-ignore`, the JSDoc tags knip skips (`@public`, `@beta`, `@alias`,
+  `@internal`) and every skipped, failing or focused test (`.skip`, `.skipIf`, `.runIf`, `.todo`,
+  `.fails`, `.only`, `xit`, `fit`, `context.skip()`...) in every source file git tracks or would add,
+  and compares them with `suppressions-baseline.json`. A new suppression fails the check: fix the cause.
+  Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
+  approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
+  in the same PR.
+- **Risk floors**: pipeline and agent files (`package.json`, the lock file, the tool configurations,
+  `Makefile`, `lefthook.yml`, `scripts/`, `.github/`, `.claude/`, `CLAUDE.md`,
+  `suppressions-baseline.json`...), the storage schema (what sqldoro keeps in VS Code's storage and the
+  formats that read it back), auth and secrets (SecretStorage, credentials, certificate and host key
+  verification, the SSH tunnel) and the destructive SQL safety (the guards, the edits, the SQL
+  scanners, the dialects, transactions) put a PR at the `high` floor (`.github/risk-floors.yaml`). The
+  `Risk label` workflow fails a PR without exactly one `risk:<level>` label at or above it. Do not
+  change pipeline files unless the task asks for it, and call the change out in the PR.
 
 ## Workflow
 

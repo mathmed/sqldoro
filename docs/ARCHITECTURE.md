@@ -240,10 +240,12 @@ flowchart LR
   package["package: build, pack and check the .vsix<br/>(artifact sqldoro-vsix)"] --> smoke["smoke: install that .vsix<br/>in a real VS Code"]
   pr --> mutation["mutation (changed core files)"]
   lint & quality & integration & architecture & package & smoke & mutation --> report["quality-report: one PR comment"]
+  pr --> risk["Risk label workflow: one risk label,<br/>never below .github/risk-floors.yaml"]
   run["Run workflow: Release<br/>(patch, minor, major or X.Y.Z)"] --> prepare["prepare: version, CHANGELOG,<br/>commit to release/v1.2.3"] --> gates["every gate of ci.yml<br/>on the release commit"] --> draft["fast-forward main, tag v1.2.3,<br/>draft GitHub release with the .vsix"]
   tag["tag v1.2.3 pushed by hand"] --> check["check tag / package.json / CHANGELOG"] --> gates
   draft -->|"owner publishes it"| publish["Marketplace and Open VSX<br/>(off: PUBLISH_EXTENSION)"]
 ```
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md#the-pipeline) for each gate and
-[RELEASING.md](RELEASING.md) for releases.
+The `lint` job also runs the suppression ratchet (`suppressions-baseline.json`). See
+[CONTRIBUTING.md](../CONTRIBUTING.md#the-pipeline) for each gate, the risk floors and the pull request
+flow (`coder`, then `pr-writer`), and [RELEASING.md](RELEASING.md) for releases.
