@@ -32,3 +32,5 @@ quality-report.md
 # Claude Code
 .claude/settings.local.json
 .local_dev
+# Handoff notes from the coder agent to the pr-writer agent (see CLAUDE.md)
+.handoff/

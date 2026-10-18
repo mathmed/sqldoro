@@ -5,9 +5,9 @@
 // below MUTATION_MIN_SCORE.
 import { Stryker } from '@stryker-mutator/core'
 
-import { changedFiles } from './mutation/changed-files.ts'
 import { main } from './mutation/cli.ts'
 import { loadMutatePatterns } from './mutation/scope.ts'
+import { changedFiles } from './shared/git-files.ts'
 
 const STRYKER_CONFIG = new URL('../stryker.config.mjs', import.meta.url)
 // process.argv starts with the node binary and this script.

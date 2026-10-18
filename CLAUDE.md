@@ -22,12 +22,16 @@ make test              # unit tests with coverage (Vitest; thresholds are a ratc
 make lint-arch         # architecture contracts (dependency-cruiser)
 make dead-code         # unused files, exports and dependencies (knip)
 make audit             # known vulnerabilities in the dependencies (npm audit)
+make suppressions      # suppression ratchet: fails when eslint-disable, @ts-expect-error, skipped tests... differ from the baseline
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
+make suppressions-update # lower suppressions-baseline.json after removing suppressions (never raises it)
 make integration       # start the test servers (Docker Compose), run the integration tests against them
 make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
+make risk-floor        # minimum risk level of the branch vs BASE, from .github/risk-floors.yaml
+make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
 
@@ -42,7 +46,8 @@ src/drivers/    one folder per database (mysql/, postgres/) implementing the cor
 src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
-scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report
+scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
+                suppression ratchet, risk floors
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -119,12 +124,15 @@ test/           test support: the vscode and webview fakes for unit tests and th
    README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
    `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
    `[Unreleased]`.
+7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label at or
+   above `make risk-floor` (see "Workflow").
 
 ## Deterministic validation
 
 The pipeline started at zero: no baseline, no ignore list, no known violations. When a check fails,
 change the code, never the check. Relaxing, removing or adding an exception to any threshold, rule or
-contract needs the owner's explicit approval.
+contract needs the owner's explicit approval. The one committed baseline, `suppressions-baseline.json`,
+lists no violation: it counts the justified suppressions the rules allow, and only goes down.
 
 - **ESLint**: typescript-eslint `strictTypeChecked` and `stylisticTypeChecked`, SonarJS, the security
   rules and the project rules in `eslint.config.ts`, every one an error, `--max-warnings 0`. The
@@ -159,15 +167,60 @@ contract needs the owner's explicit approval.
   scope or lower the ratchet. Never commit `reports/` or `.stryker-tmp/`.
 - **Dead code**: knip reports unused files, exports, dependencies and stale configuration. Delete the
   unused code; do not add `ignore*` entries to `knip.jsonc`.
+- **Suppressions**: `make suppressions` (`scripts/suppressions.ts`, in `make quality`, the pre-commit
+  hook and the `lint` job) counts per file and kind every `eslint-disable` and inline `/* eslint */`
+  config, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `v8`/`c8`/`istanbul ignore`,
+  `Stryker disable`, `prettier-ignore`, the JSDoc tags knip skips (`@public`, `@beta`, `@alias`,
+  `@internal`) and every skipped, failing or focused test (`.skip`, `.skipIf`, `.runIf`, `.todo`,
+  `.fails`, `.only`, `xit`, `fit`, `context.skip()`...) in every source file git tracks or would add,
+  and compares them with `suppressions-baseline.json`. A new suppression fails the check: fix the cause.
+  Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
+  approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
+  in the same PR.
+- **Risk floors**: pipeline and agent files (`package.json`, the lock file, the tool configurations,
+  `Makefile`, `lefthook.yml`, `scripts/`, `.github/`, `.claude/`, `CLAUDE.md`,
+  `suppressions-baseline.json`...), the storage schema (what sqldoro keeps in VS Code's storage and the
+  formats that read it back), auth and secrets (SecretStorage, credentials, certificate and host key
+  verification, the SSH tunnel) and the destructive SQL safety (the guards, the edits, the SQL
+  scanners, the dialects, transactions) put a PR at the `high` floor (`.github/risk-floors.yaml`). The
+  `Risk label` workflow fails a PR without exactly one `risk:<level>` label at or above it. Do not
+  change pipeline files unless the task asks for it, and call the change out in the PR.
 
 ## Workflow
 
-- Code changes are delegated to the `coder` agent (`.claude/agents/coder.md`), which creates a branch,
-  implements, commits and opens a PR. Never commit directly to `main`.
+1. **Implement**: code changes are delegated to the `coder` agent (`.claude/agents/coder.md`), which
+   creates a branch, implements, commits (one commit per logical step), pushes and writes the handoff
+   notes. It does not open the PR and does not assess the risk. Never commit directly to `main`.
+2. **Describe and open**: then delegate to the `pr-writer` agent (`.claude/agents/pr-writer.md`) with the
+   original task verbatim, the branch, the base branch and the path of the handoff notes. It reads the
+   diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (never
+   below `make risk-floor`, at least medium when there are deploy steps), opens the PR with the
+   `risk:<level>` label and stops. It never writes code. Behavior items are plain language with no file,
+   function, test or code references; their evidence pointers go only in **Look here**, and a behavior
+   without evidence is listed under **Not verified**. For sqldoro, the **Deploy steps** are release
+   steps (`docs/RELEASING.md`).
+3. **Fallback**: if `pr-writer` fails or cannot run, delegate back to `coder` saying so: it opens the PR
+   itself with a minimal body (summary plus the template headings, risk "unassessed", no risk label),
+   so a failure never blocks delivery. The `Risk label` check stays red until a person sets the label.
+4. **Merge**: nobody but the owner merges. Agents never merge, approve or enable auto-merge.
+
 - **Exception**: if a `.local_dev` file exists at the repository root, the developer is working locally:
-  edit files directly, without delegating to `coder` and without creating commits or PRs.
+  edit files directly, without delegating to `coder` or `pr-writer` and without creating commits or PRs.
 - Use the `reviewer` agent (`.claude/agents/reviewer.md`) to review a branch against these rules before
   merging.
+
+### Handoff notes
+
+The `coder` writes them to `.handoff/<branch>.md` (every `/` of the branch name replaced with `-`; the
+directory is gitignored) after pushing. `pr-writer` checks them against the diff and reports a
+**Mismatch** when they disagree. Sections, in this order:
+
+- `## Task`: the original task, verbatim.
+- `## Done`: what changed and why, one line per item.
+- `## Decisions`: choices made, alternatives rejected, conservative options taken on non-blocking doubts.
+- `## Deploy notes`: release needs (repository variables or secrets, labels, the `CHANGELOG.md` entry,
+  stored state an older version cannot read, external configuration); or "None".
+- `## Not verified`: everything the author did not or could not check, and why; or "nothing".
 
 ## Personal preferences
 

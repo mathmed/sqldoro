@@ -9,6 +9,7 @@ import {
   fileSize,
   listFiles,
   makeTemporaryDirectory,
+  readOptionalText,
   readText,
   removeDirectory,
   writeText,
@@ -29,6 +30,18 @@ describe('files', () => {
     await appendText(path, ' second')
 
     expect(await readText(path)).toBe('first second')
+  })
+
+  it('should read a file that may not exist', async () => {
+    const path = join(directory, 'baseline.json')
+    await writeText(path, '{}')
+
+    expect(await readOptionalText(path)).toBe('{}')
+    expect(await readOptionalText(join(directory, 'missing.json'))).toBeUndefined()
+  })
+
+  it('should not hide other errors while reading a file that may not exist', async () => {
+    await expect(readOptionalText(directory)).rejects.toThrow('EISDIR')
   })
 
   it('should tell the size of a file in bytes', async () => {

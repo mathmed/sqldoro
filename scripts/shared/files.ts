@@ -17,6 +17,18 @@ export async function readText(path: string): Promise<string> {
   return readFile(path, 'utf8')
 }
 
+// The text of the file, or undefined when it does not exist.
+export async function readOptionalText(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf8')
+  } catch (error) {
+    if (isMissingPath(error)) {
+      return undefined
+    }
+    throw error
+  }
+}
+
 export async function readBytes(path: string): Promise<Buffer> {
   return readFile(path)
 }

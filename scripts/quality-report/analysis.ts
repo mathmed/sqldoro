@@ -11,6 +11,7 @@ export const Analysis = {
   Package: 'package',
   Smoke: 'smoke',
   Mutation: 'mutation',
+  Suppressions: 'suppressions',
 } as const
 
 export type Analysis = (typeof Analysis)[keyof typeof Analysis]
