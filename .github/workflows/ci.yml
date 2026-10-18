@@ -42,6 +42,11 @@ jobs:
       - name: Format (Prettier)
         if: ${{ !cancelled() }}
         run: node scripts/quality-report.ts run prettier -- npm run format:check
+      # Counts every suppression (eslint-disable, @ts-expect-error, coverage and mutation pragmas,
+      # skipped tests...) and fails when it differs from suppressions-baseline.json.
+      - name: Suppression ratchet
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run suppressions -- npm run suppressions
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}

@@ -1,0 +1,29 @@
+{
+  "scripts/mutation/scope.ts": {
+    "eslint-disable": 1
+  },
+  "src/drivers/mysql/mysql-query.test.ts": {
+    "eslint-disable": 1
+  },
+  "src/extension/results/export-file.ts": {
+    "eslint-disable": 1
+  },
+  "src/extension/sessions/session-opener.ts": {
+    "eslint-disable": 1
+  },
+  "src/webview/Grid.tsx": {
+    "eslint-disable": 1
+  },
+  "src/webview/host.ts": {
+    "eslint-disable": 1
+  },
+  "src/webview/SqlSpans.tsx": {
+    "eslint-disable": 1
+  },
+  "src/webview/use-column-window.ts": {
+    "eslint-disable": 1
+  },
+  "test/vscode/tabs.ts": {
+    "eslint-disable": 1
+  }
+}

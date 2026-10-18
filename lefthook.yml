@@ -28,6 +28,8 @@ pre-commit:
             run: npm run dead-code
           - name: architecture
             run: npm run lint:arch
+          - name: suppressions
+            run: npm run suppressions
           - name: audit
             run: npm audit
 

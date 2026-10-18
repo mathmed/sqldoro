@@ -14,6 +14,7 @@ import { analyzeNpmAudit } from './analyzers/npm-audit.ts'
 import { analyzePackage } from './analyzers/package.ts'
 import { analyzePrettier } from './analyzers/prettier.ts'
 import { analyzeSmoke } from './analyzers/smoke.ts'
+import { analyzeSuppressions } from './analyzers/suppressions.ts'
 import { analyzeTsc } from './analyzers/tsc.ts'
 import { analyzeVitest } from './analyzers/vitest.ts'
 import type { Finding } from './finding.ts'
@@ -91,6 +92,17 @@ export const SECTIONS: readonly Section[] = [
         job: Job.Lint,
         label: 'complexity',
         analyze: eslintAnalyzer(COMPLEXITY_FAMILY),
+      },
+    ],
+  },
+  {
+    title: 'Suppressions (ratchet)',
+    checks: [
+      {
+        analysis: Analysis.Suppressions,
+        job: Job.Lint,
+        label: 'baseline',
+        analyze: analyzeSuppressions,
       },
     ],
   },

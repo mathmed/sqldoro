@@ -1,10 +1,10 @@
-import { rm } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { commitFiles, createRepository, git } from '../../test/support/git.ts'
-import { changedFiles } from './git-files.ts'
+import { changedFiles, workingTreeFiles } from './git-files.ts'
 import { compareText } from './text.ts'
 
 describe('git files', () => {
@@ -47,6 +47,26 @@ describe('git files', () => {
 
     it('should list nothing when the branch has no changes', async () => {
       expect(await changedFiles(repository, 'main')).toEqual([])
+    })
+  })
+
+  describe('workingTreeFiles', () => {
+    it('should list tracked and untracked files, but neither ignored nor deleted ones', async () => {
+      await writeFile(join(repository, '.gitignore'), 'ignored/\n')
+      await mkdir(join(repository, 'ignored'))
+      await writeFile(join(repository, 'ignored', 'out.ts'), 'a')
+      await writeFile(join(repository, 'new.ts'), 'a')
+      await rm(join(repository, 'deleted.ts'))
+
+      const sut = await workingTreeFiles(repository)
+
+      expect(sut.toSorted(compareText)).toEqual([
+        '.gitignore',
+        'edited.ts',
+        'kept.ts',
+        'moved.ts',
+        'new.ts',
+      ])
     })
   })
 })
