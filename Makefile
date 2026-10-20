@@ -1,6 +1,6 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-floor risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
 
-# Base branch of mutation-changed and risk-floor
+# Base branch of mutation-changed
 BASE ?= origin/main
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
@@ -83,10 +83,6 @@ mutation:
 # Mutation testing of the core files changed against BASE: what the PR job runs
 mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
-
-# Print the minimum risk level of the changes against BASE (.github/risk-floors.yaml)
-risk-floor:
-	npm run risk -- floor --base $(BASE)
 
 # Create (or update) the risk:<level> labels, and the dependencies label Dependabot's PRs carry with
 # risk:high, on the GitHub repository (needs an authenticated gh)

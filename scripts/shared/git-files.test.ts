@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { commitFiles, createRepository, git } from '../../test/support/git.ts'
-import { changedFiles, touchedFiles, workingTreeFiles } from './git-files.ts'
+import { changedFiles, workingTreeFiles } from './git-files.ts'
 import { compareText } from './text.ts'
 
 describe('git files', () => {
@@ -47,26 +47,6 @@ describe('git files', () => {
 
     it('should list nothing when the branch has no changes', async () => {
       expect(await changedFiles(repository, 'main')).toEqual([])
-    })
-  })
-
-  describe('touchedFiles', () => {
-    it('should list every path the branch adds, changes, deletes or renames, both sides of a rename', async () => {
-      await changeTheBranch()
-
-      const sut = await touchedFiles(repository, 'main')
-
-      expect(sut.toSorted(compareText)).toEqual([
-        'added café.ts',
-        'deleted.ts',
-        'edited.ts',
-        'moved.ts',
-        'renamed.ts',
-      ])
-    })
-
-    it('should fail when the base does not exist', async () => {
-      await expect(touchedFiles(repository, 'origin/missing')).rejects.toThrow('origin/missing')
     })
   })
 
