@@ -2,9 +2,10 @@
 
 **<low | medium | high | critical>** — <one line: why>
 
-<!-- Floor (.github/risk-floors.yaml, `make risk-floor`): pipeline config, storage schema, auth and secrets,
-and destructive SQL safety are never below high. Any deploy step other than "None" is at least medium. The
-PR needs exactly one matching risk:<level> label. -->
+<!-- Most PRs are low or medium. High or critical needs one concrete sentence here naming what can break
+(see "Critical surfaces" in CLAUDE.md); without it, lower the level. Touching pipeline files is not by itself
+a reason for high. Any deploy step other than "None" is at least medium. The PR needs exactly one matching
+risk:<level> label. -->
 
 ## Summary
 

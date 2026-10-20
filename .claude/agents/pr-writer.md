@@ -47,7 +47,7 @@ notes for yourself (they do not go in the PR):
 - **Evidence**: the test that asserts it (`<path> › <test name>`) or, when no test does, the function that
   implements it (`<path>:<function>`). Open it and confirm it really asserts or implements that behavior. The
   pointer goes in **Look here**, never in Behavior.
-- **Risk signals**: files that match a risk floor; release needs (repository variables or secrets, a
+- **Risk signals**: changes to a critical surface (`CLAUDE.md`, "Critical surfaces"); release needs (repository variables or secrets, a
   `CHANGELOG.md` entry, a version bump, Marketplace or Open VSX steps); public contract changes
   (contributed commands, settings and views in `package.json`, the host–webview message protocol in
   `src/core/results/protocol.ts`); changes to what is stored (connection profiles, known hosts, history,
@@ -77,7 +77,7 @@ the test or function that proves or contains a Behavior change and says why it d
 pointer is clickable: a permalink to the head commit, with the path and test or function as the link text.
 
 ```
-[`scripts/risk/label-check.test.ts › should refuse a label below the floor`](https://github.com/<owner>/<repo>/blob/<sha>/scripts/risk/label-check.test.ts#L42)
+[`scripts/risk/label-check.test.ts › should refuse an unknown risk label`](https://github.com/<owner>/<repo>/blob/<sha>/scripts/risk/label-check.test.ts#L42)
 ```
 
 Get `<owner>/<repo>` with `gh repo view --json nameWithOwner -q .nameWithOwner`, `<sha>` with
@@ -89,23 +89,28 @@ test you did not read.
 
 ### 5. Risk level
 
-You assign the risk; the author does not assess it, and any risk claim in the handoff notes is ignored.
+You assign the risk by judgment; the author does not assess it, and any risk claim in the handoff notes is
+ignored. Most PRs are **low** or **medium**: start there and only go higher when the change itself, not the
+files it touches, earns it. Read "Critical surfaces" in `CLAUDE.md` before choosing high or critical.
 
-1. Get the file floor: `make risk-floor BASE=origin/<base>` (it reads `.github/risk-floors.yaml`). If it
-   cannot run, read the YAML file and match its globs yourself against
-   `git diff --name-only --no-renames origin/<base>...origin/<branch>`.
-2. Judge the change itself:
-   - **low**: additive or behavior-preserving, covered by tests, trivial to roll back;
-   - **medium**: changes observable behavior of something that exists, touches code with many callers, or
-     needs a release step;
-   - **high**: pipeline config, what is stored and read back, credentials and secrets, certificate or host
-     key verification, the SSH tunnel, the safety guards and the statements sqldoro generates, public
-     contract changes, irreversible effects, or core rules with thin evidence;
-   - **critical**: a mistake could run a destructive statement the user did not confirm, lose or corrupt
-     saved connections, leak credentials, or cannot be rolled back.
-3. The level is the highest of: your judgement, the file floor, and **medium** when Deploy steps is not
-   "None". Never go below a floor.
-4. The Risk line gives the level and one line of why, naming the floor category when one applied.
+- **low**: docs, tests, CI, formatting, dependency patch or minor bumps, refactors covered by tests; no
+  change in behavior.
+- **medium**: new behavior behind an existing contract, a new option, setting or command, or any deploy or
+  release step (Deploy steps is not "None").
+- **high**: can break the extension for its users or changes existing behavior drastically (how queries
+  run, how inline edits behave), but a revert recovers it.
+- **critical**: a failure can run a destructive statement against a user's database or weakens a safety
+  lock (a critical surface), and is hard to revert.
+
+Rules:
+
+1. High or critical needs one concrete sentence in the Risk line naming what can break (for example "a
+   mistake in the classifier lets an UPDATE without WHERE run without the confirmation"). If you cannot
+   write that sentence, lower the level.
+2. Touching pipeline files (`.github/`, `scripts/`, `Makefile`, `package.json`, the lock file, `.claude/`,
+   `CLAUDE.md`) is not by itself a reason for high: judge what the change does.
+3. Deploy steps other than "None" make the level at least medium.
+4. The Risk line gives the level and one line of why.
 
 ### 6. Look here
 
@@ -153,7 +158,8 @@ your environment asks for, if any. Before opening, check:
 - every Behavior item has a clickable pointer in Look here, or is listed under Not verified as lacking
   evidence;
 - no item says only which file changed;
-- the risk is not below the file floor, and is at least medium when there are deploy steps;
+- the risk follows step 5: high or critical only with the sentence naming what can break, at least medium
+  when there are deploy steps;
 - no secrets, tokens, connection strings, personal data or internal identifiers in the text.
 
 ### 10. Open the PR and label it
