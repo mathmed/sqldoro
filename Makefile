@@ -85,7 +85,7 @@ mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
 # Create (or update) the risk:<level> labels, and the dependencies label Dependabot's PRs carry with
-# risk:high, on the GitHub repository (needs an authenticated gh)
+# risk:low, on the GitHub repository (needs an authenticated gh)
 risk-labels:
 	gh label create "risk:low" --color 0E8A16 --description "Low risk: no behavior change" --force
 	gh label create "risk:medium" --color FBCA04 --description "Medium risk: new behavior or release steps" --force

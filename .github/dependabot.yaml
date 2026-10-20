@@ -9,12 +9,12 @@ updates:
       time: "09:00"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 100
-    # Dependency bumps touch package.json and package-lock.json, which are pipeline config: never
-    # below high (.github/risk-floors.yaml). Dependabot ignores labels that do not exist:
-    # `make risk-labels` creates them.
+    # Dependency bumps are born low (.claude/agents/pr-writer.md, step 5); a reviewer raises the label
+    # when a bump changes behavior. Dependabot ignores labels that do not exist: `make risk-labels`
+    # creates them.
     labels:
       - "dependencies"
-      - "risk:high"
+      - "risk:low"
     # Supply-chain safety: give the community time to detect malicious or broken releases.
     cooldown:
       default-days: 10
@@ -49,10 +49,10 @@ updates:
       time: "09:00"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 50
-    # Workflow changes are pipeline config: never below high (.github/risk-floors.yaml)
+    # Action bumps are born low, like the npm ones
     labels:
       - "dependencies"
-      - "risk:high"
+      - "risk:low"
     # Supply-chain safety: give the community time to detect malicious or broken releases.
     cooldown:
       default-days: 10
