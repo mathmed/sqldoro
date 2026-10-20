@@ -30,7 +30,6 @@ make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
-make risk-floor        # minimum risk level of the branch vs BASE, from .github/risk-floors.yaml
 make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
@@ -47,7 +46,7 @@ src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
-                suppression ratchet, risk floors
+                suppression ratchet, risk label check
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -165,8 +164,8 @@ statement; and changes to how queries run or results are shown that a revert fix
    README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
    `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
    `[Unreleased]`.
-7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label at or
-   above `make risk-floor` (see "Workflow").
+7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label,
+   assigned by judgment (see "Workflow" and "Critical surfaces").
 
 ## Deterministic validation
 
@@ -218,14 +217,10 @@ lists no violation: it counts the justified suppressions the rules allow, and on
   Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
   approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
   in the same PR.
-- **Risk floors**: pipeline and agent files (`package.json`, the lock file, the tool configurations,
-  `Makefile`, `lefthook.yml`, `scripts/`, `.github/`, `.claude/`, `CLAUDE.md`,
-  `suppressions-baseline.json`...), the storage schema (what sqldoro keeps in VS Code's storage and the
-  formats that read it back), auth and secrets (SecretStorage, credentials, certificate and host key
-  verification, the SSH tunnel) and the destructive SQL safety (the guards, the edits, the SQL
-  scanners, the dialects, transactions) put a PR at the `high` floor (`.github/risk-floors.yaml`). The
-  `Risk label` workflow fails a PR without exactly one `risk:<level>` label at or above it. Do not
-  change pipeline files unless the task asks for it, and call the change out in the PR.
+- **Risk label**: the `Risk label` workflow fails a PR without exactly one known `risk:<level>` label
+  (`low`, `medium`, `high`, `critical`). The level is a judgment (`.claude/agents/pr-writer.md`, step 5),
+  not derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
+  and call the change out in the PR.
 
 ## Workflow
 
@@ -234,8 +229,9 @@ lists no violation: it counts the justified suppressions the rules allow, and on
    notes. It does not open the PR and does not assess the risk. Never commit directly to `main`.
 2. **Describe and open**: then delegate to the `pr-writer` agent (`.claude/agents/pr-writer.md`) with the
    original task verbatim, the branch, the base branch and the path of the handoff notes. It reads the
-   diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (never
-   below `make risk-floor`, at least medium when there are deploy steps), opens the PR with the
+   diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (mostly
+   low or medium; high or critical only with a sentence naming what can break; at least medium when there
+   are deploy steps), opens the PR with the
    `risk:<level>` label and stops. It never writes code. Behavior items are plain language with no file,
    function, test or code references; their evidence pointers go only in **Look here**, and a behavior
    without evidence is listed under **Not verified**. For sqldoro, the **Deploy steps** are release
