@@ -111,6 +111,47 @@ test/           test support: the vscode and webview fakes for unit tests and th
   - unit tests stand in for the database servers with the fakes of the client libraries in
     `test/fakes/` (the external boundary); the integration tests run against real servers.
 
+## Critical surfaces
+
+A failure here can run a destructive statement against a user's database, weaken a safety lock or expose
+credentials, and a revert does not undo it: the statement already ran, the secret already leaked. The
+`pr-writer` reads this list before assigning `risk:high` or `risk:critical`. Touching these files does not
+make a PR critical by itself; what the change can break does.
+
+- **The statement guard**: the classifier (`src/core/safety/classify.ts`, the tokenizer and scanners of
+  `src/core/sql/`, each driver's `Dialect`), the guard policy (`src/core/safety/guard.ts`,
+  `src/extension/safety/`) and the single path to `EngineSession.execute` (`QueryRunner.perform` and
+  `runJob`, pinned by `src/extension/safety/guarded-execution.test.ts`). It fails closed: a statement it
+  cannot read counts as a write.
+- **Read-only connections**: the guard blocks every write on them, and the drivers open their sessions
+  read-only on the server (`SET SESSION TRANSACTION READ ONLY`, `default_transaction_read_only`), the net
+  for what the classifier cannot see.
+- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE` and any write on production wait for a
+  modal dialog; an `UPDATE` or `DELETE` of every row on production waits for its table name to be typed
+  (`src/core/safety/confirmation-dialog.ts`, `src/extension/safety/typed-confirmation.ts`).
+- **The environment tag**: production environments (`prod` always, plus
+  `sqldoro.safety.productionEnvironments`) start read-only and require the confirmations. Settings can
+  only make the guards stricter.
+- **Manual transactions**: the per-editor state machine (`src/core/safety/transaction.ts`), the commit and
+  rollback commands and the transaction status probe (`src/extension/transactions/`). A wrong state
+  commits what the user meant to roll back.
+- **The automatic `LIMIT`** (`src/core/safety/auto-limit.ts`): it rewrites the user's SQL before it runs;
+  applied to anything but a read, it changes what a statement does.
+- **Inline editing**: what can be edited, the plan and the generated statements with their bound
+  parameters and casts (`src/core/edits/`), and the apply that checks every statement with the guard and
+  runs them in one transaction with savepoints, rolling back on any failure or conflict
+  (`src/extension/edits/`, `src/drivers/mysql/mysql-strict-writes.ts`). A mistake updates or deletes the
+  wrong rows, or silently cuts a value.
+- **Credentials**: SecretStorage (`src/extension/storage/secret-store.ts`, `src/core/connection/secrets.ts`),
+  passwords masked in the history (`src/core/sql/redact-sql.ts`) and kept out of logs, TLS certificate and
+  host name verification (`src/core/connection/tls.ts`, the drivers' `*-connection.ts`), SSH host key
+  verification and the tunnel (`src/core/session/host-key.ts`, `src/extension/storage/known-hosts.ts`,
+  `src/tunnel/`).
+
+Usually high rather than critical: the stored formats (connection profiles, history, saved queries,
+layouts and the codecs that read them back), since a mistake loses what users saved but runs no
+statement; and changes to how queries run or results are shown that a revert fixes.
+
 ## Before opening a PR (mandatory)
 
 1. `make quality` passes. A PR with failing checks is not a PR.
