@@ -1,52 +1,15 @@
-## Risk
+<!-- Only for risk:high or risk:critical, one first line: Risk high: <what can break>. Otherwise none:
+the risk lives in the risk:<level> label. Target 1,500 characters, never above 2,500. -->
 
-**<low | medium | high | critical>** — <one line: why>
+<1-2 sentences: what changes and why. It must stand alone.>
 
-<!-- Most PRs are low or medium. High or critical needs one concrete sentence here naming what can break
-(see "Critical surfaces" in CLAUDE.md); without it, lower the level. Touching pipeline files is not by itself
-a reason for high. Any deploy step other than "None" is at least medium. The PR needs exactly one matching
-risk:<level> label. -->
+<!-- One visual block, or none when the summary says it all (docs, dependency bump). Rules: What | Before |
+After, max 3 rows, 12 words per cell, no file or code names. Flows: small Mermaid. Limits: values before and
+after. Contracts or configuration: a diff block of at most 15 lines. -->
 
-## Summary
+| What | Before | After |
+| ---- | ------ | ----- |
+|      |        |       |
 
-<one sentence: what changes in behavior, and why>
-
-## Behavior
-
-<!-- Max 5, most critical first. Plain words for a person who has not read the code: rules and observable
-behavior, short and objective. No backticks, paths, file, function, command, setting or test names:
-evidence goes in Look here. -->
-
-- **<rule or behavior, in plain words>:** <before> → <after>
-
-**Unchanged:** <what a reviewer might fear broke (the safety guards, the contributed commands, settings and
-views, what users saved), or "behavior-preserving refactor">
-
-## Look here
-
-<!-- Most important first. The only place for file, function and test references. Every Behavior item has its
-evidence here: the test that asserts it, or the code that implements it when no test does (one item may
-cover several Behavior items). Each item says which behavior it proves or contains and why it deserves human
-eyes. Also list changes to pipeline config or checks, new suppressions or a changed suppressions baseline,
-mismatches and anything that departs from the task. -->
-
-1. `<test or file:function>` — <which behavior it proves or contains, and why it deserves human eyes>
-
-## Deploy steps
-
-<!-- Always present. For sqldoro, deploying is releasing: the Release workflow, the draft GitHub release, and
-the Marketplace and Open VSX once publishing is switched on (docs/RELEASING.md). If nothing is needed, write:
-None: normal merge and deploy. -->
-
-- [ ] Before merge: <repository settings, variables or secrets (PUBLISH_EXTENSION, VSCE_PAT, OVSX_PAT), labels>
-- [ ] Release: <CHANGELOG.md entry under [Unreleased], version bump, anything to check in the draft release>
-- [ ] After release: <stored state migrated on first activation, settings users must change, Marketplace page>
-- [ ] Rollback: <revert the merge and release a new patch version; what saved data an older version cannot read>
-
-**Not verified:** <what the author could not check, or "nothing">
-
-<!-- Name every check that did not run: `make quality` (lint, types, tests with 100% coverage, architecture,
-dead code, audit, suppressions); `make smoke` when the extension host, the manifest or the build changed;
-`make mutation-changed` when src/core changed; `make integration` when a driver, the tunnel or how sessions
-open changed; behavior only a real VS Code, database or SSH server shows. -->
-<!-- Only if the diff contradicts the author's handoff notes, add: **Mismatch:** <what the notes said vs what the diff does> -->
+<!-- Only for a real step (secret, variable, setting, merge order, release step), one line:
+Deploy: <step>. Mention rollback only when a revert is not enough. Otherwise write nothing. -->

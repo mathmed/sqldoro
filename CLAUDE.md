@@ -232,12 +232,12 @@ lists no violation: it counts the justified suppressions the rules allow, and on
    diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (mostly
    low or medium; high or critical only with a sentence naming what can break; at least medium when there
    are deploy steps), opens the PR with the
-   `risk:<level>` label and stops. It never writes code. Behavior items are plain language with no file,
-   function, test or code references; their evidence pointers go only in **Look here**, and a behavior
-   without evidence is listed under **Not verified**. For sqldoro, the **Deploy steps** are release
-   steps (`docs/RELEASING.md`).
+   `risk:<level>` label and stops. It never writes code. The body is short: a standalone summary of one or
+   two sentences, at most one visual block (a before/after table in plain words, a small Mermaid diagram
+   or a short diff), a single Deploy line only when there is a real release step (`docs/RELEASING.md`),
+   and a risk line only for high or critical. It still checks every claim against the diff and the tests.
 3. **Fallback**: if `pr-writer` fails or cannot run, delegate back to `coder` saying so: it opens the PR
-   itself with a minimal body (summary plus the template headings, risk "unassessed", no risk label),
+   itself with a minimal body (a summary in the template's shape, risk "unassessed", no risk label),
    so a failure never blocks delivery. The `Risk label` check stays red until a person sets the label.
 4. **Merge**: nobody but the owner merges. Agents never merge, approve or enable auto-merge.
 
@@ -250,7 +250,7 @@ lists no violation: it counts the justified suppressions the rules allow, and on
 
 The `coder` writes them to `.handoff/<branch>.md` (every `/` of the branch name replaced with `-`; the
 directory is gitignored) after pushing. `pr-writer` checks them against the diff and reports a
-**Mismatch** when they disagree. Sections, in this order:
+**Divergence** line when they disagree. Sections, in this order:
 
 - `## Task`: the original task, verbatim.
 - `## Done`: what changed and why, one line per item.
