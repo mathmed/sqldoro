@@ -52,7 +52,6 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
 | `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                   |
 | `make mutation-changed`    | Mutation testing of the core files changed against `BASE` (`origin/main`). |
 | `make suppressions-update` | Lower the suppression baseline after removing suppressions.                |
-| `make risk-floor`          | The minimum risk level of the branch against `BASE` (`origin/main`).       |
 | `make risk-labels`         | Create or update the `risk:<level>` labels on GitHub (needs `gh`).         |
 | `make all`                 | Everything CI runs on a pull request.                                      |
 
@@ -67,8 +66,8 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
    sessions open.
 4. Commit with [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`,
    `refactor`, `chore`, `test`, `docs`, `ci`, `build`); the commit-msg hook checks it.
-5. Open the pull request with the template and one `risk:<level>` label at or above
-   `make risk-floor` (see [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
+5. Open the pull request with the template and one `risk:<level>` label (see
+   [The risk label](#the-risk-label) and [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
    comment; a failing check means it is not ready.
 
 Contributed commands, settings and views are the public contract: do not remove or rename one unless
@@ -96,7 +95,7 @@ the gates; relaxing a threshold, rule or contract needs the owner's explicit app
 | Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.    | `smoke`                      |
 | Mutation testing   | Stryker on `src/core`                                          | The score stays above `MUTATION_MIN_SCORE` (95).                                                   | `mutation` workflow          |
 | Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage or mutation pragma, skipped or focused test. | pre-commit, `lint`           |
-| Risk label         | `scripts/risk.ts`, `.github/risk-floors.yaml`                  | One `risk:<level>` label per PR, never below the floor of the files it touches.                    | `Risk label` workflow        |
+| Risk label         | `scripts/risk.ts`                                              | Exactly one known `risk:<level>` label per PR.                                                     | `Risk label` workflow        |
 | Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                       | `quality-report`             |
 
 Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the staged files and runs
@@ -156,29 +155,22 @@ so the same text in a string does not count; files that hold none of the words a
 
 It runs in `make quality`, the pre-commit hook and the `lint` job, and prints a `SUPPRESSIONS_RESULT`
 line for the Quality Report. Configuration that disables a check for the whole project is not counted:
-changing it puts the PR at the `high` risk floor.
+call such a change out in the PR.
 
-### Risk floors and the risk label
+### The risk label
 
-Every PR carries exactly one `risk:low`, `risk:medium`, `risk:high` or `risk:critical` label.
-`.github/risk-floors.yaml` sets the minimum by the files a PR adds, changes, deletes or renames; every
-category is `high`:
+Every PR carries exactly one `risk:low`, `risk:medium`, `risk:high` or `risk:critical` label. The level
+is a judgment of the `pr-writer` agent (or the person opening the PR), following the rubric in
+`.claude/agents/pr-writer.md`: most PRs are low or medium; high is for changes that can break the
+extension for its users or change existing behavior drastically; critical is for changes where a failure
+can run a destructive statement or weaken a safety lock (see "Critical surfaces" in `CLAUDE.md`). High
+and critical need one concrete sentence in the Risk line naming what can break. Touching pipeline files is
+not by itself a reason for high.
 
-| Category               | Paths (see the file for the full list)                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------ |
-| pipeline config        | `package.json`, the lock file, tool configurations, `Makefile`, `scripts/`, `.github/`, `.claude/`...  |
-| storage schema         | what sqldoro keeps in VS Code's storage and the codecs that read it back (`src/extension/storage/`...) |
-| auth and secrets       | `*auth*`, `*secret*`, `*credential*`, `*password*`, TLS, host keys, the SSH tunnel, opening sessions   |
-| destructive SQL safety | the guards, the edits, the SQL scanners, the dialects, the query runner, manual transactions           |
-
-`make risk-floor` prints the floor of the branch and the files behind it. The **Risk label** workflow
-(`.github/workflows/risk-label.yml`) runs `scripts/risk.ts check` on every push and label change and
-fails when a PR has no risk label, more than one, an unknown one, or one below the floor. It lives
+The **Risk label** workflow (`.github/workflows/risk-label.yml`) runs `scripts/risk.ts check` on every
+push and label change and fails when a PR has no risk label, more than one, or an unknown one. It lives
 outside `ci.yml` so that a label change does not re-run every analysis, and is not part of the Quality
-Report. `make risk-labels` creates the labels (idempotent); Dependabot's PRs get `risk:high`. To add a
-category, append an entry with `category`, `level` and `paths` (globs: `*` stays in one folder, `**`
-crosses folders, neither matches a leading dot); `scripts/risk/risk-floors-config.test.ts` pins the
-categories.
+Report. `make risk-labels` creates the labels (idempotent); Dependabot's PRs get `risk:low`.
 
 ### Pull request flow
 
@@ -188,7 +180,7 @@ and what changed in behavior, written by an agent that did not write the code (`
 1. **`coder`** implements on a branch, runs the checks, commits one logical step per commit, pushes and
    writes handoff notes to `.handoff/<branch>.md` (gitignored), with an explicit **Not verified** list.
 2. **`pr-writer`** (Opus) reads the diff commit by commit and fills `.github/pull_request_template.md`:
-   **Risk** (never below the floor, at least medium with deploy steps), **Summary**, at most five
+   **Risk** (by judgment, mostly low or medium; at least medium with deploy steps), **Summary**, at most five
    plain-language **Behavior** items (_before → after_), **Unchanged**, **Look here** (the only section
    with file and test references: the evidence of each behavior, and every pipeline change),
    **Deploy steps** (release steps for sqldoro; `None: normal merge and deploy.` when there are none),

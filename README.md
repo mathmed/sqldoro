@@ -170,7 +170,7 @@ secret storage, and the history and saved queries on your machine.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/RELEASING.md`](docs/RELEASING.md) and [`CHANGELOG.md`](CHANGELOG.md). Every pull request passes
 strict checks, including a ratchet that rejects new lint, type or test suppressions, and carries a risk
-label that changes to the pipeline, stored data, secrets or the SQL safety guards keep at `high`. Follow the
+label (low, medium, high or critical) that tells reviewers how much attention it needs. Follow the
 [Code of Conduct](CODE_OF_CONDUCT.md), and report security problems privately as
 [`SECURITY.md`](SECURITY.md) explains.
 

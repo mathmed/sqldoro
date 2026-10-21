@@ -1,7 +1,7 @@
 name: Risk label
 
-# Checks that the PR has exactly one risk:<level> label and that it is not below the floor of the files it
-# touches (.github/risk-floors.yaml, evaluated by scripts/risk.ts). It lives outside ci.yml because it must
+# Checks that the PR has exactly one known risk:<level> label (scripts/risk.ts). The level is a judgment of
+# the pr-writer agent or the reviewer, not derived from the files the PR touches. It lives outside ci.yml because it must
 # also run when labels change, which would otherwise re-run every analysis; for the same reason it is not
 # part of the Quality Report. The pr-writer agent applies the label when it opens the PR.
 on:
@@ -10,10 +10,16 @@ on:
 
 permissions:
   contents: read
+  # Reads the PR's labels when the job runs
+  pull-requests: read
 
+# Runs of the same PR queue instead of cancelling each other: opening a PR with its label fires `opened`
+# and `labeled` together, and cancel-in-progress left a cancelled check on every PR. Dropping the group
+# would let an older run finish last and decide the check. GitHub keeps one pending run per group, so 3+
+# events at once (Dependabot adds three labels) still cancel the pending ones in between
 concurrency:
   group: risk-label-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   risk-label:
@@ -21,18 +27,18 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-        with:
-          # The diff against the merge base with the base branch needs its history
-          fetch-depth: 0
+      # The script only uses Node.js built-ins: no npm ci.
       - uses: actions/setup-node@v7
         with:
           node-version-file: package.json
-          cache: npm
-      # The floors are YAML: the script needs the yaml package.
-      - run: npm ci
-      - name: Risk label is at or above the floor
+      - name: Exactly one known risk label
         env:
           # Passed through the environment, never interpolated into the script
-          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-          BASE_REF: origin/${{ github.base_ref }}
-        run: npm run risk -- check --base "$BASE_REF" --labels-json "$PR_LABELS"
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        # The labels come from the API, not from the event payload: the payload is a snapshot of when the
+        # event fired, and `gh pr create --label` adds the label in a second call, so the `opened` run of
+        # every PR saw no labels (and a run from an older event could judge labels that already changed)
+        run: |
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --jq '[.[].name]')
+          npm run risk -- check --labels-json "$labels"

@@ -1,6 +1,6 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-floor risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
 
-# Base branch of mutation-changed and risk-floor
+# Base branch of mutation-changed
 BASE ?= origin/main
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
@@ -84,17 +84,13 @@ mutation:
 mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
-# Print the minimum risk level of the changes against BASE (.github/risk-floors.yaml)
-risk-floor:
-	npm run risk -- floor --base $(BASE)
-
 # Create (or update) the risk:<level> labels, and the dependencies label Dependabot's PRs carry with
-# risk:high, on the GitHub repository (needs an authenticated gh)
+# risk:low, on the GitHub repository (needs an authenticated gh)
 risk-labels:
-	gh label create "risk:low" --color 0E8A16 --description "Low risk: routine change" --force
-	gh label create "risk:medium" --color FBCA04 --description "Medium risk: release steps or wider impact" --force
-	gh label create "risk:high" --color D93F0B --description "High risk: pipeline, storage schema, secrets or SQL safety" --force
-	gh label create "risk:critical" --color B60205 --description "Critical risk: needs the closest review" --force
+	gh label create "risk:low" --color 0E8A16 --description "Low risk: no behavior change" --force
+	gh label create "risk:medium" --color FBCA04 --description "Medium risk: new behavior or release steps" --force
+	gh label create "risk:high" --color D93F0B --description "High risk: can break the extension or changes behavior drastically" --force
+	gh label create "risk:critical" --color B60205 --description "Critical risk: can run destructive SQL or weaken a safety lock" --force
 	gh label create "dependencies" --color 0366D6 --description "Pull requests that update a dependency file" --force
 
 # Everything CI runs on a pull request

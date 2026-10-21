@@ -30,7 +30,6 @@ make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
-make risk-floor        # minimum risk level of the branch vs BASE, from .github/risk-floors.yaml
 make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
@@ -47,7 +46,7 @@ src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
-                suppression ratchet, risk floors
+                suppression ratchet, risk label check
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -111,6 +110,47 @@ test/           test support: the vscode and webview fakes for unit tests and th
   - unit tests stand in for the database servers with the fakes of the client libraries in
     `test/fakes/` (the external boundary); the integration tests run against real servers.
 
+## Critical surfaces
+
+A failure here can run a destructive statement against a user's database, weaken a safety lock or expose
+credentials, and a revert does not undo it: the statement already ran, the secret already leaked. The
+`pr-writer` reads this list before assigning `risk:high` or `risk:critical`. Touching these files does not
+make a PR critical by itself; what the change can break does.
+
+- **The statement guard**: the classifier (`src/core/safety/classify.ts`, the tokenizer and scanners of
+  `src/core/sql/`, each driver's `Dialect`), the guard policy (`src/core/safety/guard.ts`,
+  `src/extension/safety/`) and the single path to `EngineSession.execute` (`QueryRunner.perform` and
+  `runJob`, pinned by `src/extension/safety/guarded-execution.test.ts`). It fails closed: a statement it
+  cannot read counts as a write.
+- **Read-only connections**: the guard blocks every write on them, and the drivers open their sessions
+  read-only on the server (`SET SESSION TRANSACTION READ ONLY`, `default_transaction_read_only`), the net
+  for what the classifier cannot see.
+- **Confirmations**: an `UPDATE` or `DELETE` without a real `WHERE` and any write on production wait for a
+  modal dialog; an `UPDATE` or `DELETE` of every row on production waits for its table name to be typed
+  (`src/core/safety/confirmation-dialog.ts`, `src/extension/safety/typed-confirmation.ts`).
+- **The environment tag**: production environments (`prod` always, plus
+  `sqldoro.safety.productionEnvironments`) start read-only and require the confirmations. Settings can
+  only make the guards stricter.
+- **Manual transactions**: the per-editor state machine (`src/core/safety/transaction.ts`), the commit and
+  rollback commands and the transaction status probe (`src/extension/transactions/`). A wrong state
+  commits what the user meant to roll back.
+- **The automatic `LIMIT`** (`src/core/safety/auto-limit.ts`): it rewrites the user's SQL before it runs;
+  applied to anything but a read, it changes what a statement does.
+- **Inline editing**: what can be edited, the plan and the generated statements with their bound
+  parameters and casts (`src/core/edits/`), and the apply that checks every statement with the guard and
+  runs them in one transaction with savepoints, rolling back on any failure or conflict
+  (`src/extension/edits/`, `src/drivers/mysql/mysql-strict-writes.ts`). A mistake updates or deletes the
+  wrong rows, or silently cuts a value.
+- **Credentials**: SecretStorage (`src/extension/storage/secret-store.ts`, `src/core/connection/secrets.ts`),
+  passwords masked in the history (`src/core/sql/redact-sql.ts`) and kept out of logs, TLS certificate and
+  host name verification (`src/core/connection/tls.ts`, the drivers' `*-connection.ts`), SSH host key
+  verification and the tunnel (`src/core/session/host-key.ts`, `src/extension/storage/known-hosts.ts`,
+  `src/tunnel/`).
+
+Usually high rather than critical: the stored formats (connection profiles, history, saved queries,
+layouts and the codecs that read them back), since a mistake loses what users saved but runs no
+statement; and changes to how queries run or results are shown that a revert fixes.
+
 ## Before opening a PR (mandatory)
 
 1. `make quality` passes. A PR with failing checks is not a PR.
@@ -124,8 +164,8 @@ test/           test support: the vscode and webview fakes for unit tests and th
    README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
    `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
    `[Unreleased]`.
-7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label at or
-   above `make risk-floor` (see "Workflow").
+7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label,
+   assigned by judgment (see "Workflow" and "Critical surfaces").
 
 ## Deterministic validation
 
@@ -177,14 +217,10 @@ lists no violation: it counts the justified suppressions the rules allow, and on
   Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
   approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
   in the same PR.
-- **Risk floors**: pipeline and agent files (`package.json`, the lock file, the tool configurations,
-  `Makefile`, `lefthook.yml`, `scripts/`, `.github/`, `.claude/`, `CLAUDE.md`,
-  `suppressions-baseline.json`...), the storage schema (what sqldoro keeps in VS Code's storage and the
-  formats that read it back), auth and secrets (SecretStorage, credentials, certificate and host key
-  verification, the SSH tunnel) and the destructive SQL safety (the guards, the edits, the SQL
-  scanners, the dialects, transactions) put a PR at the `high` floor (`.github/risk-floors.yaml`). The
-  `Risk label` workflow fails a PR without exactly one `risk:<level>` label at or above it. Do not
-  change pipeline files unless the task asks for it, and call the change out in the PR.
+- **Risk label**: the `Risk label` workflow fails a PR without exactly one known `risk:<level>` label
+  (`low`, `medium`, `high`, `critical`). The level is a judgment (`.claude/agents/pr-writer.md`, step 5),
+  not derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
+  and call the change out in the PR.
 
 ## Workflow
 
@@ -193,8 +229,9 @@ lists no violation: it counts the justified suppressions the rules allow, and on
    notes. It does not open the PR and does not assess the risk. Never commit directly to `main`.
 2. **Describe and open**: then delegate to the `pr-writer` agent (`.claude/agents/pr-writer.md`) with the
    original task verbatim, the branch, the base branch and the path of the handoff notes. It reads the
-   diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (never
-   below `make risk-floor`, at least medium when there are deploy steps), opens the PR with the
+   diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (mostly
+   low or medium; high or critical only with a sentence naming what can break; at least medium when there
+   are deploy steps), opens the PR with the
    `risk:<level>` label and stops. It never writes code. Behavior items are plain language with no file,
    function, test or code references; their evidence pointers go only in **Look here**, and a behavior
    without evidence is listed under **Not verified**. For sqldoro, the **Deploy steps** are release
