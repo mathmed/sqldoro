@@ -29,10 +29,11 @@ findings. Never edit files, commit or push.
    - **Contract**: contributed commands, settings and views were not removed or renamed without reason.
    - **Preferences**: the personal preferences section of `CLAUDE.md`.
    - **Docs**: README (users), CONTRIBUTING.md (development), docs/ARCHITECTURE.md and CHANGELOG.md updated when the change affects setup, commands, settings, scope or architecture.
-   - **PR description** (when a PR exists): the Behavior items match the diff and are plain language with
-     no file or code references, every one has an evidence pointer in Look here that exists (or is listed
-     under Not verified), and the `risk:` label follows the rubric of `.claude/agents/pr-writer.md` (high or critical only with a
-     sentence naming what can break, see "Critical surfaces" in `CLAUDE.md`).
+   - **PR description** (when a PR exists): it follows `.github/pull_request_template.md` (a standalone
+     summary, at most one visual block, a Deploy line only for a real step, at most 2,500 characters),
+     every claim matches the diff and the tests, the visual uses plain words with no file or code names,
+     and the `risk:` label follows the rubric of `.claude/agents/pr-writer.md` (high or critical only with
+     a first line naming what can break, see "Critical surfaces" in `CLAUDE.md`).
 
 ## Report
 

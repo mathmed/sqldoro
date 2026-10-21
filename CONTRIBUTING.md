@@ -174,18 +174,20 @@ Report. `make risk-labels` creates the labels (idempotent); Dependabot's PRs get
 
 ### Pull request flow
 
-Reading AI-written diffs is the bottleneck, so the PR description says how much attention a PR deserves
-and what changed in behavior, written by an agent that did not write the code (`CLAUDE.md`, "Workflow"):
+Reading AI-written diffs is the bottleneck, so the PR description is short and says what changed in
+behavior, written by an agent that did not write the code (`CLAUDE.md`, "Workflow"); the risk label says
+how much attention the PR deserves:
 
 1. **`coder`** implements on a branch, runs the checks, commits one logical step per commit, pushes and
    writes handoff notes to `.handoff/<branch>.md` (gitignored), with an explicit **Not verified** list.
-2. **`pr-writer`** (Opus) reads the diff commit by commit and fills `.github/pull_request_template.md`:
-   **Risk** (by judgment, mostly low or medium; at least medium with deploy steps), **Summary**, at most five
-   plain-language **Behavior** items (_before → after_), **Unchanged**, **Look here** (the only section
-   with file and test references: the evidence of each behavior, and every pipeline change),
-   **Deploy steps** (release steps for sqldoro; `None: normal merge and deploy.` when there are none),
-   **Not verified** and, when the diff contradicts the notes, **Mismatch**. It opens the PR with the
-   label and stops.
+2. **`pr-writer`** (Opus) reads the diff commit by commit, checks every claim against the diff and the
+   tests, assigns the risk by judgment (mostly low or medium; at least medium with a release step) and
+   fills `.github/pull_request_template.md`: a summary of one or two sentences that stands alone, at most
+   one visual block chosen by the kind of change (a `What | Before | After` table in plain words, a small
+   Mermaid diagram, a before/after table of values or a short diff), a `Deploy:` line only when there is a
+   real release step, a `Risk high: <what can break>` first line only for high or critical, and a
+   `Divergence:` line only when the diff contradicts the notes. No empty headings, filler, file lists or
+   footer; at most 2,500 characters. It opens the PR with the label and stops.
 3. If `pr-writer` fails, `coder` opens the PR with a minimal body and no label; the Risk label check
    stays red until a person sets one. Only the owner merges.
 
