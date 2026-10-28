@@ -81,6 +81,26 @@ describe('App, while the rows of a tab are read again', () => {
     expect(cellAt(0, 1).textContent).toBe('zoe')
   })
 
+  it('should ask for the rows of a new view with fewer rows than where the grid was, and show them', () => {
+    render(<App api={api} />)
+    fromHost({ type: 'tabs', tabs: [{ ...ORDERS, rowCount: 1000 }], activeTabId: 'tab-1' })
+    rowsOf('tab-1', 0)
+    fireEvent.scroll(theGrid(), { target: { scrollTop: ROW_HEIGHT * 450 } })
+
+    tab({ viewVersion: 1, rowCount: 1, loadedRows: 1 })
+    expect(fetches('tab-1').at(-1)).toStrictEqual({
+      type: 'fetchRows',
+      tabId: 'tab-1',
+      viewVersion: 1,
+      start: 0,
+      count: 200,
+    })
+    rowsOf('tab-1', 1, ZOE)
+
+    expect(screen.getAllByRole('row')).toHaveLength(2)
+    expect(cellAt(0, 1).textContent).toBe('zoe')
+  })
+
   it('should show a read again that ends without rows at once', () => {
     shownOrders()
 

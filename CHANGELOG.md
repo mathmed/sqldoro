@@ -6,6 +6,14 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Fixed
+
+- **A table read again with fewer rows than where its grid was scrolled shows them.** A table panel
+  scrolled down its rows, then filtered with a `WHERE` that keeps fewer rows (or a step of the trail
+  scrolled further than its rows go), waited forever: the card said "Fetching rows… 29 rows so far"
+  long after the query ended, and **Cancel** had nothing to cancel. The grid now asks for the last
+  rows of the new result, where it lands to show them.
+
 ## [0.1.3] - 2026-10-14
 
 ### Changed
