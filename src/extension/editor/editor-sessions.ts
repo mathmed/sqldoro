@@ -31,6 +31,13 @@ interface Entry {
   readonly session: Promise<Session>
 }
 
+// What a session opens with, and what it calls when it ends by itself.
+interface Opening {
+  readonly connection: ConnectionConfig
+  readonly scope: ObjectScope
+  readonly onLost: (error: Error) => void
+}
+
 const PINNED =
   'Commit or roll back the open transaction of this editor before it changes database or schema.'
 
@@ -93,7 +100,10 @@ export class EditorSessions implements vscode.Disposable {
   }
 
   async #open(uri: string, connection: ConnectionConfig, scope: ObjectScope): Promise<Session> {
-    const entry: Entry = { connection, session: this.#connect(uri, connection, scope) }
+    const onLost = (error: Error): void => {
+      this.#lose(uri, entry, error)
+    }
+    const entry: Entry = { connection, session: this.#connect({ connection, scope, onLost }) }
     this.#entries.set(uri, entry)
     this.#scopes.set(uri, scopeKey(scope))
     try {
@@ -106,16 +116,12 @@ export class EditorSessions implements vscode.Disposable {
     }
   }
 
-  async #connect(uri: string, connection: ConnectionConfig, scope: ObjectScope): Promise<Session> {
+  async #connect({ connection, scope, onLost }: Opening): Promise<Session> {
     const database = scope.database === '' ? connection.database : scope.database
     const session = await this.#dependencies.open({
       connection: { ...connection, database },
       secrets: await this.#dependencies.readSecrets(connection),
-      onUnexpectedClose: (error) => {
-        this.#dependencies.log.warn(`The connection of ${uri} ended: ${describeError(error)}`)
-        this.#entries.delete(uri)
-        this.#dependencies.lifecycle.onLost(uri)
-      },
+      onUnexpectedClose: onLost,
     })
     try {
       await session.engineSession.useScope(scope)
@@ -136,6 +142,29 @@ export class EditorSessions implements vscode.Disposable {
     }
     await session.engineSession.useScope(scope)
     this.#scopes.set(uri, key)
+  }
+
+  // The session ended by itself (the server, the network, or a cancel the server did not answer in
+  // time): the next statement opens another one, the user hears what became of its transaction, and
+  // what is left of it (an SSH tunnel, the connections to other databases) closes. A session the
+  // editor already left changes nothing.
+  #lose(uri: string, entry: Entry, error: Error): void {
+    this.#dependencies.log.warn(`The connection of ${uri} ended: ${describeError(error)}`)
+    if (this.#entries.get(uri) === entry) {
+      this.#entries.delete(uri)
+      this.#dependencies.lifecycle.onLost(uri)
+    }
+    void this.#closeLost(entry)
+  }
+
+  async #closeLost(entry: Entry): Promise<void> {
+    try {
+      await (await entry.session).close()
+    } catch (error) {
+      this.#dependencies.log.warn(
+        `Could not close an editor connection that ended: ${describeError(error)}`,
+      )
+    }
   }
 
   // Closing is best effort: what fails is logged.

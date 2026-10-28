@@ -10,6 +10,7 @@ import {
 } from '../../../test/support/query.ts'
 import { resetVscode, window } from '../../../test/vscode.ts'
 import { RunScope } from '../../core/editor/run-plan.ts'
+import { QueryCancelledError } from '../../core/engine/query.ts'
 import { TransactionStatus } from '../../core/engine/transaction-status.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
 import { TransactionMode } from '../../core/safety/transaction.ts'
@@ -142,5 +143,22 @@ describe('QueryRunner.cancel', () => {
 
     expect(postedTabs(panel).get('stale')).toMatchObject({ status: 'cancelled', progress: 'done' })
     expect(harness.engine.cancel).not.toHaveBeenCalled()
+  })
+
+  it('should say in its tab when a cancel closed the connection of the statement', async () => {
+    harness.engine.answer = () => ({
+      error: new QueryCancelledError({ hasClosedConnection: true }),
+    })
+    const editor = await sqlEditor(harness, 'SELECT pg_sleep(9)')
+    const panel = readyPanel(harness, editor)
+
+    await harness.runner.run(editor as unknown as vscode.TextEditor, RunScope.All)
+
+    expect(postedTabs(panel).get('id-1')).toMatchObject({
+      status: 'cancelled',
+      notice:
+        'The server did not confirm in time that the statement stopped, so sqldoro closed its connection: a statement that writes may still have run. The next statement opens a new connection.',
+    })
+    expect(harness.records.map((entry) => entry.outcome)).toStrictEqual(['cancelled'])
   })
 })

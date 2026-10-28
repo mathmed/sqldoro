@@ -182,7 +182,7 @@ describe('EditorSessions', () => {
     ])
   })
 
-  it('should forget a session the server ends, and log it', async () => {
+  it('should forget a session the server ends, close what is left of it, and log it', async () => {
     const sut = sessions()
     await sut.acquire('a', SHOP, SALES)
 
@@ -190,8 +190,38 @@ describe('EditorSessions', () => {
     await sut.acquire('a', SHOP, SALES)
 
     expect(log.warn).toHaveBeenCalledWith('The connection of a ended: terminated')
-    expect(lifecycle.onLost).toHaveBeenCalledWith('a')
+    expect(lifecycle.onLost).toHaveBeenCalledExactlyOnceWith('a')
     expect(requests).toHaveLength(2)
+    await vi.waitFor(() => {
+      expect(close).toHaveBeenCalledOnce()
+    })
+    expect(lifecycle.beforeClose).not.toHaveBeenCalled()
+  })
+
+  it('should keep the session of an editor when one it already left ends', async () => {
+    const sut = sessions()
+    await sut.acquire('a', SHOP, SALES)
+    const current = await sut.acquire('a', CRM, SALES)
+
+    requests[0]?.onUnexpectedClose(new Error('terminated'))
+
+    await expect(sut.existing('a')).resolves.toBe(current)
+    expect(lifecycle.onLost).not.toHaveBeenCalled()
+    expect(log.warn).toHaveBeenCalledWith('The connection of a ended: terminated')
+  })
+
+  it('should log a session that ended and does not close cleanly', async () => {
+    const sut = sessions()
+    close.mockRejectedValueOnce(new Error('already gone'))
+    await sut.acquire('a', SHOP, SALES)
+
+    requests[0]?.onUnexpectedClose(new Error('terminated'))
+
+    await vi.waitFor(() => {
+      expect(log.warn).toHaveBeenCalledWith(
+        'Could not close an editor connection that ended: already gone',
+      )
+    })
   })
 
   it('should log a session that does not close cleanly', async () => {
