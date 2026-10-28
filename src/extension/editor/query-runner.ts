@@ -3,20 +3,17 @@ import * as vscode from 'vscode'
 import type { ConnectionConfig } from '../../core/connection/connection.ts'
 import { bindingScope, type EditorBinding } from '../../core/editor/binding.ts'
 import type { RunScope } from '../../core/editor/run-plan.ts'
-import { type PlannedStatement, planRun } from '../../core/editor/run-plan.ts'
+import { planRun } from '../../core/editor/run-plan.ts'
 import type { EngineRegistry } from '../../core/engine/engine-registry.ts'
 import type { HistoryEntry } from '../../core/history/history.ts'
 import type { Logger } from '../../core/platform.ts'
-import { runOutcomeText } from '../../core/results/outcome.ts'
 import { TabKind } from '../../core/results/protocol.ts'
 import { ResultSet } from '../../core/results/result-set.ts'
-import { plural } from '../../core/results/tabs.ts'
 import { StatementCategory } from '../../core/safety/statement-class.ts'
 import type { Session } from '../../core/session/open-session.ts'
-import { changesSchema, isReadOnlyQuery } from '../../core/sql/statement-kind.ts'
+import { changesSchema } from '../../core/sql/statement-kind.ts'
 import { describeError } from '../../core/text/errors.ts'
 import type { Clock } from '../platform/clock.ts'
-import type { ResultsPanel } from '../results/results-panel.ts'
 import type { ResultsPanels } from '../results/results-panels.ts'
 import type { Approval } from '../safety/approval.ts'
 import type { StatementGuard } from '../safety/statement-guard.ts'
@@ -24,6 +21,7 @@ import type { Settings } from '../settings.ts'
 import type { EditorTransactions } from '../transactions/editor-transactions.ts'
 import { ActiveRun } from './active-run.ts'
 import type { EditorBindings } from './bindings.ts'
+import { runScript, type ScriptRunner } from './editor-script.ts'
 import type { EditorSessions } from './editor-sessions.ts'
 import { sourceOf } from './editor-source.ts'
 import { type JobRequest, runApprovedJob } from './run-job.ts'
@@ -48,12 +46,6 @@ export interface QueryRunnerDependencies {
   // Finds out whether the rows of a tab that ran can be edited; it reports what it finds itself.
   readonly checkEditing: (parts: RunParts, tab: ResultSet) => void
   readonly log: Logger
-}
-
-// The statements of an editor to run, from its document.
-interface EditorStatements {
-  readonly document: vscode.TextDocument
-  readonly statements: readonly PlannedStatement[]
 }
 
 const BUSY = 'A query is already running in this editor: cancel it first.'
@@ -103,7 +95,7 @@ export class QueryRunner implements vscode.Disposable {
         statements: statements.map((statement) => statement.sql),
         run: async (parts: RunParts) => {
           this.startRun(parts)
-          await this.#runAll(parts, { document, statements })
+          await runScript(this.#scriptRunner(), parts, { document, statements })
         },
       })
     })
@@ -193,6 +185,16 @@ export class QueryRunner implements vscode.Disposable {
     this.#changes.dispose()
   }
 
+  #scriptRunner(): ScriptRunner {
+    return {
+      runJob: async (parts, job) => this.runJob(parts, job),
+      afterSuccess: (parts, sql) => {
+        this.afterSuccess(parts, sql)
+      },
+      createId: this.#dependencies.createId,
+    }
+  }
+
   #newTab(sql: string, kind: TabKind): ResultSet {
     const id = this.#dependencies.createId()
     return new ResultSet({ values: [], id, sql, kind, canServerView: false, canRefresh: false })
@@ -268,55 +270,10 @@ export class QueryRunner implements vscode.Disposable {
     return { target, session, catalog, panel, run, approval }
   }
 
-  async #runAll(parts: RunParts, { document, statements }: EditorStatements): Promise<void> {
-    const ran: ResultSet[] = []
-    for (const [index, statement] of statements.entries()) {
-      const tab = this.#statementTab(parts, statement.sql)
-      ran.push(tab)
-      const isDone = await this.runJob(parts, {
-        sql: statement.sql,
-        values: [],
-        place: { document, offset: statement.offset, prefixLength: 0 },
-        isRecorded: true,
-        tab,
-        kind: TabKind.Rows,
-        shouldAutoLimit: true,
-      })
-      if (isDone) {
-        this.afterSuccess(parts, statement.sql)
-      }
-      if (!isDone || parts.run.isCancelled) {
-        this.#notRun(parts.panel, tab, statements.length - index - 1)
-        break
-      }
-    }
-    tellOutcomes(parts, ran)
-  }
-
-  #statementTab(parts: RunParts, sql: string): ResultSet {
-    const tab = new ResultSet({
-      values: [],
-      id: this.#dependencies.createId(),
-      sql,
-      kind: TabKind.Rows,
-      canServerView: isReadOnlyQuery(sql, parts.target.engine.dialect.lexical),
-      canRefresh: false,
-    })
-    parts.panel.addTab(tab)
-    return tab
-  }
-
   // A statement of the user that ran: one that changed the schema refreshes the explorer.
   afterSuccess(parts: RunParts, sql: string): void {
     if (changesSchema(sql, parts.target.engine.dialect.lexical)) {
       this.#dependencies.onSchemaChange(parts.target.connection.id)
-    }
-  }
-
-  #notRun(panel: ResultsPanel, tab: ResultSet, remaining: number): void {
-    if (remaining > 0) {
-      tab.addNotice(`${plural(remaining, 'statement', 'statements')} after this one did not run.`)
-      panel.updateTab(tab, true)
     }
   }
 }
@@ -330,15 +287,4 @@ function openingOf(
     (sql) => approval.classOf(sql).category === StatementCategory.Read,
   )
   return isReading ? PanelOpening.Now : opening
-}
-
-// The statements of a run whose panel stayed closed had only outcomes to tell: a notification tells
-// them (the history keeps them too).
-function tellOutcomes(parts: RunParts, tabs: readonly ResultSet[]): void {
-  if (!parts.panel.isOpen) {
-    const shown = tabs.map((tab) => tab.toTab())
-    void vscode.window.showInformationMessage(
-      runOutcomeText(shown, parts.target.engine.dialect.lexical),
-    )
-  }
 }
