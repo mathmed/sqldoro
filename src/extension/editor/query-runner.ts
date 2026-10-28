@@ -106,15 +106,17 @@ export class QueryRunner implements vscode.Disposable {
     await this.#perform(uri, PanelOpening.Now, plan)
   }
 
+  // The run holds the source from its plan on: a cancel while it plans (the catalog it reads may
+  // have to connect) stops it too.
   async #perform(uri: vscode.Uri, opening: PanelOpening, plan: RunPlanner): Promise<void> {
     const target = await this.#target(uri)
-    const work = target === undefined ? undefined : await plan(target)
-    if (target !== undefined && work !== undefined) {
-      await this.#withRun(target, { work, opening })
+    if (target !== undefined) {
+      await this.exclusive(uri, async (run) => this.#planAndRun(run, target, { plan, opening }))
     }
   }
 
-  // Holds the editor while `action` runs: one run, commit or rollback per editor at a time.
+  // Holds the editor while `action` runs: one run, commit or rollback per editor at a time. A run
+  // that was cancelled leaves no tab running.
   async exclusive(uri: vscode.Uri, action: (run: ActiveRun) => Promise<void>): Promise<void> {
     const key = uri.toString()
     if (this.#runs.has(key)) {
@@ -122,6 +124,7 @@ export class QueryRunner implements vscode.Disposable {
       return
     }
     const run = new ActiveRun()
+    const started = this.#dependencies.clock.now()
     this.#runs.set(key, run)
     this.#changes.fire(uri)
     try {
@@ -131,9 +134,19 @@ export class QueryRunner implements vscode.Disposable {
       this.#dependencies.panels.get(uri)?.failRunning(message)
       void vscode.window.showErrorMessage(`Could not run the query: ${message}`)
     } finally {
-      this.#runs.delete(key)
-      this.#changes.fire(uri)
+      this.#endRun(uri, { run, started })
     }
+  }
+
+  #endRun(
+    uri: vscode.Uri,
+    { run, started }: { readonly run: ActiveRun; readonly started: number },
+  ): void {
+    if (run.isCancelled) {
+      this.#dependencies.panels.get(uri)?.cancelRunning(this.#dependencies.clock.now() - started)
+    }
+    this.#runs.delete(uri.toString())
+    this.#changes.fire(uri)
   }
 
   // A new run replaces the tabs of the panel and the errors shown in the editor.
@@ -142,9 +155,11 @@ export class QueryRunner implements vscode.Disposable {
     this.#dependencies.diagnostics.delete(parts.target.uri)
   }
 
+  // Nothing running for the source, a tab still shown running is not, and stops waiting.
   async cancel(uri: vscode.Uri): Promise<void> {
     const run = this.#runs.get(uri.toString())
     if (run === undefined) {
+      this.#dependencies.panels.get(uri)?.cancelRunning(0)
       return
     }
     try {
@@ -230,24 +245,48 @@ export class QueryRunner implements vscode.Disposable {
     return picked
   }
 
-  // The guards see every statement before the session opens; nothing runs without their approval.
-  async #withRun(
+  // The guards see every statement before the session opens; nothing runs without their approval,
+  // nor once the run is cancelled: a cancel ends the wait for the plan and for the session too.
+  async #planAndRun(
+    run: ActiveRun,
     target: RunTarget,
-    { work, opening }: { readonly work: RunWork; readonly opening: PanelOpening },
+    { plan, opening }: { readonly plan: RunPlanner; readonly opening: PanelOpening },
   ): Promise<void> {
-    await this.exclusive(target.uri, async (run) => {
-      const approval = await this.#dependencies.guard.approve({
-        connection: target.connection,
-        dialect: target.engine.dialect,
-        statements: work.statements,
-        transaction: this.#dependencies.transactions.of(target.uri.toString()),
-      })
-      // Cancelling while the guard waits for a confirmation runs nothing.
-      if (approval !== undefined && !run.isCancelled) {
-        const panelOpening = openingOf(opening, { work, approval })
-        await work.run(await this.#prepare(target, { run, approval }, panelOpening))
+    const work = await this.#unlessCancelled(run, plan(target))
+    if (work === undefined) {
+      return
+    }
+    const approval = await this.#dependencies.guard.approve({
+      connection: target.connection,
+      dialect: target.engine.dialect,
+      statements: work.statements,
+      transaction: this.#dependencies.transactions.of(target.uri.toString()),
+    })
+    // Cancelling while the guard waits for a confirmation runs nothing.
+    if (approval === undefined || run.isCancelled) {
+      return
+    }
+    const panelOpening = openingOf(opening, { work, approval })
+    const parts = await this.#unlessCancelled(
+      run,
+      this.#prepare(target, { run, approval }, panelOpening),
+    )
+    if (parts !== undefined) {
+      await work.run(parts)
+    }
+  }
+
+  // What `work` gives, or undefined once the run is cancelled: the run stops waiting for it. The
+  // work goes on by itself, and a failure it ends with then is logged.
+  async #unlessCancelled<T>(run: ActiveRun, work: Promise<T>): Promise<T | undefined> {
+    work.catch((error: unknown) => {
+      if (run.isCancelled) {
+        this.#dependencies.log.warn(
+          `What a cancelled run no longer waited for failed: ${describeError(error)}`,
+        )
       }
     })
+    return Promise.race([work, run.whenCancelled])
   }
 
   // The connection of the explorer opens too, so that the tree and the autocomplete follow. The

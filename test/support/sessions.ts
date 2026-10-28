@@ -31,6 +31,8 @@ export interface Answer {
   readonly affectedRows?: number
   readonly isTruncated?: boolean
   readonly error?: Error
+  // The answer comes once this promise settles, like a slow server.
+  readonly after?: Promise<unknown>
   // Runs until cancel() is called.
   readonly isPending?: boolean
 }
@@ -100,7 +102,7 @@ export class ScriptedEngine {
     const { promise, resolve, reject } = Promise.withResolvers<QueryResult>()
     void promise.catch(() => undefined)
     if (!(answer.isPending ?? false)) {
-      queueMicrotask(() => {
+      void (answer.after ?? Promise.resolve()).then(() => {
         play(request, answer, { resolve, reject })
       })
     }

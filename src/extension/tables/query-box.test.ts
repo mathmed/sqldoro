@@ -76,6 +76,10 @@ describe('running the query box of a table panel', () => {
     const before = nav.sent().length
 
     nav.orders.panel.webview.send({ type: 'runQuery', sql: 'SELECT 1; SELECT 2' })
+    await vi.waitFor(() => {
+      expect(nav.harness.runner.isRunning(nav.orders.uri)).toBe(false)
+      expect(window.showWarningMessage).toHaveBeenCalledOnce()
+    })
     nav.orders.panel.webview.send({ type: 'runQuery', sql: '  -- nothing ' })
 
     await vi.waitFor(() => {

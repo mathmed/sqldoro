@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 
-import type { QueryResult, QueryValue } from '../../core/engine/query.ts'
+import { QueryCancelledError, type QueryResult, type QueryValue } from '../../core/engine/query.ts'
 import { RunOutcome } from '../../core/history/history.ts'
 import type { HistoryEntry } from '../../core/history/history.ts'
 import type { Logger } from '../../core/platform.ts'
@@ -35,7 +35,8 @@ export interface JobContext {
 
 // Runs a statement the guards approved: the approval says what it does, which decides its
 // automatic limit; in manual mode it opens the transaction first, and what the server then says of
-// the transaction is noted in the tab when nobody asked for it.
+// the transaction is noted in the tab when nobody asked for it. A run cancelled meanwhile starts no
+// statement: its tab is cancelled with the run.
 export async function runApprovedJob(
   context: JobContext,
   job: JobRequest & { readonly tab: ResultSet },
@@ -50,7 +51,9 @@ export async function runApprovedJob(
   })
   const scope = transactionScope(parts)
   await transactions.beforeStatement(scope)
-  const outcome = await runStatement(statementContext(context), { ...job, limit })
+  const outcome = parts.run.isCancelled
+    ? RunOutcome.Cancelled
+    : await runStatement(statementContext(context), { ...job, limit })
   const isSucceeded = outcome === RunOutcome.Succeeded
   const notice = await transactions.afterStatement(scope, {
     category: statement.category,
@@ -76,6 +79,9 @@ export interface ApprovedRead {
 export async function runApprovedRead(parts: RunParts, read: ApprovedRead): Promise<QueryResult> {
   if (parts.approval.classOf(read.sql).category !== StatementCategory.Read) {
     throw new Error('sqldoro only reads rows this way: the statement was not run')
+  }
+  if (parts.run.isCancelled) {
+    throw new QueryCancelledError({ hasClosedConnection: false })
   }
   const execution = parts.session.engineSession.execute({
     ...read,
