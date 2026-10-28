@@ -13,6 +13,17 @@ All notable changes to sqldoro are documented in this file. The format is based 
   scrolled further than its rows go), waited forever: the card said "Fetching rows… 29 rows so far"
   long after the query ended, and **Cancel** had nothing to cancel. The grid now asks for the last
   rows of the new result, where it lands to show them.
+- **Cancel always ends the wait.** sqldoro asks the server to stop the statement and gives it 3 s;
+  when it has not stopped by then (rows stuck on a slow or dead network, a request to stop it that
+  hangs or fails), sqldoro closes the connection of the statement. The tab says that the statement
+  was cancelled and that one that writes may still have run, the open transaction of the editor is
+  reported rolled back by the server, and the next statement opens a new connection. A run
+  cancelled while its session opens, or before its statement starts, runs nothing, and the loading
+  card says **Cancelling…** until the statement stops. A tab still shown running when nothing runs
+  is cancelled too. Once the statement ended, the card waits for its rows as **Loading rows…**,
+  without a **Cancel** that would have nothing to cancel.
+- **An editor connection that ends by itself closes what is left of it**: its SSH tunnel and its
+  connections to other databases.
 
 ## [0.1.3] - 2026-10-14
 

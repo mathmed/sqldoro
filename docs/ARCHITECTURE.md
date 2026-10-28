@@ -74,6 +74,23 @@ against the database host name, also through the tunnel. Errors are redacted of 
 secrets. Each SQL editor and each table panel has its own session; the explorer and the autocomplete
 share one per connection.
 
+## Cancelling a statement
+
+Cancel stops the statement of a run and always ends its wait. The core `Cancellation`
+(`src/core/engine/cancellation.ts`) gives the server `CANCEL_TIMEOUT_MS` (3 s), the request that
+asks it included: the driver asks the server to stop the statement from a second connection
+(`KILL QUERY`, `pg_cancel_backend`), and that request gives up at the deadline and closes its
+connection (`untilDeadline`). When the statement has not ended by then, or the request failed, or it
+was still on its way at the deadline (it could stop a later statement), the driver closes the
+connection of the statement, its socket included (`Stopper.drop`): the statement rejects with a
+`QueryCancelledError` that says so (`hasClosedConnection`), its tab says that a statement that
+writes may still have run, and the session reports that it ended, as when the network drops it.
+`EditorSessions` then forgets the session and closes what is left of it (an SSH tunnel, the
+connections to other databases), `EditorTransactions` tells the user that the server rolled back
+its open transaction, and the next statement opens a new session. A run cancelled before its
+statement starts (planning, the session opening, `START TRANSACTION`) stops waiting and starts
+nothing; meanwhile its tabs say **Cancelling…**.
+
 ## The guard layer
 
 A run declares every statement it may execute in a `RunWork`; `QueryRunner.perform` hands them to
