@@ -64,11 +64,18 @@ export interface QueryExecution {
   readonly cancel: () => Promise<void>
 }
 
+const CANCELLED = 'The query was cancelled'
+const CANCELLED_BY_CLOSING = `${CANCELLED}: sqldoro closed its connection`
+
 export class QueryCancelledError extends Error {
   override readonly name = 'QueryCancelledError'
+  // sqldoro closed the connection of the statement to end it: the server did not confirm in time
+  // that it stopped the statement, which may then still have run.
+  readonly hasClosedConnection: boolean
 
-  constructor() {
-    super('The query was cancelled')
+  constructor({ hasClosedConnection }: { readonly hasClosedConnection: boolean }) {
+    super(hasClosedConnection ? CANCELLED_BY_CLOSING : CANCELLED)
+    this.hasClosedConnection = hasClosedConnection
   }
 }
 

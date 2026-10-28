@@ -57,6 +57,8 @@ export interface StatementJob {
 }
 
 const DIAGNOSTIC_SOURCE = 'sqldoro'
+const CLOSED_ON_CANCEL =
+  'The server did not confirm in time that the statement stopped, so sqldoro closed its connection: a statement that writes may still have run. The next statement opens a new connection.'
 
 // Runs the statement into its tab, and says how it ended.
 export async function runStatement(
@@ -102,11 +104,24 @@ async function settle(
     return succeeded(job, result, context.clock.now() - started)
   } catch (error) {
     if (error instanceof QueryCancelledError) {
-      job.tab.cancel(context.clock.now() - started)
-      return { status: RunOutcome.Cancelled, rowCount: null, message: '' }
+      return cancelled(job, { error, durationMs: context.clock.now() - started })
     }
     return failed(context, job, error)
   }
+}
+
+interface Cancelled {
+  readonly error: QueryCancelledError
+  readonly durationMs: number
+}
+
+// A statement whose connection a cancel closed may still have run on the server: the tab says so.
+function cancelled(job: StatementJob, { error, durationMs }: Cancelled): Settled {
+  job.tab.cancel(durationMs)
+  if (error.hasClosedConnection) {
+    job.tab.addNotice(CLOSED_ON_CANCEL)
+  }
+  return { status: RunOutcome.Cancelled, rowCount: null, message: '' }
 }
 
 function succeeded(job: StatementJob, result: QueryResult, durationMs: number): Settled {

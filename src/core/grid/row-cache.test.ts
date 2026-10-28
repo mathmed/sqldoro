@@ -32,6 +32,13 @@ describe('RowCache', () => {
     expect(sut.windowsToFetch(0, 50, 0)).toStrictEqual([])
   })
 
+  it('should ask for the last rows when the range starts past the last row', () => {
+    expect(new RowCache(10, 100).windowsToFetch(4900, 5100, 29)).toStrictEqual([20])
+    expect(new RowCache(10, 100).windowsToFetch(450, 470, 5)).toStrictEqual([0])
+    expect(new RowCache(10, 100).windowsToFetch(30, 40, 30)).toStrictEqual([20])
+    expect(new RowCache(10, 100).windowsToFetch(30, 20, 1000)).toStrictEqual([])
+  })
+
   it('should hold the rows it stored and not ask for them again', () => {
     const sut = new RowCache(10, 100)
     sut.windowsToFetch(0, 9, 15)

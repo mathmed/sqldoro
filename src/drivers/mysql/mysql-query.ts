@@ -1,8 +1,7 @@
 import type { Connection, FieldPacket, Query, QueryError } from 'mysql2'
 
-import { Cancellation } from '../../core/engine/cancellation.ts'
+import { Cancellation, type Stopper } from '../../core/engine/cancellation.ts'
 import {
-  QueryCancelledError,
   type QueryExecution,
   type QueryRequest,
   type QueryResult,
@@ -19,8 +18,9 @@ const FIRST_RESULT = 0
 
 export interface QueryTarget {
   readonly connection: Connection
-  // Stops the statement running on the connection, from another connection.
-  readonly kill: () => Promise<void>
+  // Stops the statement running on the connection: the server is asked from another connection,
+  // and the connection goes when it does not stop the statement in time.
+  readonly stopper: Stopper
   // A streamed statement hears nothing when the connection drops: the session tells it. Returns
   // the function that stops listening.
   readonly onConnectionLost: (listener: (error: Error) => void) => () => void
@@ -72,9 +72,9 @@ class Execution {
   }
 
   // A statement that ran to its end before the kill reached it reports its result: it did run.
-  finish(isCancelled: boolean): QueryResult {
+  finish(cancellation: Cancellation): QueryResult {
     if (this.#failure !== undefined) {
-      throw isCancelled ? new QueryCancelledError() : locatedError(this.#failure)
+      throw cancellation.isRequested ? cancellation.cancelledError() : locatedError(this.#failure)
     }
     return this.#collector.finish(this.#affectedRows)
   }
@@ -90,13 +90,13 @@ class Execution {
 
 export function executeQuery(target: QueryTarget, request: QueryRequest): QueryExecution {
   const execution = new Execution(request)
-  const cancellation = new Cancellation()
+  const cancellation = new Cancellation(wait)
   const { promise, resolve, reject } = Promise.withResolvers<QueryResult>()
   const end = (): void => {
     stopWatching()
     if (execution.claimEnd()) {
       void cancellation.finish().then(() => {
-        settle(execution, cancellation.isRequested, { resolve, reject })
+        settle(execution, cancellation, { resolve, reject })
       })
     }
   }
@@ -118,7 +118,14 @@ export function executeQuery(target: QueryTarget, request: QueryRequest): QueryE
   // The result may be awaited after cancel(): its rejection reaches the caller then, instead of
   // being reported as unhandled in between.
   void promise.catch(() => undefined)
-  return { result: promise, cancel: async () => cancellation.cancel(target.kill) }
+  return { result: promise, cancel: async () => cancellation.cancel(target.stopper) }
+}
+
+// The timer of a cancel.
+async function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
 }
 
 // Bound values go through a prepared statement: the server places them, so a ? inside a string of
@@ -135,9 +142,13 @@ interface Settlement {
   readonly reject: (reason: unknown) => void
 }
 
-function settle(execution: Execution, isCancelled: boolean, { resolve, reject }: Settlement): void {
+function settle(
+  execution: Execution,
+  cancellation: Cancellation,
+  { resolve, reject }: Settlement,
+): void {
   try {
-    resolve(execution.finish(isCancelled))
+    resolve(execution.finish(cancellation))
   } catch (error) {
     reject(toError(error))
   }

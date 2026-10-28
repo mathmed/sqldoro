@@ -52,25 +52,45 @@ export function clientConfig(request: ConnectRequest, database: string): ClientC
   }
 }
 
+// A client on its way: the client exists at once, for a caller that may give up before it is
+// connected; `connected` settles once it is.
+export interface PgOpening {
+  readonly client: Client
+  readonly connected: Promise<void>
+}
+
 // pg emits the failures of an idle connection on the client: `onError` must listen from the start,
 // or Node.js would throw them.
+export function startClient(config: ClientConfig, onError: (error: Error) => void): PgOpening {
+  const client = new pg.Client(config)
+  client.on('error', onError)
+  const connected = client.connect().then(
+    () => undefined,
+    (error: unknown) => {
+      client.removeListener('error', onError)
+      throw error
+    },
+  )
+  return { client, connected }
+}
+
 export async function openClient(
   config: ClientConfig,
   onError: (error: Error) => void,
 ): Promise<Client> {
-  const client = new pg.Client(config)
-  client.on('error', onError)
-  try {
-    await client.connect()
-  } catch (error) {
-    client.removeListener('error', onError)
-    throw error
-  }
+  const { client, connected } = startClient(config, onError)
+  await connected
   return client
 }
 
 export async function closeClient(client: Client): Promise<void> {
   await client.end()
+}
+
+// Ends a client at once, whatever the server and the network do: its socket goes, and every query
+// of the client fails.
+export function dropClient(client: Client): void {
+  client.connection.stream.destroy()
 }
 
 // The certificate is checked against the database host name even when the connection goes through

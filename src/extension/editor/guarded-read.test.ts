@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as vscode from 'vscode'
 
 import { type QueryHarness, queryHarness, sqlEditor } from '../../../test/support/query.ts'
@@ -42,6 +42,27 @@ describe('readThroughGuards', () => {
       { problem: 'sqldoro only reads rows this way: the statement was not run' },
     ])
     expect(harness.engine.requests).toStrictEqual([])
+  })
+
+  it('should read nothing more once the run is cancelled', async () => {
+    harness.engine.answer = () => ({ isPending: true })
+
+    const reads = readThroughGuards(harness.runner, uri, async () =>
+      Promise.resolve([
+        { sql: 'SELECT COUNT(*) FROM a', values: [], maxRows: 1 },
+        { sql: 'SELECT COUNT(*) FROM b', values: [], maxRows: 1 },
+      ]),
+    )
+    await vi.waitFor(() => {
+      expect(harness.engine.requests).toHaveLength(1)
+    })
+    await harness.runner.cancel(uri)
+
+    await expect(reads).resolves.toStrictEqual([
+      { problem: 'The query was cancelled' },
+      { problem: 'The query was cancelled' },
+    ])
+    expect(harness.engine.requests).toHaveLength(1)
   })
 
   it('should give nothing when there is nothing to read', async () => {

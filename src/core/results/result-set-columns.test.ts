@@ -128,6 +128,19 @@ describe('ResultSet, its cells, columns and progress', () => {
     expect(sut.toTab().progress).toBe('running')
   })
 
+  it('should say a cancel is on its way until the statement ends, and forget it for the next run', () => {
+    const sut = resultSet()
+    sut.waitForSession()
+    sut.describe(RESULT_COLUMNS)
+
+    sut.markCancelling()
+    expect(sut.toTab().progress).toBe('cancelling')
+    sut.cancel(5)
+    expect(sut.toTab().progress).toBe('done')
+    sut.restart({ sort: [], filters: [] })
+    expect(sut.toTab().progress).toBe('running')
+  })
+
   it('should stop waiting for its session when the read fails', () => {
     const sut = resultSet()
     sut.waitForSession()

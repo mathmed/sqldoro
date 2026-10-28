@@ -22,11 +22,14 @@ export class RowCache {
   }
 
   // The starts of the windows to fetch so that rows first to last (of rowCount) are held; they
-  // count as pending until stored.
+  // count as pending until stored. A range past the last row asks for the last rows: a grid
+  // scrolled further down than a new view of fewer rows goes lands there once it shows that view,
+  // which it only does once some of its rows are here.
   windowsToFetch(first: number, last: number, rowCount: number): number[] {
     const starts: number[] = []
     const end = Math.min(last + 1, rowCount)
-    for (let start = this.#windowStart(first); start < end; start += this.#windowSize) {
+    const from = Math.min(first, rowCount - 1)
+    for (let start = this.#windowStart(from); start < end; start += this.#windowSize) {
       if (!this.#pending.has(start) && !this.#isLoaded(start, rowCount)) {
         this.#pending.add(start)
         starts.push(start)

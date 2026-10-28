@@ -2,15 +2,8 @@ import type { RowSource } from '../edits/edit-targets.ts'
 import { TabEditor } from '../edits/tab-editor.ts'
 import type { CellValue, QueryValue, ResultColumn, Row } from '../engine/query.ts'
 import { type ColumnLayout, DEFAULT_LAYOUT, shownColumns } from '../grid/column-layout.ts'
-import type { TabError, TabSummary } from './protocol-parts.ts'
-import {
-  type CellBlock,
-  type ResultTab,
-  TabKind,
-  TabProgress,
-  TabStatus,
-  type WireRow,
-} from './protocol.ts'
+import { type TabError, TabProgress, type TabSummary } from './protocol-parts.ts'
+import { type CellBlock, type ResultTab, TabKind, TabStatus, type WireRow } from './protocol.ts'
 import { type BoxSource, queryBoxText } from './query-box.ts'
 import { NO_META, type ResultMeta } from './result-meta.ts'
 import {
@@ -55,6 +48,7 @@ export class ResultSet implements RowSource {
   #search = ''
   #status: TabStatus = TabStatus.Running
   #isWaiting = false
+  #isCancelling = false
   #isDescribed = false
   #columns: readonly ResultColumn[] = []
   #meta: ResultMeta = NO_META
@@ -143,6 +137,11 @@ export class ResultSet implements RowSource {
     this.#isWaiting = true
   }
 
+  // The user cancelled the statement: the view says so until it ends.
+  markCancelling(): void {
+    this.#isCancelling = true
+  }
+
   // Other columns than before: what the catalog said of the old ones no longer holds.
   describe(columns: readonly ResultColumn[]): void {
     if (JSON.stringify(columns) !== JSON.stringify(this.#columns)) {
@@ -182,6 +181,7 @@ export class ResultSet implements RowSource {
     this.editor.reset()
     this.#status = TabStatus.Running
     this.#isWaiting = false
+    this.#isCancelling = false
     this.#isDescribed = false
     this.#rows = []
     this.#order = undefined
@@ -345,6 +345,9 @@ export class ResultSet implements RowSource {
   #progress(): TabProgress {
     if (!this.isRunning) {
       return TabProgress.Done
+    }
+    if (this.#isCancelling) {
+      return TabProgress.Cancelling
     }
     if (this.#isWaiting) {
       return TabProgress.Connecting

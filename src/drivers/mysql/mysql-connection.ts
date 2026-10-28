@@ -10,7 +10,11 @@ const PROGRAM_NAME = 'sqldoro'
 // Statements with bound values are prepared on the server; the oldest are closed past this many.
 const MAX_PREPARED_STATEMENTS = 16
 
-export function connectionOptions(request: ConnectRequest): ConnectionOptions {
+// `onDial` gets the socket mysql2 dials through, as soon as it does.
+export function connectionOptions(
+  request: ConnectRequest,
+  onDial: (socket: Socket) => void,
+): ConnectionOptions {
   return {
     // mysql2 checks the certificate against `host`: the database host name, even through a tunnel,
     // while the stream below dials the endpoint.
@@ -20,7 +24,11 @@ export function connectionOptions(request: ConnectRequest): ConnectionOptions {
     password: request.password,
     ...(request.database === '' ? {} : { database: request.database }),
     ...(request.tls === undefined ? {} : { ssl: sslOptions(request.tls) }),
-    stream: () => dial(request.endpoint),
+    stream: () => {
+      const socket = dial(request.endpoint)
+      onDial(socket)
+      return socket
+    },
     connectTimeout: CONNECT_TIMEOUT_MS,
     // Exact values: DECIMAL and BIGINT as text, dates and JSON as the server sends them.
     supportBigNumbers: true,
@@ -32,25 +40,65 @@ export function connectionOptions(request: ConnectRequest): ConnectionOptions {
   }
 }
 
+// A connection, and how to end it at once.
+export interface MysqlLink {
+  readonly connection: Connection
+  // Ends the connection at once, whatever the server and the network do: mysql2 runs no command
+  // after it, and the socket goes with what it was still receiving.
+  readonly drop: () => void
+}
+
+// A connection on its way: the link exists at once, for a caller that may give up before it is
+// connected; `connected` settles once it is, and a connection that fails is dropped.
+export interface MysqlOpening {
+  readonly link: MysqlLink
+  readonly connected: Promise<void>
+}
+
 // mysql2 emits the failures that reach no statement on the connection itself: `onError` must
 // listen from the start, or Node.js would throw them.
-export async function openConnection(
+export function startConnection(
   request: ConnectRequest,
   onError: (error: Error) => void,
-): Promise<Connection> {
+): MysqlOpening {
   checkTunnelledIdentity(request)
-  const connection = mysql.createConnection(connectionOptions(request))
-  connection.on('error', onError)
-  const { promise, resolve, reject } = Promise.withResolvers<Connection>()
-  connection.connect((error: unknown) => {
+  const link = createLink(request)
+  link.connection.on('error', onError)
+  const { promise, resolve, reject } = Promise.withResolvers<undefined>()
+  link.connection.connect((error: unknown) => {
     if (error instanceof Error) {
-      connection.destroy()
+      link.drop()
       reject(error)
       return
     }
-    resolve(connection)
+    resolve(undefined)
   })
-  return promise
+  return { link, connected: promise }
+}
+
+export async function openConnection(
+  request: ConnectRequest,
+  onError: (error: Error) => void,
+): Promise<MysqlLink> {
+  const { link, connected } = startConnection(request, onError)
+  await connected
+  return link
+}
+
+function createLink(request: ConnectRequest): MysqlLink {
+  let socket: Socket | undefined
+  const connection = mysql.createConnection(
+    connectionOptions(request, (dialed) => {
+      socket = dialed
+    }),
+  )
+  return {
+    connection,
+    drop: () => {
+      connection.destroy()
+      socket?.destroy()
+    },
+  }
 }
 
 export async function closeConnection(connection: Connection): Promise<void> {

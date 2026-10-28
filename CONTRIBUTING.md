@@ -232,7 +232,9 @@ For a hypothetical engine **Acme** (client library `acme-client`):
      `CatalogDetail.Statistics`, sizes and estimated rows in the same query, as text, `NULL` when
      unknown or not visible (never an error);
    - `execute`: stream rows through `onRows`, stop at `maxRows`, report each column's `origin`, keep
-     `DECIMAL`, `BIGINT` and dates as text, `cancel` from a second connection;
+     `DECIMAL`, `BIGINT` and dates as text, `cancel` through the core `Cancellation`: a request
+     from a second connection that ends by its deadline (`untilDeadline`), and a `drop` that closes
+     the connection of the statement, socket included, when the server does not stop it in time;
    - `transactionStatus` (ask the server), `describeTable` (what editing needs) and
      `startStrictWrites` (make the session refuse what a column cannot hold for an apply, and
      return what puts it back as it was).

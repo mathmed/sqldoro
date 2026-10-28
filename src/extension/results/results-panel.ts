@@ -155,9 +155,29 @@ export class ResultsPanel {
 
   // A run that stopped on an error leaves no tab running: each one it did not finish says why.
   failRunning(message: string): void {
+    this.#settleRunning((tab) => {
+      tab.fail({ message, line: null, column: null })
+    })
+  }
+
+  // The user cancelled the run: its tabs say so until their statements end.
+  showCancelling(): void {
+    this.#settleRunning((tab) => {
+      tab.markCancelling()
+    })
+  }
+
+  // A run that was cancelled leaves no tab running: each one it did not finish is cancelled.
+  cancelRunning(durationMs: number): void {
+    this.#settleRunning((tab) => {
+      tab.cancel(durationMs)
+    })
+  }
+
+  #settleRunning(change: (tab: ResultSet) => void): void {
     for (const tab of this.#tabs.values()) {
       if (tab.isRunning) {
-        tab.fail({ message, line: null, column: null })
+        change(tab)
         this.updateTab(tab, true)
       }
     }

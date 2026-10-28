@@ -1,5 +1,6 @@
 import type { Connection } from 'mysql2'
 
+import { untilDeadline } from '../../core/engine/cancellation.ts'
 import { ConnectionWatch } from '../../core/engine/connection-watch.ts'
 import type { ConnectRequest, Engine, EngineSession } from '../../core/engine/engine.ts'
 import { TransactionStatus } from '../../core/engine/transaction-status.ts'
@@ -15,7 +16,12 @@ import {
   queryRows,
   runQuery,
 } from './mysql-catalog.ts'
-import { closeConnection, openConnection } from './mysql-connection.ts'
+import {
+  closeConnection,
+  type MysqlLink,
+  openConnection,
+  startConnection,
+} from './mysql-connection.ts'
 import { objectDdl, useDatabase } from './mysql-ddl.ts'
 import { MYSQL_DIALECT } from './mysql-dialect.ts'
 import { executeQuery, type QueryTarget } from './mysql-query.ts'
@@ -43,36 +49,44 @@ export const mysqlEngine: Engine = {
 
 async function connectMysql(request: ConnectRequest): Promise<EngineSession> {
   const watch = new ConnectionWatch(request.onUnexpectedClose)
-  const connection = await openConnection(request, watch.report)
+  const link = await openConnection(request, watch.report)
   try {
-    const [row] = await queryRows(connection, VERSION, [])
+    const [row] = await queryRows(link.connection, VERSION, [])
     if (request.isReadOnly) {
-      await runQuery(connection, READ_ONLY_SESSION, [])
+      await runQuery(link.connection, READ_ONLY_SESSION, [])
     }
     return createSession(
-      { connection, request, watch },
+      { link, request, watch },
       row === undefined ? '' : readString(row, 'version'),
     )
   } catch (error) {
     watch.close()
-    connection.destroy()
+    link.drop()
     throw error
   }
 }
 
 interface SessionParts {
-  readonly connection: Connection
+  readonly link: MysqlLink
   readonly request: ConnectRequest
   readonly watch: ConnectionWatch
 }
 
 function createSession(
-  { connection, request, watch }: SessionParts,
+  { link, request, watch }: SessionParts,
   serverVersion: string,
 ): EngineSession {
+  const { connection } = link
   const target: QueryTarget = {
     connection,
-    kill: async () => killQuery(request, connection.threadId),
+    stopper: {
+      kill: async (deadline) => killQuery(request, connection.threadId, deadline),
+      // The server did not stop the statement in time: the session ends, and says why.
+      drop: (reason) => {
+        link.drop()
+        watch.report(reason)
+      },
+    },
     onConnectionLost: watch.listen,
   }
   return {
@@ -153,18 +167,34 @@ async function ping(connection: Connection): Promise<void> {
   return promise
 }
 
-// KILL QUERY must come from another connection: the session's own is busy with the statement.
-async function killQuery(request: ConnectRequest, threadId: number): Promise<void> {
+// KILL QUERY must come from another connection: the session's own is busy with the statement. The
+// request ends by the deadline: past it, its connection is dropped wherever it was, connecting
+// included.
+async function killQuery(
+  request: ConnectRequest,
+  threadId: number,
+  deadline: Promise<void>,
+): Promise<void> {
   let failure: Error | undefined
-  const connection = await openConnection(request, (error) => {
+  const { link, connected } = startConnection(request, (error) => {
     failure = error
   })
+  await untilDeadline(killOn(link.connection, { connected, threadId }), deadline, link.drop)
+  if (failure !== undefined) {
+    throw failure
+  }
+}
+
+interface Kill {
+  readonly connected: Promise<void>
+  readonly threadId: number
+}
+
+async function killOn(connection: Connection, { connected, threadId }: Kill): Promise<void> {
+  await connected
   try {
     await runQuery(connection, KILL_QUERY, [threadId])
   } finally {
     await closeConnection(connection)
-  }
-  if (failure !== undefined) {
-    throw failure
   }
 }

@@ -22,6 +22,8 @@ export interface Answer {
 
 export interface Page {
   readonly error?: Error
+  // The page comes once this promise settles, like a server slow to answer (or never).
+  readonly after?: Promise<unknown>
   readonly rows?: readonly unknown[]
   readonly command?: string
   readonly rowCount?: number | null
@@ -32,6 +34,10 @@ export interface Page {
 
 export interface PgScript {
   connectError?: Error | undefined
+  // The connect answers once this promise settles, like a server slow to answer (or never).
+  connectAfter?: Promise<unknown> | undefined
+  // Closing a cursor ends once this promise settles: pg waits for the server to answer it.
+  closeAfter?: Promise<unknown> | undefined
   endError?: Error | undefined
   // What getTransactionStatus() answers: I (idle), T (in a transaction), E (failed) or null.
   transactionStatus?: string | null
@@ -65,13 +71,15 @@ export class FakeCursor {
         fields: (page.fields ?? []).map((field) => ({ tableID: 0, columnID: 0, ...field })),
         rows: [],
       } as unknown as QueryResult
-      callback(page.error, [...(page.rows ?? [])], result)
+      void (page.after ?? Promise.resolve()).then(() => {
+        callback(page.error, [...(page.rows ?? [])], result)
+      })
     })
   }
 
   async close(): Promise<void> {
     this.isClosed = true
-    return Promise.resolve()
+    await pg.script.closeAfter
   }
 }
 
@@ -80,6 +88,15 @@ export class FakeClient extends EventEmitter {
   readonly queries: ScriptedQuery[] = []
   readonly cursors: FakeCursor[] = []
   isEnded = false
+  isDestroyed = false
+  // The connection of pg under the client: its socket goes when the client is dropped.
+  readonly connection = {
+    stream: {
+      destroy: (): void => {
+        this.isDestroyed = true
+      },
+    },
+  }
 
   constructor(config: ClientConfig) {
     super()
@@ -88,6 +105,7 @@ export class FakeClient extends EventEmitter {
   }
 
   async connect(): Promise<void> {
+    await pg.script.connectAfter
     const error = pg.script.connectError
     return error === undefined ? Promise.resolve() : Promise.reject(error)
   }
@@ -118,6 +136,9 @@ export class FakeClient extends EventEmitter {
 }
 
 const SESSION_INFO = { version: '18.6', pid: 4242, database: 'shop' }
+// The OID PostgreSQL gives int4, the type of the rows serveRows serves.
+const INT4 = 23
+export const NUMBERS = [{ name: 'n', dataTypeID: INT4 }]
 
 function defaultScript(): PgScript {
   return {
@@ -157,4 +178,24 @@ export function pgRequest(changes: Partial<ConnectRequest> = {}): ConnectRequest
     onUnexpectedClose: vi.fn(),
     ...changes,
   }
+}
+
+// Serves `total` numbered rows to whatever reads the cursor.
+export function serveRows(total: number, page: Partial<Page> = {}): void {
+  let served = 0
+  pg.script.read = (...[, size]) => {
+    const count = Math.min(size, total - served)
+    const rows = Array.from({ length: count }, (...[, index]) => [served + index + 1])
+    served += rows.length
+    return { fields: NUMBERS, rows, ...page }
+  }
+}
+
+// The first cursor the first client opened: the statement of the session.
+export function firstCursor(): FakeCursor {
+  const found = pg.clients[0]?.cursors[0]
+  if (found === undefined) {
+    throw new Error('no cursor was opened')
+  }
+  return found
 }

@@ -74,12 +74,33 @@ describe('a wait of the view', () => {
     expect(view.sent('cancel')).toStrictEqual([{ type: 'cancel' }])
   })
 
+  it('should say a cancel is on its way, and not let it be asked twice', () => {
+    view = shownView({ changes: { ...RUNNING, progress: 'fetching', loadedRows: 500 } })
+    wait(SHOW_DELAY_MS)
+    view.rerender({ changes: { ...RUNNING, progress: 'cancelling', loadedRows: 500 } })
+
+    expect(card()?.textContent).toBe('Cancelling…300 msCancel')
+    const cancel = within(theCard()).getByRole('button', { name: 'Cancel' })
+    expect(cancel).toHaveProperty('disabled', true)
+    fireEvent.click(cancel)
+    expect(view.sent('cancel')).toStrictEqual([])
+  })
+
+  it('should offer no Cancel while the rows of a statement that ended come', () => {
+    view = shownView()
+    view.rerender({ incoming: { viewVersion: 1, rowCount: 4 } })
+    wait(SHOW_DELAY_MS)
+
+    expect(card()?.textContent).toBe('Loading rows…300 ms')
+    expect(within(theCard()).queryByRole('button')).toBeNull()
+  })
+
   it('should keep the card long enough to read, stop its time, then fade it out', () => {
     view = shownView({ changes: { ...RUNNING, progress: 'running' } })
     wait(SHOW_DELAY_MS + TICK_MS)
     view.rerender({})
     wait(MIN_SHOWN_MS - TICK_MS - 1)
-    expect(card()?.textContent).toBe('Fetching rows… 4 rows so far400 msCancel')
+    expect(card()?.textContent).toBe('Loading rows…400 ms')
     expect(classOf('.loading-overlay')).toBe('loading-overlay is-shown')
 
     wait(1)

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 
+import { TabProgress } from '../core/results/protocol-parts.ts'
 import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { formatDuration, groupDigits, plural, summaryText } from '../core/results/tabs.ts'
 
@@ -44,7 +45,7 @@ export const StatusLine = ({
 
 function statusText(tab: ResultTab): string {
   if (tab.status === TabStatus.Running) {
-    return `Running… ${plural(tab.loadedRows, 'row', 'rows')} so far`
+    return runningText(tab)
   }
   if (tab.error !== null) {
     return `${tab.error.message}${placeText(tab.error.line, tab.error.column)}`
@@ -55,6 +56,12 @@ function statusText(tab: ResultTab): string {
   return tab.status === TabStatus.Cancelled
     ? `Cancelled after ${formatDuration(tab.summary.durationMs)}`
     : summaryText(tab.summary, tab.loadedRows)
+}
+
+function runningText(tab: Pick<ResultTab, 'loadedRows' | 'progress'>): string {
+  return tab.progress === TabProgress.Cancelling
+    ? 'Cancelling…'
+    : `Running… ${plural(tab.loadedRows, 'row', 'rows')} so far`
 }
 
 function placeText(line: number | null, column: number | null): string {
