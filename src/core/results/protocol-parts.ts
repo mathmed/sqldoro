@@ -45,3 +45,15 @@ export interface NavigationStart {
   readonly row: number
   readonly isInPlace: boolean
 }
+
+// Where a statement is, for the view to say while it waits: the session opening, the server
+// running it, its rows arriving, a cancel on its way, or done.
+export const TabProgress = {
+  Connecting: 'connecting',
+  Running: 'running',
+  Fetching: 'fetching',
+  Cancelling: 'cancelling',
+  Done: 'done',
+} as const
+
+export type TabProgress = (typeof TabProgress)[keyof typeof TabProgress]

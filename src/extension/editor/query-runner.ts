@@ -155,13 +155,16 @@ export class QueryRunner implements vscode.Disposable {
     this.#dependencies.diagnostics.delete(parts.target.uri)
   }
 
-  // Nothing running for the source, a tab still shown running is not, and stops waiting.
+  // The tabs of the run say a cancel is on its way until their statements end; nothing running
+  // for the source, a tab still shown running is not, and stops waiting.
   async cancel(uri: vscode.Uri): Promise<void> {
     const run = this.#runs.get(uri.toString())
+    const panel = this.#dependencies.panels.get(uri)
     if (run === undefined) {
-      this.#dependencies.panels.get(uri)?.cancelRunning(0)
+      panel?.cancelRunning(0)
       return
     }
+    panel?.showCancelling()
     try {
       await run.cancel()
     } catch (error) {

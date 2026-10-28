@@ -139,7 +139,7 @@ describe('ResultsPanel and the runs of its tabs', () => {
     })
   })
 
-  it('should cancel the tabs a cancelled run left running', async () => {
+  it('should say the tabs of a run are being cancelled, then cancel those it left running', async () => {
     const sut = panel()
     await sut.receive({ type: 'ready' })
     const finished = tab('t1')
@@ -147,6 +147,12 @@ describe('ResultsPanel and the runs of its tabs', () => {
     sut.addTab(finished)
     sut.addTab(running)
 
+    sut.showCancelling()
+    expect(running.toTab()).toMatchObject({ status: 'running', progress: 'cancelling' })
+    expect(webviewPanel.webview.posted.at(-1)).toMatchObject({
+      type: 'tab',
+      tab: { id: 't2', progress: 'cancelling' },
+    })
     sut.cancelRunning(1200)
 
     expect(running.toTab()).toMatchObject({

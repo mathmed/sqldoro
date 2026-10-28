@@ -160,6 +160,13 @@ export class ResultsPanel {
     })
   }
 
+  // The user cancelled the run: its tabs say so until their statements end.
+  showCancelling(): void {
+    this.#settleRunning((tab) => {
+      tab.markCancelling()
+    })
+  }
+
   // A run that was cancelled leaves no tab running: each one it did not finish is cancelled.
   cancelRunning(durationMs: number): void {
     this.#settleRunning((tab) => {

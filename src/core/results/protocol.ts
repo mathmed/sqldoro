@@ -12,6 +12,7 @@ import type {
   PanelConnection,
   QueryBoxText,
   TabError,
+  TabProgress,
   TabSummary,
 } from './protocol-parts.ts'
 import type { TabEditing } from './tab-editing.ts'
@@ -34,17 +35,6 @@ export const TabKind = {
 } as const
 
 export type TabKind = (typeof TabKind)[keyof typeof TabKind]
-
-// Where a statement is, for the view to say while it waits: the session opening, the server
-// running it, its rows arriving, or done.
-export const TabProgress = {
-  Connecting: 'connecting',
-  Running: 'running',
-  Fetching: 'fetching',
-  Done: 'done',
-} as const
-
-export type TabProgress = (typeof TabProgress)[keyof typeof TabProgress]
 
 // One statement of a run. Rows are not part of it: the webview asks for the ones it shows.
 export interface ResultTab {

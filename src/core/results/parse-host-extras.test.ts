@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { POSTGRES_LEXICAL } from '../../../test/fixtures/lexical.ts'
 import { resultTab } from '../../../test/fixtures/results.ts'
 import { parseHostMessage } from './parse-host-message.ts'
-import { TabProgress, TabStatus } from './protocol.ts'
+import { TabProgress } from './protocol-parts.ts'
+import { TabStatus } from './protocol.ts'
 
 describe('parseHostMessage, beside the tabs', () => {
   it('should read what the catalog says of the columns, the references and the layout', () => {

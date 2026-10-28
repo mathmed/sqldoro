@@ -21,6 +21,18 @@ describe('StatusLine', () => {
     )
   })
 
+  it('should say a cancel is on its way until the statement stops', () => {
+    expect(
+      line({
+        status: 'running',
+        progress: 'cancelling',
+        loadedRows: 3,
+        rowCount: 3,
+        summary: null,
+      }),
+    ).toBe('Cancelling…')
+  })
+
   it('should say how many rows came back and how long it took', () => {
     expect(line({ loadedRows: 2, rowCount: 2 })).toBe('2 rows in 13 ms')
   })

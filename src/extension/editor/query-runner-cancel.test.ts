@@ -34,6 +34,29 @@ beforeEach(() => {
 })
 
 describe('QueryRunner.cancel', () => {
+  it('should say the statement is being cancelled until it stops', async () => {
+    harness.engine.answer = () => ({ isPending: true })
+    const stopping = Promise.withResolvers<undefined>()
+    harness.engine.cancel.mockImplementationOnce(async () => stopping.promise)
+    const editor = await sqlEditor(harness, 'SELECT pg_sleep(9)')
+    const panel = readyPanel(harness, editor)
+
+    const running = harness.runner.run(editor as unknown as vscode.TextEditor, RunScope.All)
+    await vi.waitFor(() => {
+      expect(harness.engine.requests).toHaveLength(1)
+    })
+    const cancelled = harness.runner.cancel(uriOf(editor))
+    expect(postedTabs(panel).get('id-1')).toMatchObject({
+      status: 'running',
+      progress: 'cancelling',
+    })
+    stopping.resolve(undefined)
+    await cancelled
+    await running
+
+    expect(postedTabs(panel).get('id-1')).toMatchObject({ status: 'cancelled', progress: 'done' })
+  })
+
   it('should end a run whose session is still opening, run nothing, and log what it left', async () => {
     const opening = Promise.withResolvers<never>()
     harness.connect.mockImplementationOnce(async () => opening.promise)

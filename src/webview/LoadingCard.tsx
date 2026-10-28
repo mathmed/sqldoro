@@ -6,7 +6,8 @@ import {
   type Wait,
   waitedMs,
 } from '../core/grid/loading-indicator.ts'
-import { type ResultTab, TabProgress } from '../core/results/protocol.ts'
+import { TabProgress } from '../core/results/protocol-parts.ts'
+import { type ResultTab, TabStatus } from '../core/results/protocol.ts'
 import { formatDuration, plural } from '../core/results/tabs.ts'
 
 interface LoadingOverlayProps {
@@ -23,10 +24,13 @@ const SKELETON_ROWS = 40
 const TEXTS: ReadonlyMap<TabProgress, string> = new Map([
   [TabProgress.Connecting, 'Connecting…'],
   [TabProgress.Running, 'Running query…'],
+  [TabProgress.Cancelling, 'Cancelling…'],
+  // The statement ended: the view waits for the rows of its result.
+  [TabProgress.Done, 'Loading rows…'],
 ])
 
 // While the view waits long enough to notice: what it waits for, a bar that moves, the time it has
-// waited, and Cancel, which stops the statement on the server. It fades in and out over the grid
+// waited, and Cancel, which stops the statement while it runs. It fades in and out over the grid
 // (panels.css), and stays long enough to read; a fast load shows none (the core decides when).
 export const LoadingOverlay = ({ indicator, tab, onCancel }: LoadingOverlayProps): ReactElement => (
   <div
@@ -42,14 +46,23 @@ export const LoadingOverlay = ({ indicator, tab, onCancel }: LoadingOverlayProps
         </div>
         <div className="loading-footer">
           <Elapsed wait={indicator.wait} />
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
+          <CancelButton tab={tab} onCancel={onCancel} />
         </div>
       </div>
     )}
   </div>
 )
+
+// Once asked, Cancel waits for the statement to stop; a statement that ended has nothing to cancel.
+const CancelButton = ({
+  tab,
+  onCancel,
+}: Pick<LoadingOverlayProps, 'onCancel' | 'tab'>): ReactElement | null =>
+  tab.status === TabStatus.Running ? (
+    <button type="button" disabled={tab.progress === TabProgress.Cancelling} onClick={onCancel}>
+      Cancel
+    </button>
+  ) : null
 
 function progressText(tab: Pick<ResultTab, 'loadedRows' | 'progress'>): string {
   return TEXTS.get(tab.progress) ?? `Fetching rows… ${plural(tab.loadedRows, 'row', 'rows')} so far`

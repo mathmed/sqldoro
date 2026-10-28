@@ -25,13 +25,17 @@ import {
   readSql,
   readTrail,
 } from './parse-host-extras.ts'
-import type { PanelConnection, TabError, TabSummary } from './protocol-parts.ts'
+import {
+  type PanelConnection,
+  type TabError,
+  TabProgress,
+  type TabSummary,
+} from './protocol-parts.ts'
 import {
   type HostMessage,
   HostMessageType,
   type ResultTab,
   TabKind,
-  TabProgress,
   TabStatus,
   type WireRow,
 } from './protocol.ts'
