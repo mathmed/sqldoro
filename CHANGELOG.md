@@ -6,6 +6,8 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-28
+
 ### Fixed
 
 - **A table read again with fewer rows than where its grid was scrolled shows them.** A table panel
@@ -143,7 +145,8 @@ statements hard and the everyday ones quick. Open source (MIT), with no telemetr
 - A reproducible `.vsix` that ships only what the extension needs, with the licenses of the bundled
   libraries in `ThirdPartyNotices.txt`; short README and contributor docs.
 
-[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mathmed/sqldoro/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mathmed/sqldoro/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mathmed/sqldoro/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mathmed/sqldoro/compare/v0.1.0...v0.1.1
