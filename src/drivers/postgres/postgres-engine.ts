@@ -1,5 +1,6 @@
 import type { Client } from 'pg'
 
+import { untilDeadline } from '../../core/engine/cancellation.ts'
 import type { ObjectScope } from '../../core/engine/catalog.ts'
 import { ConnectionWatch } from '../../core/engine/connection-watch.ts'
 import { quoteIdentifier } from '../../core/engine/dialect.ts'
@@ -18,7 +19,13 @@ import {
   listViews,
   queryRows,
 } from './postgres-catalog.ts'
-import { clientConfig, closeClient, openClient } from './postgres-connection.ts'
+import {
+  clientConfig,
+  closeClient,
+  dropClient,
+  openClient,
+  startClient,
+} from './postgres-connection.ts'
 import { objectDdl } from './postgres-ddl.ts'
 import { POSTGRES_DIALECT } from './postgres-dialect.ts'
 import { executeQuery } from './postgres-query.ts'
@@ -204,7 +211,7 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
     listReferences: async (table) => listReferences(await of(table.database), table),
     objectDdl: async (object, kind) => objectDdl(await of(object.database), object, kind),
     useScope: async (scope) => clients.use(scope),
-    execute: (query) => executeOn(clients.current, request, query),
+    execute: (query) => executeOn(clients.current, { request, watch }, query),
     transactionStatus: async () => transactionStatusOf(clients.current.client),
     describeTable: async (database, table) => describeTable(await clients.in(database), table),
     describeTableAt: async (table) => describeTableAt(await clients.in(table.database), table),
@@ -214,27 +221,54 @@ function createSession({ clients, request, watch }: SessionParts, version: strin
 
 function executeOn(
   target: DatabaseClient,
-  request: ConnectRequest,
+  { request, watch }: Pick<SessionParts, 'request' | 'watch'>,
   query: QueryRequest,
 ): QueryExecution {
   return executeQuery(
-    { client: target.client, cancel: async () => cancelBackend(request, target) },
+    {
+      client: target.client,
+      stopper: {
+        kill: async (deadline) => cancelBackend(request, target, deadline),
+        // The server did not stop the statement in time: the session ends, and says why.
+        drop: (reason) => {
+          dropClient(target.client)
+          watch.report(reason)
+        },
+      },
+    },
     query,
   )
 }
 
 // The cancel request comes from another connection: the session's own is busy with the statement.
-async function cancelBackend(request: ConnectRequest, target: DatabaseClient): Promise<void> {
+// It ends by the deadline: past it, its connection is dropped wherever it was, connecting included.
+async function cancelBackend(
+  request: ConnectRequest,
+  target: DatabaseClient,
+  deadline: Promise<void>,
+): Promise<void> {
   let failure: Error | undefined
-  const client = await openClient(clientConfig(request, target.database), (error) => {
+  const { client, connected } = startClient(clientConfig(request, target.database), (error) => {
     failure = error
   })
-  try {
-    await client.query(CANCEL, [target.pid])
-  } finally {
-    await closeClient(client)
-  }
+  await untilDeadline(cancelOn(client, { connected, pid: target.pid }), deadline, () => {
+    dropClient(client)
+  })
   if (failure !== undefined) {
     throw failure
+  }
+}
+
+interface Cancel {
+  readonly connected: Promise<void>
+  readonly pid: number
+}
+
+async function cancelOn(client: Client, { connected, pid }: Cancel): Promise<void> {
+  await connected
+  try {
+    await client.query(CANCEL, [pid])
+  } finally {
+    await closeClient(client)
   }
 }

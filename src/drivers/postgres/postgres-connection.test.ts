@@ -5,7 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { pg, pgRequest } from '../../../test/fakes/pg.ts'
 import type { TlsSettings } from '../../core/engine/engine.ts'
-import { clientConfig, closeClient, openClient, TYPES } from './postgres-connection.ts'
+import {
+  clientConfig,
+  closeClient,
+  dropClient,
+  openClient,
+  startClient,
+  TYPES,
+} from './postgres-connection.ts'
 
 vi.mock('pg', async (importOriginal) => {
   const original = await importOriginal<{ default: object }>()
@@ -161,6 +168,23 @@ describe('openClient', () => {
   })
 })
 
+describe('startClient', () => {
+  beforeEach(() => {
+    pg.reset()
+  })
+
+  it('should give the client at once, before it is connected', async () => {
+    const { promise, resolve } = Promise.withResolvers<undefined>()
+    pg.script.connectAfter = promise
+
+    const sut = startClient(clientConfig(pgRequest(), 'shop'), vi.fn())
+    expect(sut.client).toBe(pg.clients[0])
+    resolve(undefined)
+
+    await expect(sut.connected).resolves.toBeUndefined()
+  })
+})
+
 describe('closeClient', () => {
   beforeEach(() => {
     pg.reset()
@@ -172,5 +196,19 @@ describe('closeClient', () => {
     await closeClient(client)
 
     expect(pg.clients[0]?.isEnded).toBe(true)
+  })
+})
+
+describe('dropClient', () => {
+  beforeEach(() => {
+    pg.reset()
+  })
+
+  it('should end the socket of the client at once, without waiting for the server', async () => {
+    const client = await openClient(clientConfig(pgRequest(), 'shop'), vi.fn())
+
+    dropClient(client)
+
+    expect(pg.clients[0]).toMatchObject({ isDestroyed: true, isEnded: false })
   })
 })

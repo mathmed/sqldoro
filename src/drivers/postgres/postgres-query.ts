@@ -1,9 +1,8 @@
 import type { Client, QueryResult as PgResult } from 'pg'
 import Cursor from 'pg-cursor'
 
-import { Cancellation } from '../../core/engine/cancellation.ts'
+import { Cancellation, type Stopper } from '../../core/engine/cancellation.ts'
 import {
-  QueryCancelledError,
   type QueryExecution,
   type QueryRequest,
   type QueryResult,
@@ -22,8 +21,16 @@ const SELECT_COMMAND = 'SELECT'
 
 export interface QueryTarget {
   readonly client: Client
-  // Cancels the statement running on the client, from another connection.
-  readonly cancel: () => Promise<void>
+  // Stops the statement running on the client: the server is asked from another connection, and
+  // the client goes when it does not stop the statement in time.
+  readonly stopper: Stopper
+}
+
+// How a statement stops: its cancel, and when it closed the client of the statement (what the
+// statement waits for then never comes: closing a cursor waits for an answer of the server).
+interface Stopping {
+  readonly cancellation: Cancellation
+  readonly dropped: Promise<undefined>
 }
 
 interface Page {
@@ -38,12 +45,27 @@ interface PageSize {
 }
 
 export function executeQuery(target: QueryTarget, request: QueryRequest): QueryExecution {
-  const cancellation = new Cancellation()
-  const result = run(target.client, request, cancellation)
+  const cancellation = new Cancellation(wait)
+  const dropped = Promise.withResolvers<undefined>()
+  const stopper: Stopper = {
+    kill: target.stopper.kill,
+    drop: (reason) => {
+      dropped.resolve(undefined)
+      target.stopper.drop(reason)
+    },
+  }
+  const result = run(target.client, request, { cancellation, dropped: dropped.promise })
   // The result may be awaited after cancel(): its rejection reaches the caller then, instead of
   // being reported as unhandled in between.
   void result.catch(() => undefined)
-  return { result, cancel: async () => cancellation.cancel(target.cancel) }
+  return { result, cancel: async () => cancellation.cancel(stopper) }
+}
+
+// The timer of a cancel.
+async function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, milliseconds)
+  })
 }
 
 // A cursor reads the rows in batches; closing it stops the statement on the server. A statement that
@@ -51,16 +73,22 @@ export function executeQuery(target: QueryTarget, request: QueryRequest): QueryE
 async function run(
   client: Client,
   request: QueryRequest,
-  cancellation: Cancellation,
+  { cancellation, dropped }: Stopping,
 ): Promise<QueryResult> {
   const collector = new RowCollector(request, BATCH_SIZE)
   const cursor = client.query(
     new Cursor(request.sql, [...request.values], { rowMode: 'array', types: TYPES }),
   )
   try {
-    return collector.finish(affectedRowsOf(await readAll(cursor, collector, cancellation)))
+    const last = await Promise.race([
+      readAll(cursor, collector, cancellation),
+      dropped.then((): never => {
+        throw cancellation.cancelledError()
+      }),
+    ])
+    return collector.finish(affectedRowsOf(last))
   } catch (error) {
-    throw cancellation.isRequested ? new QueryCancelledError() : locatedError(toError(error))
+    throw cancellation.isRequested ? cancellation.cancelledError() : locatedError(toError(error))
   } finally {
     await cancellation.finish()
   }
@@ -76,7 +104,7 @@ async function readAll(
   for (;;) {
     if (cancellation.isRequested) {
       await cursor.close()
-      throw new QueryCancelledError()
+      throw cancellation.cancelledError()
     }
     const { size, isProbe } = pageSize(collector)
     const page = await readInto(cursor, collector, size)

@@ -108,7 +108,7 @@ export class ScriptedEngine {
       result: promise,
       cancel: async () => {
         await this.cancel()
-        reject(new QueryCancelledError())
+        reject(new QueryCancelledError({ hasClosedConnection: false }))
       },
     }
   }

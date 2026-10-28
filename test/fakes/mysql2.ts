@@ -24,6 +24,11 @@ export interface Answer {
 
 export interface MysqlScript {
   connectError?: Error | undefined
+  // The connect answers once this promise settles, like a server slow to answer (or never).
+  connectAfter?: Promise<unknown> | undefined
+  // Dials through the stream of the options as the connection is created, as mysql2 does: for the
+  // tests that give it a local server to reach.
+  shouldDial?: boolean
   pingError?: Error | undefined
   endError?: Error | undefined
   // Answers the statements sent with a callback: catalog queries, the version, KILL QUERY.
@@ -49,8 +54,10 @@ export class FakeMysqlConnection extends EventEmitter {
   }
 
   connect(callback: Callback): void {
-    setImmediate(() => {
-      callback(mysql.script.connectError ?? null)
+    void (mysql.script.connectAfter ?? Promise.resolve()).then(() => {
+      setImmediate(() => {
+        callback(mysql.script.connectError ?? null)
+      })
     })
   }
 
@@ -166,6 +173,9 @@ export function mysqlRequest(changes: Partial<ConnectRequest> = {}): ConnectRequ
 
 export function createConnection(options: ConnectionOptions): FakeMysqlConnection {
   const connection = new FakeMysqlConnection(options)
+  if (mysql.script.shouldDial === true) {
+    ;(options.stream as () => unknown)()
+  }
   mysql.connections.push(connection)
   return connection
 }

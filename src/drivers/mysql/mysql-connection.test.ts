@@ -1,10 +1,16 @@
+import { once } from 'node:events'
 import { createServer, type Server, type Socket } from 'node:net'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mysql } from '../../../test/fakes/mysql2.ts'
 import type { ConnectRequest, TlsSettings } from '../../core/engine/engine.ts'
-import { closeConnection, connectionOptions, openConnection } from './mysql-connection.ts'
+import {
+  closeConnection,
+  connectionOptions,
+  openConnection,
+  startConnection,
+} from './mysql-connection.ts'
 
 vi.mock('mysql2', async (importOriginal) => {
   const original = await importOriginal<{ default: object }>()
@@ -32,7 +38,7 @@ const TLS: TlsSettings = {
 
 describe('connectionOptions', () => {
   it('should keep exact values and dates as text and dial the endpoint', () => {
-    const options = connectionOptions(REQUEST)
+    const options = connectionOptions(REQUEST, vi.fn())
     const { stream, ...sut } = options as { stream: unknown }
 
     expect(sut).toStrictEqual({
@@ -53,11 +59,11 @@ describe('connectionOptions', () => {
   })
 
   it('should leave the database out to use the default one', () => {
-    expect(connectionOptions({ ...REQUEST, database: '' })).not.toHaveProperty('database')
+    expect(connectionOptions({ ...REQUEST, database: '' }, vi.fn())).not.toHaveProperty('database')
   })
 
   it('should verify the certificate against the database host name', () => {
-    expect(connectionOptions({ ...REQUEST, tls: TLS })).toMatchObject({
+    expect(connectionOptions({ ...REQUEST, tls: TLS }, vi.fn())).toMatchObject({
       host: 'db.example.com',
       ssl: {
         rejectUnauthorized: true,
@@ -79,7 +85,7 @@ describe('connectionOptions', () => {
       key: undefined,
     }
 
-    expect(connectionOptions({ ...REQUEST, tls }).ssl).toStrictEqual({
+    expect(connectionOptions({ ...REQUEST, tls }, vi.fn()).ssl).toStrictEqual({
       rejectUnauthorized: false,
       verifyIdentity: false,
     })
@@ -104,12 +110,12 @@ describe('connectionOptions', () => {
       await new Promise((resolve) => server.close(resolve))
     })
 
-    it('should dial the endpoint, even when TLS names another host', async () => {
-      const options = connectionOptions({
-        ...REQUEST,
-        endpoint: { host: '127.0.0.1', port },
-        tls: TLS,
-      })
+    it('should dial the endpoint, even when TLS names another host, and say so', async () => {
+      const onDial = vi.fn()
+      const options = connectionOptions(
+        { ...REQUEST, endpoint: { host: '127.0.0.1', port }, tls: TLS },
+        onDial,
+      )
       const dial = options.stream as () => Socket
 
       const socket = dial()
@@ -119,6 +125,30 @@ describe('connectionOptions', () => {
       socket.destroy()
 
       expect(options.host).toBe('db.example.com')
+      expect(onDial).toHaveBeenCalledExactlyOnceWith(socket)
+    })
+
+    it('should drop a connection with the socket it was dialed on, at once', async () => {
+      mysql.reset()
+      mysql.script.shouldDial = true
+      const { link, connected } = startConnection(
+        { ...REQUEST, endpoint: { host: '127.0.0.1', port } },
+        vi.fn(),
+      )
+      await connected
+      const peer = await vi.waitFor(() => {
+        const [first] = accepted
+        if (first === undefined) {
+          throw new Error('the server accepted nothing yet')
+        }
+        return first
+      })
+      const closed = once(peer, 'close')
+
+      link.drop()
+
+      await closed
+      expect(mysql.connections[0]?.isDestroyed).toBe(true)
     })
   })
 })
@@ -133,9 +163,27 @@ describe('openConnection', () => {
 
     const sut = await openConnection(REQUEST, onError)
 
-    expect(sut).toBe(mysql.connections[0])
-    sut.emit('error', new Error('later'))
+    expect(sut.connection).toBe(mysql.connections[0])
+    sut.connection.emit('error', new Error('later'))
     expect(onError).toHaveBeenCalledExactlyOnceWith(new Error('later'))
+  })
+
+  it('should give the connection at once, before mysql2 is connected, and drop it on demand', async () => {
+    const { promise, resolve } = Promise.withResolvers<undefined>()
+    mysql.script.connectAfter = promise
+    let isConnected = false
+
+    const sut = startConnection(REQUEST, vi.fn())
+    void sut.connected.then(() => {
+      isConnected = true
+    })
+    expect(sut.link.connection).toBe(mysql.connections[0])
+    sut.link.drop()
+    resolve(undefined)
+    await sut.connected
+
+    expect(isConnected).toBe(true)
+    expect(mysql.connections[0]?.isDestroyed).toBe(true)
   })
 
   it('should destroy the connection and reject when the server refuses it', async () => {
@@ -173,7 +221,7 @@ describe('closeConnection', () => {
   })
 
   it('should end the connection politely', async () => {
-    const connection = await openConnection(REQUEST, vi.fn())
+    const { connection } = await openConnection(REQUEST, vi.fn())
 
     await closeConnection(connection)
 
@@ -181,7 +229,7 @@ describe('closeConnection', () => {
   })
 
   it('should let go of a connection that cannot end politely', async () => {
-    const connection = await openConnection(REQUEST, vi.fn())
+    const { connection } = await openConnection(REQUEST, vi.fn())
     mysql.script.endError = new Error("Can't add new command when connection is in closed state")
 
     await expect(closeConnection(connection)).resolves.toBeUndefined()

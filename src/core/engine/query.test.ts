@@ -71,11 +71,19 @@ describe('isColumnKind', () => {
 
 describe('QueryCancelledError', () => {
   it('should explain that the query was cancelled', () => {
-    const sut = new QueryCancelledError()
+    const sut = new QueryCancelledError({ hasClosedConnection: false })
 
     expect(sut).toBeInstanceOf(Error)
     expect(sut.name).toBe('QueryCancelledError')
     expect(sut.message).toBe('The query was cancelled')
+    expect(sut.hasClosedConnection).toBe(false)
+  })
+
+  it('should say when sqldoro closed the connection of the query to end it', () => {
+    const sut = new QueryCancelledError({ hasClosedConnection: true })
+
+    expect(sut.message).toBe('The query was cancelled: sqldoro closed its connection')
+    expect(sut.hasClosedConnection).toBe(true)
   })
 })
 
