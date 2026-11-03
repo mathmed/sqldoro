@@ -84,7 +84,7 @@ function initialDrafts({ filters, column }: FilterPopoverProps): readonly Draft[
 }
 
 function freshCondition(column: FilteredColumn): Condition {
-  const operator = defaultOperator(column.kind, column.choices.length > 0)
+  const operator = defaultOperator(column.choices.length > 0)
   return withOperator({ operator, values: [] }, operator)
 }
 

@@ -90,11 +90,12 @@ describe('operatorsFor', () => {
 })
 
 describe('defaultOperator', () => {
-  it('should start text on contains, enums on a list and the rest on equality', () => {
-    expect(defaultOperator(ColumnKind.Text, false)).toBe(FilterOperator.Contains)
-    expect(defaultOperator(ColumnKind.Text, true)).toBe(FilterOperator.InList)
-    expect(defaultOperator(ColumnKind.Number, false)).toBe(FilterOperator.Equals)
-    expect(defaultOperator(ColumnKind.Boolean, false)).toBe(FilterOperator.Equals)
+  it('should start columns with a fixed list of values on a list', () => {
+    expect(defaultOperator(true)).toBe(FilterOperator.InList)
+  })
+
+  it('should start every other column on equality', () => {
+    expect(defaultOperator(false)).toBe(FilterOperator.Equals)
   })
 })
 
