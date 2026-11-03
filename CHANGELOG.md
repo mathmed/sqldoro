@@ -6,6 +6,13 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Changed
+
+- **A new column filter starts on `=`.** The filter of a text column now starts its conditions on
+  equality instead of **contains**, which stays in the list of operators. Left blank, a condition on
+  `=` keeps rows whose text is empty, as it already did when picked by hand. Columns with a fixed
+  list of values still start on **in**, and the other columns on `=` as before.
+
 ## [0.1.4] - 2026-10-28
 
 ### Fixed
