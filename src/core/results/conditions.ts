@@ -103,13 +103,8 @@ export function operatorsFor(kind: ColumnKind, hasChoices: boolean): FilterOpera
 }
 
 // The operator a new filter starts with.
-export function defaultOperator(kind: ColumnKind, hasChoices: boolean): FilterOperator {
-  if (hasChoices) {
-    return FilterOperator.InList
-  }
-  return operatorsFor(kind, false).includes(FilterOperator.Contains)
-    ? FilterOperator.Contains
-    : FilterOperator.Equals
+export function defaultOperator(hasChoices: boolean): FilterOperator {
+  return hasChoices ? FilterOperator.InList : FilterOperator.Equals
 }
 
 export interface ValueRange {

@@ -94,10 +94,20 @@ describe('FilterPopover', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove condition 1' }))
     fireEvent.click(screen.getByRole('button', { name: '+ And another condition' }))
+    fireEvent.change(operator(1), { target: { value: 'startsWith' } })
     const [ends] = screen.getAllByRole('textbox', { name: 'Value of name' })
     fireEvent.keyDown(ends ?? document.body, { key: 'Enter' })
 
     expect(onApply).toHaveBeenCalledExactlyOnceWith([{ operator: 'endsWith', values: ['z'] }])
+  })
+
+  it('should start a condition on a text column on equality, which a blank value applies', () => {
+    const { onApply } = popover(NAME)
+    expect(operator().value).toBe('equals')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    expect(onApply).toHaveBeenCalledExactlyOnceWith([{ operator: 'equals', values: [''] }])
   })
 
   it('should pick the value of an enum from its values', () => {

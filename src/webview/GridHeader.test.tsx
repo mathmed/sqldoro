@@ -193,7 +193,7 @@ describe('GridHeader', () => {
         sort: [],
         filters: [
           { column: 0, operator: 'contains', values: ['7'] },
-          { column: 1, operator: 'contains', values: ['x'] },
+          { column: 1, operator: 'equals', values: ['x'] },
         ],
       },
     ])
