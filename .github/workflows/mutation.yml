@@ -1,6 +1,7 @@
 name: Mutation testing
 
-# PRs mutate only the core files changed in the diff (cheap). The weekly run and workflow_dispatch
+# PRs mutate only the core declarations changed in the diff (cheap): the functions, methods and
+# constants that hold a changed line. The weekly run and workflow_dispatch
 # mutate the whole core as a safety net. The gate is the repository variable MUTATION_MIN_SCORE
 # (Settings > Secrets and variables > Actions > Variables), default 95: a ratchet the owner raises
 # over time, never lowers to get a PR green.
@@ -25,7 +26,7 @@ jobs:
   mutation-changed:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # A PR that adds many core files mutates thousands of mutants, each in a fresh Vitest process
+    # A PR that adds many core declarations mutates thousands of mutants, each in a fresh Vitest process
     # (command runner): it gets the budget of the weekly run.
     timeout-minutes: 120
     steps:
@@ -39,7 +40,7 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: Mutate the changed core files
+      - name: Mutate the changed core declarations
         run: >-
           node scripts/quality-report.ts run mutation --
           npm run mutation:changed -- --base "origin/${{ github.base_ref }}"

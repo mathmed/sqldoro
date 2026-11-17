@@ -11,6 +11,17 @@ export async function changedFiles(repository: string, baseRef: string): Promise
   return gitPaths(repository, 'diff', ['--name-only', '--diff-filter=d', `${baseRef}...HEAD`])
 }
 
+// The changes of the files between the merge base with `baseRef` and HEAD, without context lines.
+export async function unifiedDiff(
+  repository: string,
+  baseRef: string,
+  files: readonly string[],
+): Promise<string> {
+  const args = ['diff', '--unified=0', '--no-color', '--no-ext-diff', `${baseRef}...HEAD`, '--']
+  const { stdout } = await runProcess('git', [...args, ...files], { cwd: repository })
+  return stdout
+}
+
 // Files added between the merge base with `baseRef` and HEAD.
 export async function addedFiles(repository: string, baseRef: string): Promise<string[]> {
   return gitPaths(repository, 'diff', ['--name-only', '--diff-filter=A', `${baseRef}...HEAD`])
