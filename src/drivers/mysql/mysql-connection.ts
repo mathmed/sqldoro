@@ -2,6 +2,7 @@ import { connect, isIP, type Socket } from 'node:net'
 
 import mysql, { type Connection, type ConnectionOptions, type SslOptions } from 'mysql2'
 
+import { tlsMaterial } from '../../core/connection/tls.ts'
 import type { ConnectRequest, Endpoint, TlsSettings } from '../../core/engine/engine.ts'
 
 const CONNECT_TIMEOUT_MS = 15_000
@@ -117,9 +118,7 @@ function sslOptions(tls: TlsSettings): SslOptions {
   return {
     rejectUnauthorized: tls.shouldVerifyCertificate,
     verifyIdentity: tls.shouldVerifyHostname,
-    ...(tls.ca === undefined ? {} : { ca: tls.ca }),
-    ...(tls.cert === undefined ? {} : { cert: tls.cert }),
-    ...(tls.key === undefined ? {} : { key: tls.key }),
+    ...tlsMaterial(tls),
   }
 }
 

@@ -1,4 +1,4 @@
-import { type JsonRecord, readBigCount, readNullable } from '../json/record.ts'
+import { type JsonRecord, readBigCount, readNullable, readString } from '../json/record.ts'
 
 // How much a list of the catalog reads: the names only, or the statistics of each object too (sizes
 // and estimated rows), which cost the server more. The explorer asks for them; the autocomplete and
@@ -140,6 +140,30 @@ export function groupIndexColumns(rows: readonly IndexColumn[]): IndexInfo[] {
     })
   }
   return [...indexes.values()]
+}
+
+// A row of a foreign key query, with its columns named as the ForeignKeyColumn fields they fill.
+export function readForeignKeyColumn(row: JsonRecord): ForeignKeyColumn {
+  return {
+    constraint: readString(row, 'constraintName'),
+    column: readString(row, 'columnName'),
+    referencedSchema: readString(row, 'referencedSchema'),
+    referencedTable: readString(row, 'referencedTable'),
+    referencedColumn: readString(row, 'referencedColumn'),
+    onUpdate: readString(row, 'onUpdate'),
+    onDelete: readString(row, 'onDelete'),
+  }
+}
+
+// A row of a reference query, with its columns named as the ReferenceColumn fields they fill.
+export function readReferenceColumn(row: JsonRecord): ReferenceColumn {
+  return {
+    schema: readString(row, 'tableSchema'),
+    table: readString(row, 'tableName'),
+    constraint: readString(row, 'constraintName'),
+    column: readString(row, 'columnName'),
+    referencedColumn: readString(row, 'referencedColumn'),
+  }
 }
 
 export function groupForeignKeyColumns(rows: readonly ForeignKeyColumn[]): ForeignKeyInfo[] {

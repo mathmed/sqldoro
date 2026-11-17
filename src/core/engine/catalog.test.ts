@@ -8,6 +8,8 @@ import {
   groupReferenceColumns,
   type IndexColumn,
   readDatabaseStats,
+  readForeignKeyColumn,
+  readReferenceColumn,
   readTableStats,
   type ReferenceColumn,
 } from './catalog.ts'
@@ -59,6 +61,60 @@ describe('groupIndexColumns', () => {
       },
       { name: 'orders_number', columns: ['number'], isUnique: true, isPrimary: false },
     ])
+  })
+})
+
+describe('readForeignKeyColumn', () => {
+  it('should read each field of a foreign key column from the row of the catalog query', () => {
+    const row = readRecord({
+      constraintName: 'orders_customer',
+      columnName: 'customer_id',
+      referencedSchema: 'shop',
+      referencedTable: 'customers',
+      referencedColumn: 'id',
+      onUpdate: 'NO ACTION',
+      onDelete: 'CASCADE',
+    })
+
+    expect(readForeignKeyColumn(row)).toStrictEqual({
+      constraint: 'orders_customer',
+      column: 'customer_id',
+      referencedSchema: 'shop',
+      referencedTable: 'customers',
+      referencedColumn: 'id',
+      onUpdate: 'NO ACTION',
+      onDelete: 'CASCADE',
+    })
+  })
+
+  it('should refuse a row without one of the columns', () => {
+    expect(() => readForeignKeyColumn(readRecord({ constraintName: 'orders_customer' }))).toThrow(
+      TypeError,
+    )
+  })
+})
+
+describe('readReferenceColumn', () => {
+  it('should read each field of a reference column from the row of the catalog query', () => {
+    const row = readRecord({
+      tableSchema: 'shop',
+      tableName: 'lines',
+      constraintName: 'fk_order',
+      columnName: 'order_id',
+      referencedColumn: 'id',
+    })
+
+    expect(readReferenceColumn(row)).toStrictEqual({
+      schema: 'shop',
+      table: 'lines',
+      constraint: 'fk_order',
+      column: 'order_id',
+      referencedColumn: 'id',
+    })
+  })
+
+  it('should refuse a row without one of the columns', () => {
+    expect(() => readReferenceColumn(readRecord({ tableName: 'lines' }))).toThrow(TypeError)
   })
 })
 
