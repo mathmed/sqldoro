@@ -37,28 +37,31 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
 
 ### Make targets
 
-| Command                    | Description                                                                |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `make setup`               | Install the locked dependencies and the git hooks.                         |
-| `make build`               | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.       |
-| `make package`             | Build, then pack and check `sqldoro-<version>.vsix`.                       |
-| `make format`              | Format (Prettier) and apply the fixes ESLint can make.                     |
-| `make lint`                | ESLint and the Prettier check.                                             |
-| `make typecheck`           | tsc 7 strict: the whole project, then the core alone.                      |
-| `make test`                | Unit tests with coverage (100%, a ratchet).                                |
-| `make lint-arch`           | Architecture contracts (dependency-cruiser).                               |
-| `make dead-code`           | Unused files, exports and dependencies (knip).                             |
-| `make audit`               | Known vulnerabilities in the dependencies.                                 |
-| `make suppressions`        | Suppression ratchet against `suppressions-baseline.json`.                  |
-| `make quality`             | All of the above but the build: what the pre-commit hook runs.             |
-| `make integration`         | Start the test servers (Docker Compose) and run the integration tests.     |
-| `make integration-down`    | Stop and remove the integration test servers.                              |
-| `make smoke`               | Pack the extension and run it in a real VS Code.                           |
-| `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                   |
-| `make mutation-changed`    | Mutation testing of the core files changed against `BASE` (`origin/main`). |
-| `make suppressions-update` | Lower the suppression baseline after removing suppressions.                |
-| `make labels`              | Create or update the `risk:<level>` and `deploy:<kind>` labels (`gh`).     |
-| `make all`                 | Everything CI runs on a pull request.                                      |
+| Command                    | Description                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `make setup`               | Install the locked dependencies and the git hooks.                        |
+| `make build`               | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.      |
+| `make package`             | Build, then pack and check `sqldoro-<version>.vsix`.                      |
+| `make format`              | Fix whitespace, format (Prettier) and apply the fixes ESLint can make.    |
+| `make lint`                | ESLint and the Prettier check.                                            |
+| `make typecheck`           | tsc 7 strict: the whole project, then the core alone.                     |
+| `make test`                | Unit tests with coverage (100%, a ratchet).                               |
+| `make lint-arch`           | Architecture contracts (dependency-cruiser).                              |
+| `make dead-code`           | Unused files, exports and dependencies (knip).                            |
+| `make duplication`         | Duplicated code in `src/` and `scripts/`: zero clones (jscpd).            |
+| `make hygiene`             | Trailing whitespace, final newlines and large added files.                |
+| `make audit`               | Known vulnerabilities in the dependencies.                                |
+| `make suppressions`        | Suppression ratchet against `suppressions-baseline.json`.                 |
+| `make quality`             | All of the above but the build: what the pre-commit hook runs.            |
+| `make integration`         | Start the test servers (Docker Compose) and run the integration tests.    |
+| `make integration-down`    | Stop and remove the integration test servers.                             |
+| `make smoke`               | Pack the extension and run it in a real VS Code.                          |
+| `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                  |
+| `make mutation-changed`    | Mutation testing of the core declarations changed against `BASE`.         |
+| `make contract`            | Fail when `package.json` loses a command, view or setting against `BASE`. |
+| `make suppressions-update` | Lower the suppression baseline after removing suppressions.               |
+| `make labels`              | Create or update the `risk:<level>` and `deploy:<kind>` labels (`gh`).    |
+| `make all`                 | Everything CI runs on a pull request.                                     |
 
 ## Making a change
 
@@ -86,27 +89,37 @@ Strict from day one, with no baseline (a TypeScript port of
 [py-awesome-template](https://github.com/mathmed/py-awesome-template)'s). Code is refactored to meet
 the gates; relaxing a threshold, rule or contract needs the owner's explicit approval.
 
-| Gate               | Tool                                                           | Guarantees                                                                                         | Runs in                      |
-| ------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Lint and format    | ESLint (typescript-eslint strict, SonarJS, security), Prettier | Every rule an error, `--max-warnings 0`; a disable needs a reason.                                 | pre-commit, `lint`           |
-| Complexity         | ESLint                                                         | Complexity 5, nesting 2, 30 lines per function, 3 parameters, 300 lines per file; never disabled.  | pre-commit, `lint`           |
-| Types              | tsc 7 strict, plus the extra flags of `tsconfig.json`          | No `any`; the core type-checks without Node.js or DOM types.                                       | pre-commit, `quality`        |
-| Security           | eslint-plugin-security, no-unsanitized, `npm audit`            | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                              | pre-commit, `lint`/`quality` |
-| Dead code          | knip                                                           | No unused file, export or dependency, no stale configuration.                                      | pre-commit, `quality`        |
-| Tests and coverage | Vitest (Node.js; jsdom and Testing Library for the webview)    | 100% statements, branches, functions and lines, as a ratchet.                                      | pre-commit, `quality`        |
-| Integration        | Vitest against MySQL 8.4, PostgreSQL 18 and OpenSSH            | Drivers, tunnel and extension host behave on real servers.                                         | `integration`                |
-| Architecture       | dependency-cruiser                                             | The layer contracts of `.dependency-cruiser.mjs`.                                                  | pre-commit, `architecture`   |
-| Build and package  | esbuild, Vite, vsce, `scripts/package/`                        | The `.vsix` holds exactly what it should, with shippable licenses, under its budget.               | `package`                    |
-| Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.    | `smoke`                      |
-| Mutation testing   | Stryker on `src/core`                                          | The score stays above `MUTATION_MIN_SCORE` (95).                                                   | `mutation` workflow          |
-| Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage or mutation pragma, skipped or focused test. | pre-commit, `lint`           |
-| PR labels          | `scripts/pr-labels.ts`                                         | Exactly one known `risk:<level>` and one known `deploy:<kind>` label per PR.                       | `PR labels` workflow         |
-| Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                       | `quality-report`             |
+| Gate               | Tool                                                           | Guarantees                                                                                        | Runs in                      |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Lint and format    | ESLint (typescript-eslint strict, SonarJS, security), Prettier | Every rule an error, `--max-warnings 0`; a disable needs a reason; no JSDoc, readonly constants.  | pre-commit, `lint`           |
+| File hygiene       | `scripts/hygiene.ts`                                           | No trailing whitespace, one final newline per text file, no file above 500kb added.               | pre-commit, `lint`           |
+| Complexity         | ESLint                                                         | Complexity 5, nesting 2, 30 lines per function, 3 parameters, 300 lines per file; never disabled. | pre-commit, `lint`           |
+| Types              | tsc 7 strict, plus the extra flags of `tsconfig.json`          | No `any`; the core type-checks without Node.js or DOM types.                                      | pre-commit, `quality`        |
+| Security           | eslint-plugin-security, no-unsanitized, `npm audit`            | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                             | pre-commit, `lint`/`quality` |
+| Dead code          | knip                                                           | No unused file, export or dependency, no stale configuration.                                     | pre-commit, `quality`        |
+| Duplication        | jscpd (`.jscpd.json`)                                          | No clone of 5 lines or 50 tokens in `src/` and `scripts/`, tests left out.                        | pre-commit, `lint`           |
+| Tests and coverage | Vitest (Node.js; jsdom and Testing Library for the webview)    | 100% statements, branches, functions and lines, as a ratchet.                                     | pre-commit, `quality`        |
+| Integration        | Vitest against MySQL 8.4, PostgreSQL 18 and OpenSSH            | Drivers, tunnel and extension host behave on real servers.                                        | `integration`                |
+| Architecture       | dependency-cruiser                                             | The layer contracts of `.dependency-cruiser.mjs`.                                                 | pre-commit, `architecture`   |
+| Build and package  | esbuild, Vite, vsce, `scripts/package/`                        | The `.vsix` holds exactly what it should, with shippable licenses, under its budget.              | `package`                    |
+| Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.   | `smoke`                      |
+| Contract           | `scripts/contract.ts`                                          | No contributed command, view or setting removed, renamed or narrowed against the base branch.     | `lint` (pull requests)       |
+| Mutation testing   | Stryker on `src/core`                                          | The changed declarations score above `MUTATION_MIN_SCORE` (95); the whole core weekly.            | `mutation` workflow          |
+| Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage, mutation or jscpd pragma, skipped test.    | pre-commit, `lint`           |
+| PR labels          | `scripts/pr-labels.ts`                                         | Exactly one known `risk:<level>` and one known `deploy:<kind>` label per PR.                      | `PR labels` workflow         |
+| Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                      | `quality-report`             |
 
-Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the staged files and runs
-`make quality`'s checks (the tests without the `GIT_*` variables git exports to hooks; tests that
+Git hooks run through [lefthook](https://lefthook.dev/): pre-commit fixes the trailing whitespace and
+final newlines of the staged files, formats them and runs `make quality`'s checks (the tests without the `GIT_*` variables git exports to hooks; tests that
 need a repository create one with `test/support/git.ts`); commit-msg enforces Conventional Commits.
-Dependabot proposes grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5).
+Dependabot proposes grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5,
+GitHub Actions 10), born `risk:low` and `deploy:none`.
+
+The contract check (`make contract`, the `lint` job on pull requests) compares the contributed
+commands, views, view containers and settings of `package.json` with the merge base of the base
+branch: a removed or renamed one, a setting whose type changed or that allows fewer values fails it;
+additions are listed. When a change does mean to remove one, the check stays red and the owner
+decides.
 
 ### Integration, packaging, smoke and mutation
 
@@ -129,7 +142,11 @@ Dependabot proposes grouped weekly updates after a cooldown (major 15 days, mino
   stable, or `SMOKE_VSCODE_VERSION`) with a fresh profile in the system temporary folder (macOS caps
   socket paths at 103 characters) and runs `test/smoke/suite.ts`.
 - **Mutation testing**: [Stryker](https://stryker-mutator.io/) mutates `src/core` and runs the unit
-  tests against each mutant. For each **survivor**, add the missing assertion; `MUTATION_MIN_SCORE`
+  tests against each mutant. On a pull request (`make mutation-changed`) it mutates only the
+  declarations that hold a changed line: `scripts/mutation/` reads the new side of every hunk of
+  `git diff --unified=0` against the merge base and hands Stryker the line ranges of the top-level
+  declarations, or class members, around them; a hunk that only deletes stands for the lines around
+  it, and a change that touches no declaration is skipped. For each **survivor**, add the missing assertion; `MUTATION_MIN_SCORE`
   only goes up. Mutants run through the command runner, one Vitest process each, until Stryker's
   Vitest runner supports Vitest 5
   ([stryker-js#6210](https://github.com/stryker-mutator/stryker-js/issues/6210)).
@@ -146,6 +163,7 @@ the committed `suppressions-baseline.json`:
 | `ts-ignore` / `ts-expect-error` / `ts-nocheck` | the TypeScript directives                                                       |
 | `coverage-ignore` / `stryker-disable`          | `v8`, `c8` and `istanbul ignore`; `Stryker disable`                             |
 | `prettier-ignore` / `knip-tag`                 | `prettier-ignore`; the JSDoc tags knip never reports (`@public`, `@beta`...)    |
+| `jscpd-ignore`                                 | `jscpd:ignore-start`, a block jscpd leaves out of the duplication check         |
 | `test-skip` / `test-fails` / `test-focus`      | `.skip`, `.skipIf`, `.runIf`, `.todo`, `xit`; `.fails`; `.only`, `fit`          |
 
 Comments and test calls are read with the TypeScript parser (`@typescript-eslint/typescript-estree`),
