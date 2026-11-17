@@ -1,6 +1,6 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed labels risk-labels deploy-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed contract labels risk-labels deploy-labels all
 
-# Base branch of mutation-changed
+# Base branch of mutation-changed and contract
 BASE ?= origin/main
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
@@ -95,6 +95,11 @@ mutation:
 mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
+# Fail when package.json removes or renames a contributed command, view, view container or setting, or
+# narrows a setting, against the merge base with BASE: the extension's public contract
+contract:
+	npm run contract -- --base $(BASE)
+
 # Create (or update) every label the PR labels check requires, risk:<level> and deploy:<kind>, and the
 # dependencies label Dependabot's PRs carry with them, on the GitHub repository (needs an authenticated gh)
 labels: risk-labels deploy-labels
@@ -113,4 +118,4 @@ deploy-labels:
 	gh label create "deploy:coordinated" --color 7A0000 --description "Deploy: another PR or repository, or release steps in order" --force
 
 # Everything CI runs on a pull request
-all: quality integration smoke mutation-changed
+all: quality integration smoke mutation-changed contract

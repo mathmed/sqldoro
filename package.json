@@ -960,6 +960,7 @@
     "suppressions": "node scripts/suppressions.ts check",
     "suppressions:update": "node scripts/suppressions.ts update",
     "pr-labels": "node scripts/pr-labels.ts",
+    "contract": "node scripts/contract.ts check",
     "smoke": "node scripts/smoke.ts",
     "mutation": "node scripts/mutation.ts full",
     "mutation:changed": "node scripts/mutation.ts changed"

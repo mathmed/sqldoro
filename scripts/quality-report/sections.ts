@@ -1,5 +1,6 @@
 import { Analysis } from './analysis.ts'
 import { analyzeBuild } from './analyzers/build.ts'
+import { analyzeContract } from './analyzers/contract.ts'
 import { analyzeDependencyCruiser } from './analyzers/dependency-cruiser.ts'
 import {
   COMPLEXITY_FAMILY,
@@ -151,6 +152,12 @@ export const SECTIONS: readonly Section[] = [
   {
     title: 'Extension smoke (VS Code)',
     checks: [{ analysis: Analysis.Smoke, job: Job.Smoke, label: 'VS Code', analyze: analyzeSmoke }],
+  },
+  {
+    title: 'Public contract (contributed commands, views and settings)',
+    checks: [
+      { analysis: Analysis.Contract, job: Job.Lint, label: 'contract', analyze: analyzeContract },
+    ],
   },
   {
     title: 'Mutation testing (Stryker)',

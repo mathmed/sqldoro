@@ -12,6 +12,7 @@ export const Analysis = {
   Build: 'build',
   Package: 'package',
   Smoke: 'smoke',
+  Contract: 'contract',
   Mutation: 'mutation',
   Suppressions: 'suppressions',
 } as const
