@@ -6,6 +6,8 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-17
+
 ### Fixed
 
 - **`FLUSH PRIVILEGES` and the other MySQL administration words are colored as keywords in SQL
@@ -164,7 +166,8 @@ statements hard and the everyday ones quick. Open source (MIT), with no telemetr
 - A reproducible `.vsix` that ships only what the extension needs, with the licenses of the bundled
   libraries in `ThirdPartyNotices.txt`; short README and contributor docs.
 
-[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/mathmed/sqldoro/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/mathmed/sqldoro/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/mathmed/sqldoro/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mathmed/sqldoro/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mathmed/sqldoro/compare/v0.1.2...v0.1.3
