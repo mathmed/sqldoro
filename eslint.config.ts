@@ -11,6 +11,8 @@ import sonarjs from 'eslint-plugin-sonarjs'
 import { defineConfig, globalIgnores } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 
+import { conventions } from './scripts/eslint/conventions.ts'
+
 const TYPESCRIPT_FILES = ['**/*.ts', '**/*.tsx']
 const PRODUCTION_FILES = ['src/**/*.ts', 'src/**/*.tsx', 'scripts/**/*.ts']
 const TEST_FILES = ['**/*.test.ts', '**/*.test.tsx', 'test/**/*.ts']
@@ -28,6 +30,35 @@ const COMPLEXITY_RULES: Linter.RulesRecord = {
   'max-params': 'off',
   '@typescript-eslint/max-params': ['error', { max: 3 }],
 }
+
+const RESTRICTED_SYNTAX = [
+  {
+    selector: 'TSEnumDeclaration',
+    message: 'Use an `as const` object and its value union instead of an enum.',
+  },
+  {
+    selector: 'Property[key.name="shell"][value.value=true]',
+    message: 'Never spawn through a shell: pass the command and an argument list.',
+  },
+]
+
+// A constant collection of a module is read-only (CLAUDE.md, "No magic values"): an array, a Map or a
+// Set built at the top of a module is typed `readonly T[]`, `ReadonlyArray`, `ReadonlyMap` or
+// `ReadonlySet`, or frozen with `as const`.
+const MODULE_CONSTANT =
+  ':matches(Program, ExportNamedDeclaration) > VariableDeclaration[kind="const"] > VariableDeclarator'
+const NOT_READONLY =
+  ':not([id.typeAnnotation.typeAnnotation.operator="readonly"]):not([id.typeAnnotation.typeAnnotation.typeName.name=/^Readonly(Array|Map|Set)$/])'
+const MUTABLE_MODULE_COLLECTIONS = [
+  {
+    selector: `${MODULE_CONSTANT}[init.type="ArrayExpression"]${NOT_READONLY}`,
+    message: 'Type a module constant array `readonly T[]`, or freeze it with `as const`.',
+  },
+  {
+    selector: `${MODULE_CONSTANT}[init.type="NewExpression"][init.callee.name=/^(Map|Set)$/]${NOT_READONLY}`,
+    message: 'Type a module constant Map or Set `ReadonlyMap` or `ReadonlySet`.',
+  },
+]
 
 // eslint-plugin-security ships its rules as warnings; every rule in this project is an error.
 const SECURITY_RULES: Linter.RulesRecord = Object.fromEntries(
@@ -70,7 +101,7 @@ export default defineConfig([
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    plugins: { perfectionist },
+    plugins: { perfectionist, conventions },
     rules: {
       ...COMPLEXITY_RULES,
       ...SECURITY_RULES,
@@ -138,17 +169,8 @@ export default defineConfig([
       'object-shorthand': 'error',
       'prefer-arrow-callback': 'error',
       'prefer-template': 'error',
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'TSEnumDeclaration',
-          message: 'Use an `as const` object and its value union instead of an enum.',
-        },
-        {
-          selector: 'Property[key.name="shell"][value.value=true]',
-          message: 'Never spawn through a shell: pass the command and an argument list.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX],
+      'conventions/no-jsdoc': 'error',
       'no-restricted-imports': [
         'error',
         {
@@ -184,6 +206,7 @@ export default defineConfig([
     files: PRODUCTION_FILES,
     ignores: TEST_FILES,
     rules: {
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX, ...MUTABLE_MODULE_COLLECTIONS],
       '@typescript-eslint/no-magic-numbers': [
         'error',
         {

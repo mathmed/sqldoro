@@ -25,7 +25,7 @@ const RULE_SEPARATOR = '  '
 const SUMMARY_LINE = /^✖ \d+ problems? \(/m
 const COMPLEXITY_RULE =
   /^(?:complexity|sonarjs\/cognitive-complexity|(?:@typescript-eslint\/)?max-[a-z-]+)$/
-const SECURITY_PLUGINS = ['security/', 'no-unsanitized/']
+const SECURITY_PLUGINS: readonly string[] = ['security/', 'no-unsanitized/']
 const SECURITY_RULE_NAMES: ReadonlySet<string> = new Set([
   'no-eval',
   'no-new-func',

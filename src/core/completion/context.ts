@@ -52,8 +52,8 @@ interface Qualifier {
 
 type Step = { readonly clause: Clause } | { readonly depth: number }
 
-const TABLE_CLAUSES = ['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE']
-const COLUMN_CLAUSES = [
+const TABLE_CLAUSES: readonly string[] = ['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE']
+const COLUMN_CLAUSES: readonly string[] = [
   'AND',
   'BY',
   'CASE',
@@ -71,7 +71,7 @@ const COLUMN_CLAUSES = [
   'WHEN',
   'WHERE',
 ]
-const SUBQUERY_OPENERS = ['FROM', 'JOIN']
+const SUBQUERY_OPENERS: readonly string[] = ['FROM', 'JOIN']
 const OUTSIDE_STATEMENTS: CompletionContext = {
   isInText: false,
   prefix: '',

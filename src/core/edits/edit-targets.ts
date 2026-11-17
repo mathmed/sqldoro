@@ -28,7 +28,7 @@ export type TargetsReading =
 
 // Deleting and duplicating act on rows: one cell of each names it.
 const ROW_KINDS: ReadonlySet<EditKind> = new Set<EditKind>([EditKind.Delete, EditKind.Duplicate])
-const ROW_COLUMN = [0]
+const ROW_COLUMN: readonly number[] = [0]
 const TOO_MANY = `Select at most ${groupDigits(MAX_CHANGED_ROWS)} rows to change at a time.`
 
 // The cells an edit of the grid acts on: positions of the view are rows of the result, and past them
