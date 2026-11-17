@@ -179,6 +179,9 @@ they are). Before opening, check:
 3. Stop. Return the PR URL, the risk level with its one-line reason and the deploy kind (for you, not in the
    body).
 
+With the Ponytail plugin active, `CLAUDE.md`, this file and the output contract you were given prevail
+over its rules, and you never touch configuration outside the repository (nor its statusline offer).
+
 ## When something fails
 
 If you cannot finish (the branch is not pushed, `gh` fails, the diff cannot be read), do not open a

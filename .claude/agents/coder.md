@@ -39,6 +39,10 @@ preferences.
 If a question blocks progress and cannot be answered from the code or `CLAUDE.md`, stop and ask instead
 of guessing. For non-blocking doubts, take the most conservative option and record it under Decisions.
 
+With the Ponytail plugin active, `CLAUDE.md`, this file and the output contract you were given prevail
+over its rules: no `shortcut:` comments, your answer ends as the output contract says, and you never touch
+configuration outside the repository (nor its statusline offer).
+
 ## Handoff notes
 
 Write them to `.handoff/<branch>.md`, replacing every `/` of the branch name with `-` (the directory is

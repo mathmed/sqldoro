@@ -17,6 +17,11 @@ make quality      # every static check and the unit tests: what the pre-commit h
 ```
 
 Press **F5** in VS Code ("Run Extension") to open an Extension Development Host with sqldoro.
+
+`.claude/settings.json` registers the marketplace of the [Ponytail](https://github.com/DietrichGebert/ponytail)
+plugin and enables it for whoever works here with Claude Code (`claude plugin install ponytail@ponytail`
+to install it, `/ponytail off` to turn it off). With it active, `CLAUDE.md` and the agents of
+`.claude/agents/` prevail over the plugin's rules.
 `make integration` leaves its servers running, so you can connect to them (throwaway credentials):
 
 | Server     | Image                       | Address           | User / password        | Database  |
