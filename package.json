@@ -959,7 +959,7 @@
     "duplication": "jscpd",
     "suppressions": "node scripts/suppressions.ts check",
     "suppressions:update": "node scripts/suppressions.ts update",
-    "risk": "node scripts/risk.ts",
+    "pr-labels": "node scripts/pr-labels.ts",
     "smoke": "node scripts/smoke.ts",
     "mutation": "node scripts/mutation.ts full",
     "mutation:changed": "node scripts/mutation.ts changed"

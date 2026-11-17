@@ -30,7 +30,7 @@ make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
 make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
-make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
+make labels            # create/update the risk:<level> and deploy:<kind> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
 
@@ -46,7 +46,7 @@ src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
-                suppression ratchet, risk label check
+                suppression ratchet, PR labels check
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -164,7 +164,8 @@ statement; and changes to how queries run or results are shown that a revert fix
    README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
    `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
    `[Unreleased]`.
-7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label,
+7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label and one
+   `deploy:<kind>` label,
    assigned by judgment (see "Workflow" and "Critical surfaces").
 
 ## Deterministic validation
@@ -217,9 +218,10 @@ lists no violation: it counts the justified suppressions the rules allow, and on
   Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
   approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
   in the same PR.
-- **Risk label**: the `Risk label` workflow fails a PR without exactly one known `risk:<level>` label
-  (`low`, `medium`, `high`, `critical`). The level is a judgment (`.claude/agents/pr-writer.md`, step 5),
-  not derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
+- **PR labels**: the `PR labels` workflow fails a PR without exactly one known `risk:<level>` label
+  (`low`, `medium`, `high`, `critical`) and exactly one known `deploy:<kind>` label (`none`, `simple`,
+  `migration`, `coordinated`). Both are a judgment (`.claude/agents/pr-writer.md`, steps 5 and 7), not
+  derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
   and call the change out in the PR.
 
 ## Workflow
@@ -231,14 +233,14 @@ lists no violation: it counts the justified suppressions the rules allow, and on
    original task verbatim, the branch, the base branch and the path of the handoff notes. It reads the
    diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (mostly
    low or medium; high or critical only with a sentence naming what can break; at least medium when there
-   are deploy steps), opens the PR with the
-   `risk:<level>` label and stops. It never writes code. The body is short: a standalone summary of one or
+   are deploy steps) and the deploy kind, opens the PR with the `risk:<level>` and `deploy:<kind>` labels
+   and stops. It never writes code. The body is short: a standalone summary of one or
    two sentences, at most one visual block (a before/after table in plain words, a small Mermaid diagram
    or a short diff), a single Deploy line only when there is a real release step (`docs/RELEASING.md`),
    and a risk line only for high or critical. It still checks every claim against the diff and the tests.
 3. **Fallback**: if `pr-writer` fails or cannot run, delegate back to `coder` saying so: it opens the PR
-   itself with a minimal body (a summary in the template's shape, risk "unassessed", no risk label),
-   so a failure never blocks delivery. The `Risk label` check stays red until a person sets the label.
+   itself with a minimal body (a summary in the template's shape, risk "unassessed", no labels), so a
+   failure never blocks delivery. The `PR labels` check stays red until a person sets the labels.
 4. **Merge**: nobody but the owner merges. Agents never merge, approve or enable auto-merge.
 
 - **Exception**: if a `.local_dev` file exists at the repository root, the developer is working locally:

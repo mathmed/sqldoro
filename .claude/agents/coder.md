@@ -85,11 +85,13 @@ never blocked:
    `gh pr create --base main --head <branch> --title "<type>: <short description>" --body-file <file>`.
 
 ```markdown
-Risk unassessed: pr-writer failed; the reviewer sets the risk:<level> label. Review commit by commit.
+Risk unassessed: pr-writer failed; the reviewer sets the risk:<level> and deploy:<kind> labels. Review commit
+by commit.
 
 <1-2 sentences: what changes and why; end with what was not verified, from the handoff notes, if it matters>
 
 Deploy: <the Deploy notes from the handoff notes; omit this line when they say "None">
 ```
 
-Do not add a `risk:` label: the Risk label check stays red until the reviewer sets one. Return the PR URL.
+Do not add a `risk:` or a `deploy:` label: the PR labels check stays red until the reviewer sets them. Return
+the PR URL.

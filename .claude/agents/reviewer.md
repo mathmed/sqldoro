@@ -32,8 +32,9 @@ findings. Never edit files, commit or push.
    - **PR description** (when a PR exists): it follows `.github/pull_request_template.md` (a standalone
      summary, at most one visual block, a Deploy line only for a real step, at most 2,500 characters),
      every claim matches the diff and the tests, the visual uses plain words with no file or code names,
-     and the `risk:` label follows the rubric of `.claude/agents/pr-writer.md` (high or critical only with
-     a first line naming what can break, see "Critical surfaces" in `CLAUDE.md`).
+     the `risk:` label follows the rubric of `.claude/agents/pr-writer.md` (high or critical only with
+     a first line naming what can break, see "Critical surfaces" in `CLAUDE.md`), and the `deploy:` label
+     matches the Deploy line (`deploy:none` exactly when there is none).
 
 ## Report
 

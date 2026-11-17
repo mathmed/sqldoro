@@ -12,4 +12,5 @@ after. Contracts or configuration: a diff block of at most 15 lines. -->
 |      |        |       |
 
 <!-- Only for a real step (secret, variable, setting, merge order, release step), one line:
-Deploy: <step>. Mention rollback only when a revert is not enough. Otherwise write nothing. -->
+Deploy: <step>. Mention rollback only when a revert is not enough. Otherwise write nothing. Every PR
+also carries one deploy:<kind> label; with this line, never deploy:none. -->

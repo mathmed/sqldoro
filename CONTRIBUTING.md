@@ -52,7 +52,7 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
 | `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                   |
 | `make mutation-changed`    | Mutation testing of the core files changed against `BASE` (`origin/main`). |
 | `make suppressions-update` | Lower the suppression baseline after removing suppressions.                |
-| `make risk-labels`         | Create or update the `risk:<level>` labels on GitHub (needs `gh`).         |
+| `make labels`              | Create or update the `risk:<level>` and `deploy:<kind>` labels (`gh`).     |
 | `make all`                 | Everything CI runs on a pull request.                                      |
 
 ## Making a change
@@ -66,8 +66,8 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
    sessions open.
 4. Commit with [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`,
    `refactor`, `chore`, `test`, `docs`, `ci`, `build`); the commit-msg hook checks it.
-5. Open the pull request with the template and one `risk:<level>` label (see
-   [The risk label](#the-risk-label) and [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
+5. Open the pull request with the template, one `risk:<level>` and one `deploy:<kind>` label (see
+   [The PR labels](#the-pr-labels) and [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
    comment; a failing check means it is not ready.
 
 Contributed commands, settings and views are the public contract: do not remove or rename one unless
@@ -95,7 +95,7 @@ the gates; relaxing a threshold, rule or contract needs the owner's explicit app
 | Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.    | `smoke`                      |
 | Mutation testing   | Stryker on `src/core`                                          | The score stays above `MUTATION_MIN_SCORE` (95).                                                   | `mutation` workflow          |
 | Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage or mutation pragma, skipped or focused test. | pre-commit, `lint`           |
-| Risk label         | `scripts/risk.ts`                                              | Exactly one known `risk:<level>` label per PR.                                                     | `Risk label` workflow        |
+| PR labels          | `scripts/pr-labels.ts`                                         | Exactly one known `risk:<level>` and one known `deploy:<kind>` label per PR.                       | `PR labels` workflow         |
 | Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                       | `quality-report`             |
 
 Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the staged files and runs
@@ -157,7 +157,7 @@ It runs in `make quality`, the pre-commit hook and the `lint` job, and prints a 
 line for the Quality Report. Configuration that disables a check for the whole project is not counted:
 call such a change out in the PR.
 
-### The risk label
+### The PR labels
 
 Every PR carries exactly one `risk:low`, `risk:medium`, `risk:high` or `risk:critical` label. The level
 is a judgment of the `pr-writer` agent (or the person opening the PR), following the rubric in
@@ -167,16 +167,23 @@ can run a destructive statement or weaken a safety lock (see "Critical surfaces"
 and critical need one concrete sentence in the Risk line naming what can break. Touching pipeline files is
 not by itself a reason for high.
 
-The **Risk label** workflow (`.github/workflows/risk-label.yml`) runs `scripts/risk.ts check` on every
-push and label change and fails when a PR has no risk label, more than one, or an unknown one. It lives
-outside `ci.yml` so that a label change does not re-run every analysis, and is not part of the Quality
-Report. `make risk-labels` creates the labels (idempotent); Dependabot's PRs get `risk:low`.
+It also carries exactly one `deploy:<kind>` label, what shipping it needs beyond the merge: `deploy:none`
+(it ships with the next release), `deploy:simple` (a repository variable, secret, label or setting),
+`deploy:migration` (stored data an older version cannot read back) or `deploy:coordinated` (another PR
+or repository first, or release steps in a given order). A PR with a `Deploy:` line is never
+`deploy:none`.
+
+The **PR labels** workflow (`.github/workflows/pr-labels.yml`, job `pr-labels`) runs
+`scripts/pr-labels.ts check` on every push and label change and fails when a PR misses a label of
+either group, has more than one, or an unknown one. It lives outside `ci.yml` so that a label change
+does not re-run every analysis, and is not part of the Quality Report. `make labels` creates the labels
+(idempotent); Dependabot's PRs get `risk:low` and `deploy:none`.
 
 ### Pull request flow
 
 Reading AI-written diffs is the bottleneck, so the PR description is short and says what changed in
 behavior, written by an agent that did not write the code (`CLAUDE.md`, "Workflow"); the risk label says
-how much attention the PR deserves:
+how much attention the PR deserves and the deploy label what shipping it needs:
 
 1. **`coder`** implements on a branch, runs the checks, commits one logical step per commit, pushes and
    writes handoff notes to `.handoff/<branch>.md` (gitignored), with an explicit **Not verified** list.
@@ -187,9 +194,9 @@ how much attention the PR deserves:
    Mermaid diagram, a before/after table of values or a short diff), a `Deploy:` line only when there is a
    real release step, a `Risk high: <what can break>` first line only for high or critical, and a
    `Divergence:` line only when the diff contradicts the notes. No empty headings, filler, file lists or
-   footer; at most 2,500 characters. It opens the PR with the label and stops.
-3. If `pr-writer` fails, `coder` opens the PR with a minimal body and no label; the Risk label check
-   stays red until a person sets one. Only the owner merges.
+   footer; at most 2,500 characters. It opens the PR with both labels and stops.
+3. If `pr-writer` fails, `coder` opens the PR with a minimal body and no label; the PR labels check
+   stays red until a person sets them. Only the owner merges.
 
 People opening PRs by hand get the same template from GitHub.
 

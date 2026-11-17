@@ -1,4 +1,4 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed labels risk-labels deploy-labels all
 
 # Base branch of mutation-changed
 BASE ?= origin/main
@@ -95,14 +95,22 @@ mutation:
 mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
-# Create (or update) the risk:<level> labels, and the dependencies label Dependabot's PRs carry with
-# risk:low, on the GitHub repository (needs an authenticated gh)
+# Create (or update) every label the PR labels check requires, risk:<level> and deploy:<kind>, and the
+# dependencies label Dependabot's PRs carry with them, on the GitHub repository (needs an authenticated gh)
+labels: risk-labels deploy-labels
+
 risk-labels:
 	gh label create "risk:low" --color 0E8A16 --description "Low risk: no behavior change" --force
 	gh label create "risk:medium" --color FBCA04 --description "Medium risk: new behavior or release steps" --force
 	gh label create "risk:high" --color D93F0B --description "High risk: can break the extension or changes behavior drastically" --force
 	gh label create "risk:critical" --color B60205 --description "Critical risk: can run destructive SQL or weaken a safety lock" --force
 	gh label create "dependencies" --color 0366D6 --description "Pull requests that update a dependency file" --force
+
+deploy-labels:
+	gh label create "deploy:none" --color BFBFBF --description "Deploy: nothing beyond the merge" --force
+	gh label create "deploy:simple" --color C5DEF5 --description "Deploy: a repository variable, secret, label or setting" --force
+	gh label create "deploy:migration" --color F28C28 --description "Deploy: stored data an older version cannot read" --force
+	gh label create "deploy:coordinated" --color 7A0000 --description "Deploy: another PR or repository, or release steps in order" --force
 
 # Everything CI runs on a pull request
 all: quality integration smoke mutation-changed
