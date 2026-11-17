@@ -8,6 +8,7 @@ import {
   SECURITY_FAMILY,
 } from './analyzers/eslint.ts'
 import { analyzeIntegration } from './analyzers/integration.ts'
+import { analyzeJscpd } from './analyzers/jscpd.ts'
 import { analyzeKnip } from './analyzers/knip.ts'
 import { analyzeMutation } from './analyzers/mutation.ts'
 import { analyzeNpmAudit } from './analyzers/npm-audit.ts'
@@ -83,6 +84,10 @@ export const SECTIONS: readonly Section[] = [
   {
     title: 'Dead code (knip)',
     checks: [{ analysis: Analysis.Knip, job: Job.Quality, label: 'knip', analyze: analyzeKnip }],
+  },
+  {
+    title: 'Duplication (jscpd)',
+    checks: [{ analysis: Analysis.Jscpd, job: Job.Lint, label: 'jscpd', analyze: analyzeJscpd }],
   },
   {
     title: 'Complexity (ESLint)',

@@ -26,6 +26,8 @@ pre-commit:
               npm run test:coverage
           - name: dead-code
             run: npm run dead-code
+          - name: duplication
+            run: npm run duplication
           - name: architecture
             run: npm run lint:arch
           - name: suppressions

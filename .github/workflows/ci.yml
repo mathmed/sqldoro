@@ -42,8 +42,12 @@ jobs:
       - name: Format (Prettier)
         if: ${{ !cancelled() }}
         run: node scripts/quality-report.ts run prettier -- npm run format:check
+      # Zero clones of 5 lines or 50 tokens in src/ and scripts/ (.jscpd.json), with no baseline.
+      - name: Duplicated code (jscpd)
+        if: ${{ !cancelled() }}
+        run: node scripts/quality-report.ts run jscpd -- npm run duplication
       # Counts every suppression (eslint-disable, @ts-expect-error, coverage and mutation pragmas,
-      # skipped tests...) and fails when it differs from suppressions-baseline.json.
+      # jscpd:ignore blocks, skipped tests...) and fails when it differs from suppressions-baseline.json.
       - name: Suppression ratchet
         if: ${{ !cancelled() }}
         run: node scripts/quality-report.ts run suppressions -- npm run suppressions

@@ -4,6 +4,7 @@ export const Analysis = {
   Tsc: 'tsc',
   NpmAudit: 'npm-audit',
   Knip: 'knip',
+  Jscpd: 'jscpd',
   Vitest: 'vitest',
   Integration: 'integration',
   DependencyCruiser: 'dependency-cruiser',

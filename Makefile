@@ -1,4 +1,4 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
 
 # Base branch of mutation-changed
 BASE ?= origin/main
@@ -45,6 +45,11 @@ lint-arch:
 dead-code:
 	npm run dead-code
 
+# Duplicated code in src/ and scripts/: zero clones of 5 lines or 50 tokens, tests and imports left out
+# (jscpd, see .jscpd.json)
+duplication:
+	npm run duplication
+
 # Known vulnerabilities in the dependencies
 audit:
 	npm audit
@@ -59,7 +64,7 @@ suppressions-update:
 	npm run suppressions:update
 
 # Every check of the pre-commit hook and of the lint, quality and architecture CI jobs
-quality: lint typecheck test lint-arch dead-code audit suppressions
+quality: lint typecheck test lint-arch dead-code duplication audit suppressions
 
 # Integration tests: the drivers and the SSH tunnel against real MySQL, PostgreSQL and SSH servers,
 # started with Docker Compose (test/integration/compose.yaml) and left running for the next run

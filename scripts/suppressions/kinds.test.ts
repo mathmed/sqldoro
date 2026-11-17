@@ -19,6 +19,7 @@ describe('suppression kinds', () => {
     '/* c8 ignore next */',
     '// Stryker disable all',
     '/** @alias */',
+    '// jscpd:ignore-start',
     'it\n  .skip',
     'it?.only',
     'x.fails',
