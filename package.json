@@ -810,6 +810,15 @@
         "mac": "cmd+alt+t"
       }
     ],
+    "grammars": [
+      {
+        "scopeName": "sqldoro.sql-keywords.injection",
+        "path": "./syntaxes/sql-keywords.injection.tmLanguage.json",
+        "injectTo": [
+          "source.sql"
+        ]
+      }
+    ],
     "configuration": {
       "title": "sqldoro",
       "properties": {
@@ -948,15 +957,20 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "hygiene": "node scripts/hygiene.ts check",
+    "hygiene:fix": "node scripts/hygiene.ts fix",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json && tsc -p src/webview/tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "lint:arch": "depcruise src scripts test",
     "dead-code": "knip --treat-config-hints-as-errors",
+    "duplication": "jscpd",
+    "audit": "node scripts/audit.ts check",
     "suppressions": "node scripts/suppressions.ts check",
     "suppressions:update": "node scripts/suppressions.ts update",
-    "risk": "node scripts/risk.ts",
+    "pr-labels": "node scripts/pr-labels.ts",
+    "contract": "node scripts/contract.ts check",
     "smoke": "node scripts/smoke.ts",
     "mutation": "node scripts/mutation.ts full",
     "mutation:changed": "node scripts/mutation.ts changed"
@@ -1003,6 +1017,7 @@
     "eslint-plugin-security": "^4.2.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "jiti": "^2.7.0",
+    "jscpd": "^5.4.3",
     "jsdom": "^30.1.3",
     "knip": "^6.42.1",
     "lefthook": "^2.2.2",
@@ -1010,7 +1025,9 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.0",
     "vite": "^8.3.5",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "overrides": {
     "@azure/msal-node": "^7.1.0",

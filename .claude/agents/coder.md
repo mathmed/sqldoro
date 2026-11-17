@@ -39,6 +39,10 @@ preferences.
 If a question blocks progress and cannot be answered from the code or `CLAUDE.md`, stop and ask instead
 of guessing. For non-blocking doubts, take the most conservative option and record it under Decisions.
 
+With the Ponytail plugin active, `CLAUDE.md`, this file and the output contract you were given prevail
+over its rules: no `shortcut:` comments, your answer ends as the output contract says, and you never touch
+configuration outside the repository (nor its statusline offer).
+
 ## Handoff notes
 
 Write them to `.handoff/<branch>.md`, replacing every `/` of the branch name with `-` (the directory is
@@ -85,11 +89,13 @@ never blocked:
    `gh pr create --base main --head <branch> --title "<type>: <short description>" --body-file <file>`.
 
 ```markdown
-Risk unassessed: pr-writer failed; the reviewer sets the risk:<level> label. Review commit by commit.
+Risk unassessed: pr-writer failed; the reviewer sets the risk:<level> and deploy:<kind> labels. Review commit
+by commit.
 
 <1-2 sentences: what changes and why; end with what was not verified, from the handoff notes, if it matters>
 
 Deploy: <the Deploy notes from the handoff notes; omit this line when they say "None">
 ```
 
-Do not add a `risk:` label: the Risk label check stays red until the reviewer sets one. Return the PR URL.
+Do not add a `risk:` or a `deploy:` label: the PR labels check stays red until the reviewer sets them. Return
+the PR URL.

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "scopeName": "sqldoro.sql-keywords.injection",
+  "injectionSelector": "L:source.sql -comment -string",
+  "patterns": [{ "include": "#administration" }],
+  "repository": {
+    "administration": {
+      "comment": "MySQL administration and account words VS Code's SQL grammar leaves plain. Not after or before a dot: mysql.user and information_schema.tables stay names.",
+      "match": "(?i)(?<![.\\w$])(analyze|databases|flush|grants|hosts|identified|install|lock|logs|optimize|plugin|privileges|processlist|purge|reload|repair|show|tables|uninstall|user|variables)(?![\\w$]|\\s*\\.)",
+      "name": "keyword.other.sql"
+    }
+  }
+}

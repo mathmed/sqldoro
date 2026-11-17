@@ -2,6 +2,13 @@ import type { TlsSettings } from '../engine/engine.ts'
 import { type FileReader, readFileFor } from '../platform.ts'
 import { SslMode, type SslOptions } from './connection.ts'
 
+// The certificates and the key a TLS connection presents or trusts: only the ones the profile names.
+export interface TlsMaterial {
+  readonly ca?: string
+  readonly cert?: string
+  readonly key?: string
+}
+
 interface Verification {
   readonly shouldVerifyCertificate: boolean
   readonly shouldVerifyHostname: boolean
@@ -43,4 +50,12 @@ async function readOptional(
   purpose: string,
 ): Promise<string | undefined> {
   return path === '' ? undefined : readFileFor(files, path, purpose)
+}
+
+export function tlsMaterial(tls: TlsSettings): TlsMaterial {
+  return {
+    ...(tls.ca === undefined ? {} : { ca: tls.ca }),
+    ...(tls.cert === undefined ? {} : { cert: tls.cert }),
+    ...(tls.key === undefined ? {} : { key: tls.key }),
+  }
 }

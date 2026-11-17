@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest'
 import { Analysis } from './analysis.ts'
 import type { CheckResult, SectionResult } from './evaluate.ts'
 import { DetailsFormat, finding, type Finding, markdownDetails, textDetails } from './finding.ts'
-import { MARKER, renderReport } from './render.ts'
-import { Job, type Section } from './sections.ts'
+import { MARKER, renderReport, type ReportContext } from './render.ts'
+import { Group, Job, type Section } from './sections.ts'
 import { Status, worst } from './status.ts'
 
-function section(title: string, findings: readonly Finding[], seconds = 0): SectionResult {
-  const checks = findings.map((item, index): CheckResult => ({
+const CONTEXT: ReportContext = { baseName: 'main', footer: 'commit `abc1234`' }
+
+function section(
+  title: string,
+  findings: readonly Finding[],
+  group: Group = Group.Code,
+): SectionResult {
+  const results = findings.map((item, index): CheckResult => ({
     check: {
       analysis: Analysis.Eslint,
       job: Job.Lint,
@@ -16,109 +22,65 @@ function section(title: string, findings: readonly Finding[], seconds = 0): Sect
       analyze: () => item,
     },
     finding: item,
-    seconds,
+    base: undefined,
+    seconds: 0,
   }))
-  const definition: Section = { title, checks: checks.map(({ check }) => check) }
-  return {
-    section: definition,
-    status: worst(findings.map(({ status }) => status)),
-    results: checks,
+  const definition: Section = {
+    group,
+    title,
+    reproduce: 'make lint',
+    checks: results.map(({ check }) => check),
   }
+  return { section: definition, status: worst(findings.map(({ status }) => status)), results }
 }
 
 const ALL_GOOD = [
-  section('Lint and format (ESLint, Prettier)', [finding(Status.Ok, 'No lint problems')], 2.04),
-  section('Types (tsc)', [finding(Status.Ok, 'No type errors | none')], 0.05),
+  section('Lint and format', [finding(Status.Ok, 'No lint problems')]),
+  section('Types (tsc)', [finding(Status.Ok, 'No type errors')]),
 ]
 
 describe('renderReport', () => {
   it('should start with the marker that lets CI update the same comment', () => {
-    expect(renderReport(ALL_GOOD, '').startsWith(`${MARKER}\n## 🔍 Quality Report\n`)).toBe(true)
+    expect(
+      renderReport(ALL_GOOD, CONTEXT).startsWith(`${MARKER}\n## 🔍 Quality Report\n\n> [!TIP]\n`),
+    ).toBe(true)
   })
 
-  it('should give the verdict and one table row per section', () => {
-    const report = renderReport(ALL_GOOD, '')
+  it('should put the verdict, the problems, the table and the passing details in that order', () => {
+    const results = [
+      section('Mutation testing', [
+        finding(Status.Ok, 'score 100%', markdownDetails('Mutated files', '| a | b |')),
+      ]),
+      section('Types (tsc)', [finding(Status.Failed, '1 type error')]),
+    ]
 
-    expect(report).toContain('✅ **All good**\n')
-    expect(report).toContain('| Lint and format (ESLint, Prettier) | ✅ | No lint problems |')
-    expect(report).toContain('| Types (tsc) | ✅ | No type errors \\| none |')
+    const report = renderReport(results, CONTEXT)
+
+    const order = [
+      '> [!CAUTION]',
+      '### ❌ Types (tsc)',
+      '| Area | Check |',
+      '<summary>1 passed</summary>',
+    ]
+    const positions = order.map((text) => report.indexOf(text))
+    expect(positions.every((position) => position > 0)).toBe(true)
+    expect(positions).toEqual(positions.toSorted((left, right) => left - right))
   })
 
-  it('should render each section with its findings and how long it took', () => {
-    const report = renderReport(ALL_GOOD, '')
-
-    expect(report).toContain(
-      '### ✅ Lint and format (ESLint, Prettier)\n\nNo lint problems _(2.0s)_\n',
+  it('should end with the disclaimer and the footer in small print', () => {
+    expect(renderReport(ALL_GOOD, CONTEXT)).toMatch(
+      /\n---\n<sub>This report only informs: each CI job is still the gate for its own checks\. · commit `abc1234`<\/sub>\n$/,
     )
-    expect(report).toContain('### ✅ Types (tsc)\n\nNo type errors | none\n')
-  })
-
-  it('should label each check of a section with several checks', () => {
-    const security = section('Security (ESLint, npm audit)', [
-      finding(Status.Ok, 'No security problems'),
-      finding(Status.Failed, '2 moderate severity vulnerabilities'),
-    ])
-
-    const report = renderReport([security], '')
-
-    expect(report).toContain('| Security (ESLint, npm audit) | ❌ | check 0: ✅ · check 1: ❌ |')
-    expect(report).toContain('- ✅ **check 0**: No security problems\n- ❌ **check 1**: 2 moderate')
-  })
-
-  it.each([
-    [[Status.Failed, Status.Warning], '❌ **Failed**: 1 section failed'],
-    [[Status.Failed, Status.Failed], '❌ **Failed**: 2 sections failed'],
-    [[Status.Warning, Status.Skipped], '⚠️ **Passed with warnings**: 1 section with warnings'],
-    [[Status.Warning, Status.Warning], '⚠️ **Passed with warnings**: 2 sections with warnings'],
-    [[Status.Skipped, Status.Ok], '✅ **All good** (1 section not run)'],
-    [[Status.Skipped, Status.Skipped], '✅ **All good** (2 sections not run)'],
-  ])('should summarise %j as "%s"', (statuses, expected) => {
-    const results = statuses.map((status, index) =>
-      section(`S${String(index)}`, [finding(status, 'x')]),
+    expect(renderReport(ALL_GOOD, { baseName: 'main', footer: '' })).toMatch(
+      /own checks\.<\/sub>\n$/,
     )
-
-    expect(renderReport(results, '')).toContain(`\n${expected}\n`)
-  })
-
-  it('should fold text details into a collapsible code block', () => {
-    const failed = section('Types (tsc)', [
-      finding(Status.Failed, '1 type error', textDetails('Type errors', 'a.ts(1,1): error TS1')),
-    ])
-
-    expect(renderReport([failed], '')).toContain(
-      '<details><summary>Type errors</summary>\n\n```text\na.ts(1,1): error TS1\n```\n\n</details>',
-    )
-  })
-
-  it('should not let tool output close the code block', () => {
-    const failed = section('Lint', [
-      finding(Status.Failed, 'x', textDetails('Output', '```\nevil')),
-    ])
-
-    expect(renderReport([failed], '')).toContain("```text\n'''\nevil\n```")
-  })
-
-  it('should embed Markdown details as they are', () => {
-    const table = '| File | Score |\n| --- | --- |'
-    const mutation = section('Mutation testing', [
-      finding(Status.Ok, 'score 100%', markdownDetails('Mutated files', table)),
-    ])
-
-    expect(renderReport([mutation], '')).toContain(`<summary>Mutated files</summary>\n\n${table}\n`)
-  })
-
-  it('should end with the disclaimer and the footer', () => {
-    expect(renderReport(ALL_GOOD, 'commit `abc1234`')).toMatch(
-      /\n---\nThis report only informs: each CI job is still the gate for its own checks\.\ncommit `abc1234`\n$/,
-    )
-    expect(renderReport(ALL_GOOD, '').endsWith('gate for its own checks.\n')).toBe(true)
   })
 
   it('should keep only the end of long details', () => {
     const output = `${'start '.repeat(10)}${'x'.repeat(7000)}`
     const failed = section('Lint', [finding(Status.Failed, 'x', textDetails('Output', output))])
 
-    const report = renderReport([failed], '')
+    const report = renderReport([failed], CONTEXT)
 
     expect(report).toContain('[...truncated...]')
     expect(report).not.toContain('start')
@@ -132,7 +94,7 @@ describe('renderReport', () => {
       ])
     const results = Array.from({ length: 12 }, () => huge('y'.repeat(5000)))
 
-    const report = renderReport(results, '')
+    const report = renderReport(results, CONTEXT)
 
     expect(report.length).toBeLessThanOrEqual(60_000)
     expect(report).toContain('_Details were trimmed to fit in a comment._')
@@ -140,15 +102,15 @@ describe('renderReport', () => {
   })
 
   it('should drop the details when trimming is not enough', () => {
-    const results = Array.from(Array(900).keys(), (index) =>
+    const results = Array.from(Array(700).keys(), (index) =>
       section(`Section ${String(index)}`, [
         finding(Status.Failed, 'x', textDetails('Output', 'z'.repeat(100))),
       ]),
     )
 
-    const report = renderReport(results, '')
+    const report = renderReport(results, CONTEXT)
 
-    expect(report).not.toContain('<details>')
+    expect(report).not.toContain('zzz')
     expect(report).toContain('_Details were trimmed to fit in a comment._')
   })
 })

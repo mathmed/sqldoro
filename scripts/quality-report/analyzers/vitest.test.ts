@@ -57,8 +57,13 @@ describe('analyzeVitest', () => {
   it('should report the test counts and the coverage', () => {
     expect(analyzeVitest(vitest(PASSED, 0))).toStrictEqual({
       status: Status.Ok,
-      summary:
-        '7 passed, 0 failed · coverage statements 100% / branches 100% / functions 100% / lines 100%',
+      summary: '7 passed, 0 failed',
+      details: {
+        title: 'Coverage',
+        body: 'statements 100% · branches 100% · functions 100% · lines 100%',
+        format: 'markdown',
+      },
+      metric: { label: 'coverage', value: 100, unit: '%', decimals: 2 },
     })
   })
 
@@ -86,8 +91,9 @@ describe('analyzeVitest', () => {
 
     expect(sut.status).toBe(Status.Failed)
     expect(sut.summary).toBe(
-      '7 passed, 0 failed · coverage statements 91.66% / branches 50% / functions 80% / lines 91.66% · coverage below the thresholds',
+      '7 passed, 0 failed · coverage below the thresholds (statements 91.66% · branches 50% · functions 80% · lines 91.66%)',
     )
+    expect(sut.metric?.value).toBe(50)
     expect(sut.details?.body).toContain('probe.ts      |       0 |')
     expect(sut.details?.body).toContain(
       'ERROR: Coverage for branches (50%) does not meet global threshold (100%)',

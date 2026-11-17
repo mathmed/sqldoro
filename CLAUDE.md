@@ -15,13 +15,15 @@ README for the v1 scope and what is deliberately out of it.
 make setup             # install the locked dependencies and the git hooks
 make build             # bundle the extension (esbuild) and the result view (Vite) into dist/
 make package           # build, then pack and check sqldoro-<version>.vsix (vsce)
-make format            # format with Prettier and apply the fixes ESLint can make
+make format            # fix whitespace and final newlines, format with Prettier, apply the fixes ESLint can make
 make lint              # ESLint (strict, complexity and security rules) and the Prettier check
 make typecheck         # tsc 7 strict: the whole project, then the platform-agnostic core alone
 make test              # unit tests with coverage (Vitest; thresholds are a ratchet at 100%)
 make lint-arch         # architecture contracts (dependency-cruiser)
 make dead-code         # unused files, exports and dependencies (knip)
-make audit             # known vulnerabilities in the dependencies (npm audit)
+make duplication       # duplicated code in src/ and scripts/: zero clones (jscpd, .jscpd.json)
+make hygiene           # trailing whitespace, final newlines, large files added (pre-commit-hooks' checks)
+make audit             # known vulnerabilities in the dependencies (npm audit), short of a dated, owner-approved exception
 make suppressions      # suppression ratchet: fails when eslint-disable, @ts-expect-error, skipped tests... differ from the baseline
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
 make suppressions-update # lower suppressions-baseline.json after removing suppressions (never raises it)
@@ -29,8 +31,9 @@ make integration       # start the test servers (Docker Compose), run the integr
 make integration-down  # stop and remove the integration test servers
 make smoke             # pack, then install the .vsix in a real VS Code and run the smoke suite
 make mutation          # mutation testing of the whole core (slow; weekly in CI)
-make mutation-changed  # mutation testing of the core files changed vs BASE (default origin/main); runs on every PR
-make risk-labels       # create/update the risk:<level> labels on GitHub (needs gh)
+make mutation-changed  # mutation testing of the core declarations changed vs BASE (default origin/main); runs on every PR
+make contract          # fail when package.json loses a contributed command, view or setting vs BASE
+make labels            # create/update the risk:<level> and deploy:<kind> labels on GitHub (needs gh)
 make all               # everything CI runs on a pull request
 ```
 
@@ -46,7 +49,8 @@ src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
-                suppression ratchet, risk label check
+                suppression ratchet, dependency audit, file hygiene, contract check, PR labels check,
+                local ESLint rules
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -164,7 +168,8 @@ statement; and changes to how queries run or results are shown that a revert fix
    README for users (`src/extension/manifest-docs.test.ts` checks its commands and settings),
    `CONTRIBUTING.md` for development, `docs/ARCHITECTURE.md`, and `CHANGELOG.md` under
    `[Unreleased]`.
-7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label,
+7. The PR follows `.github/pull_request_template.md` and carries exactly one `risk:<level>` label and one
+   `deploy:<kind>` label,
    assigned by judgment (see "Workflow" and "Critical surfaces").
 
 ## Deterministic validation
@@ -180,7 +185,9 @@ lists no violation: it counts the justified suppressions the rules allow, and on
   30 lines per function, 3 parameters, 300 lines per file) cannot be disabled inline: split the code.
   Any other `eslint-disable` needs a `-- reason`, `@ts-expect-error` needs a description and
   `@ts-ignore` is banned. Coverage and mutation pragmas (`v8 ignore`, `Stryker disable`) are rejected
-  unless they come with a disable and its reason.
+  unless they come with a disable and its reason. Two project conventions are rules too: no JSDoc
+  (`conventions/no-jsdoc`, `scripts/eslint/conventions.ts`) and, in the product code and the scripts,
+  no module constant array, `Map` or `Set` that is not typed readonly.
 - **tsc 7**: `strict` plus `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`,
   `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnused*`, `erasableSyntaxOnly` and
   `verbatimModuleSyntax`. TypeScript 6 is installed beside it (`typescript` is an npm alias of
@@ -200,26 +207,42 @@ lists no violation: it counts the justified suppressions the rules allow, and on
 - **Integration**: the `integration` job runs `make integration`'s tests against real MySQL,
   PostgreSQL and OpenSSH service containers; `test/integration/compose.yaml` starts the same servers
   locally. Keep both definitions in sync.
-- **Mutation testing** runs on every PR (`Mutation testing` workflow, only the `src/core` files changed
-  in the diff) and weekly on the whole core. The job fails when the score is below `MUTATION_MIN_SCORE`
+- **Mutation testing** runs on every PR (`Mutation testing` workflow, only the `src/core` declarations
+  that hold a line changed in the diff: functions, class members, constants) and weekly on the whole
+  core. The job fails when the score is below `MUTATION_MIN_SCORE`
   (repository variable, default 95). Survivors are listed in the Quality Report and the job summary with
   file, line and mutator: add the missing assertion; never weaken or delete tests, shrink the `mutate`
   scope or lower the ratchet. Never commit `reports/` or `.stryker-tmp/`.
 - **Dead code**: knip reports unused files, exports, dependencies and stale configuration. Delete the
   unused code; do not add `ignore*` entries to `knip.jsonc`.
+- **Duplication**: `make duplication` (jscpd, `.jscpd.json`) allows no clone of 5 lines or 50 tokens in
+  `src/` and `scripts/` (tests and import lines left out), with no baseline. Extract the shared code
+  (between drivers, into the core); a `jscpd:ignore-start` block counts as a suppression.
+- **File hygiene**: `make hygiene` (`scripts/hygiene.ts`) fails on trailing whitespace, a missing or
+  extra final newline in any text file, and on a file above 500kb that a commit or a PR adds; the
+  pre-commit hook fixes the whitespace of the staged files.
+- **Contract**: on a PR, `make contract` (`scripts/contract.ts`) fails when `package.json` removes or
+  renames a contributed command, view, view container or setting, changes a setting's type or allows
+  it fewer values, against the merge base.
+- **Dependency audit**: `make audit` (`scripts/audit.ts`) fails on any advisory `npm audit` reports,
+  development dependencies included. An entry of `scripts/audit/exceptions.ts` (advisory id, package,
+  vulnerable range) needs the owner's explicit approval and expires within 30 days; the check also fails
+  once its advisory's range changes or it is no longer reported. Never use `--omit`, `--audit-level` or
+  another option that hides advisories.
 - **Suppressions**: `make suppressions` (`scripts/suppressions.ts`, in `make quality`, the pre-commit
   hook and the `lint` job) counts per file and kind every `eslint-disable` and inline `/* eslint */`
   config, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `v8`/`c8`/`istanbul ignore`,
-  `Stryker disable`, `prettier-ignore`, the JSDoc tags knip skips (`@public`, `@beta`, `@alias`,
+  `Stryker disable`, `prettier-ignore`, `jscpd:ignore-start`, the JSDoc tags knip skips (`@public`, `@beta`, `@alias`,
   `@internal`) and every skipped, failing or focused test (`.skip`, `.skipIf`, `.runIf`, `.todo`,
   `.fails`, `.only`, `xit`, `fit`, `context.skip()`...) in every source file git tracks or would add,
   and compares them with `suppressions-baseline.json`. A new suppression fails the check: fix the cause.
   Raising the baseline (`npm run suppressions:update -- --allow-increase`) needs the owner's explicit
   approval. When you remove suppressions, run `make suppressions-update` and commit the lower baseline
   in the same PR.
-- **Risk label**: the `Risk label` workflow fails a PR without exactly one known `risk:<level>` label
-  (`low`, `medium`, `high`, `critical`). The level is a judgment (`.claude/agents/pr-writer.md`, step 5),
-  not derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
+- **PR labels**: the `PR labels` workflow fails a PR without exactly one known `risk:<level>` label
+  (`low`, `medium`, `high`, `critical`) and exactly one known `deploy:<kind>` label (`none`, `simple`,
+  `migration`, `coordinated`). Both are a judgment (`.claude/agents/pr-writer.md`, steps 5 and 7), not
+  derived from the files a PR touches. Do not change pipeline files unless the task asks for it,
   and call the change out in the PR.
 
 ## Workflow
@@ -231,14 +254,14 @@ lists no violation: it counts the justified suppressions the rules allow, and on
    original task verbatim, the branch, the base branch and the path of the handoff notes. It reads the
    diff cold, commit by commit, fills `.github/pull_request_template.md`, assigns the risk level (mostly
    low or medium; high or critical only with a sentence naming what can break; at least medium when there
-   are deploy steps), opens the PR with the
-   `risk:<level>` label and stops. It never writes code. The body is short: a standalone summary of one or
+   are deploy steps) and the deploy kind, opens the PR with the `risk:<level>` and `deploy:<kind>` labels
+   and stops. It never writes code. The body is short: a standalone summary of one or
    two sentences, at most one visual block (a before/after table in plain words, a small Mermaid diagram
    or a short diff), a single Deploy line only when there is a real release step (`docs/RELEASING.md`),
    and a risk line only for high or critical. It still checks every claim against the diff and the tests.
 3. **Fallback**: if `pr-writer` fails or cannot run, delegate back to `coder` saying so: it opens the PR
-   itself with a minimal body (a summary in the template's shape, risk "unassessed", no risk label),
-   so a failure never blocks delivery. The `Risk label` check stays red until a person sets the label.
+   itself with a minimal body (a summary in the template's shape, risk "unassessed", no labels), so a
+   failure never blocks delivery. The `PR labels` check stays red until a person sets the labels.
 4. **Merge**: nobody but the owner merges. Agents never merge, approve or enable auto-merge.
 
 - **Exception**: if a `.local_dev` file exists at the repository root, the developer is working locally:

@@ -7,7 +7,7 @@ export interface TableReference {
   readonly alias: string | undefined
 }
 
-const INTRODUCERS = ['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE']
+const INTRODUCERS: readonly string[] = ['FROM', 'JOIN', 'UPDATE', 'INTO', 'TABLE']
 const LIST_INTRODUCER = 'FROM'
 const PART_AND_DOT = 2
 const ALIAS_KEYWORD = 'AS'

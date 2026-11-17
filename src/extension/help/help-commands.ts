@@ -14,7 +14,7 @@ export interface HelpContext {
 
 // contributes.walkthroughs in package.json, and the page of its safety step.
 const WALKTHROUGH = 'sqldoro.gettingStarted'
-const SAFETY_PAGE = ['media', 'walkthrough', 'safety.md']
+const SAFETY_PAGE: readonly string[] = ['media', 'walkthrough', 'safety.md']
 const OPEN_WALKTHROUGH = 'workbench.action.openWalkthrough'
 const MARKDOWN_PREVIEW = 'markdown.showPreview'
 const READ_SAFETY_MODEL = 'Read the Safety Model'

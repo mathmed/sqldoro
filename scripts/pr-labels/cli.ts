@@ -1,11 +1,11 @@
 import { parseArgs } from 'node:util'
 
-import { labelProblem, parseLabels, RiskLabelError } from './label-check.ts'
+import { labelProblems, parseLabels, PrLabelError } from './label-check.ts'
 
 const USAGE_ERROR = 2
 const USAGE = `usage:
-  risk check --labels-json <json>
-      fail unless the labels hold exactly one known risk:<level> label`
+  pr-labels check --labels-json <json>
+      fail unless the labels hold exactly one known risk:<level> and one known deploy:<kind> label`
 
 export function main(argv: readonly string[]): number {
   const [command = '', ...args] = argv
@@ -22,20 +22,22 @@ function checkReadableLabels(labelsJson: string): number {
   try {
     return checkLabels(labelsJson)
   } catch (error) {
-    if (!(error instanceof RiskLabelError)) {
+    if (!(error instanceof PrLabelError)) {
       throw error
     }
-    console.error(`Risk label check failed: ${error.message}`)
+    console.error(`PR label check failed: ${error.message}`)
     return 1
   }
 }
 
 function checkLabels(labelsJson: string): number {
-  const problem = labelProblem(parseLabels(labelsJson))
-  if (problem !== undefined) {
-    console.error(`Risk label check failed: ${problem}.`)
+  const problems = labelProblems(parseLabels(labelsJson))
+  for (const problem of problems) {
+    console.error(`PR label check failed: ${problem}.`)
+  }
+  if (problems.length > 0) {
     return 1
   }
-  console.log('Risk label check passed.')
+  console.log('PR labels are set: one risk label and one deploy label.')
   return 0
 }

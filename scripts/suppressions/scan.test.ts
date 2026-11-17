@@ -21,6 +21,8 @@ describe('scanSource', () => {
       '// Stryker disable next-line all: reason',
       '// prettier-ignore',
       '/** @public */ /** @beta */ /** @alias */ /** @internal */',
+      '// jscpd:ignore-start',
+      '// jscpd:ignore-end',
       'export const value = 1',
     ].join('\n')
 
@@ -41,6 +43,7 @@ describe('scanSource', () => {
       [11, SuppressionKind.KnipTag],
       [11, SuppressionKind.KnipTag],
       [11, SuppressionKind.KnipTag],
+      [12, SuppressionKind.JscpdIgnore],
     ])
   })
 

@@ -17,6 +17,11 @@ make quality      # every static check and the unit tests: what the pre-commit h
 ```
 
 Press **F5** in VS Code ("Run Extension") to open an Extension Development Host with sqldoro.
+
+`.claude/settings.json` registers the marketplace of the [Ponytail](https://github.com/DietrichGebert/ponytail)
+plugin and enables it for whoever works here with Claude Code (`claude plugin install ponytail@ponytail`
+to install it, `/ponytail off` to turn it off). With it active, `CLAUDE.md` and the agents of
+`.claude/agents/` prevail over the plugin's rules.
 `make integration` leaves its servers running, so you can connect to them (throwaway credentials):
 
 | Server     | Image                       | Address           | User / password        | Database  |
@@ -32,28 +37,31 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
 
 ### Make targets
 
-| Command                    | Description                                                                |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `make setup`               | Install the locked dependencies and the git hooks.                         |
-| `make build`               | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.       |
-| `make package`             | Build, then pack and check `sqldoro-<version>.vsix`.                       |
-| `make format`              | Format (Prettier) and apply the fixes ESLint can make.                     |
-| `make lint`                | ESLint and the Prettier check.                                             |
-| `make typecheck`           | tsc 7 strict: the whole project, then the core alone.                      |
-| `make test`                | Unit tests with coverage (100%, a ratchet).                                |
-| `make lint-arch`           | Architecture contracts (dependency-cruiser).                               |
-| `make dead-code`           | Unused files, exports and dependencies (knip).                             |
-| `make audit`               | Known vulnerabilities in the dependencies.                                 |
-| `make suppressions`        | Suppression ratchet against `suppressions-baseline.json`.                  |
-| `make quality`             | All of the above but the build: what the pre-commit hook runs.             |
-| `make integration`         | Start the test servers (Docker Compose) and run the integration tests.     |
-| `make integration-down`    | Stop and remove the integration test servers.                              |
-| `make smoke`               | Pack the extension and run it in a real VS Code.                           |
-| `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                   |
-| `make mutation-changed`    | Mutation testing of the core files changed against `BASE` (`origin/main`). |
-| `make suppressions-update` | Lower the suppression baseline after removing suppressions.                |
-| `make risk-labels`         | Create or update the `risk:<level>` labels on GitHub (needs `gh`).         |
-| `make all`                 | Everything CI runs on a pull request.                                      |
+| Command                    | Description                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| `make setup`               | Install the locked dependencies and the git hooks.                        |
+| `make build`               | Bundle the extension (esbuild) and the webviews (Vite) into `dist/`.      |
+| `make package`             | Build, then pack and check `sqldoro-<version>.vsix`.                      |
+| `make format`              | Fix whitespace, format (Prettier) and apply the fixes ESLint can make.    |
+| `make lint`                | ESLint and the Prettier check.                                            |
+| `make typecheck`           | tsc 7 strict: the whole project, then the core alone.                     |
+| `make test`                | Unit tests with coverage (100%, a ratchet).                               |
+| `make lint-arch`           | Architecture contracts (dependency-cruiser).                              |
+| `make dead-code`           | Unused files, exports and dependencies (knip).                            |
+| `make duplication`         | Duplicated code in `src/` and `scripts/`: zero clones (jscpd).            |
+| `make hygiene`             | Trailing whitespace, final newlines and large added files.                |
+| `make audit`               | Known vulnerabilities in the dependencies, short of a dated exception.    |
+| `make suppressions`        | Suppression ratchet against `suppressions-baseline.json`.                 |
+| `make quality`             | All of the above but the build: what the pre-commit hook runs.            |
+| `make integration`         | Start the test servers (Docker Compose) and run the integration tests.    |
+| `make integration-down`    | Stop and remove the integration test servers.                             |
+| `make smoke`               | Pack the extension and run it in a real VS Code.                          |
+| `make mutation`            | Mutation testing of the whole core (slow; weekly in CI).                  |
+| `make mutation-changed`    | Mutation testing of the core declarations changed against `BASE`.         |
+| `make contract`            | Fail when `package.json` loses a command, view or setting against `BASE`. |
+| `make suppressions-update` | Lower the suppression baseline after removing suppressions.               |
+| `make labels`              | Create or update the `risk:<level>` and `deploy:<kind>` labels (`gh`).    |
+| `make all`                 | Everything CI runs on a pull request.                                     |
 
 ## Making a change
 
@@ -66,8 +74,8 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
    sessions open.
 4. Commit with [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`,
    `refactor`, `chore`, `test`, `docs`, `ci`, `build`); the commit-msg hook checks it.
-5. Open the pull request with the template and one `risk:<level>` label (see
-   [The risk label](#the-risk-label) and [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
+5. Open the pull request with the template, one `risk:<level>` and one `deploy:<kind>` label (see
+   [The PR labels](#the-pr-labels) and [Pull request flow](#pull-request-flow)). CI posts one **Quality Report**
    comment; a failing check means it is not ready.
 
 Contributed commands, settings and views are the public contract: do not remove or rename one unless
@@ -81,27 +89,37 @@ Strict from day one, with no baseline (a TypeScript port of
 [py-awesome-template](https://github.com/mathmed/py-awesome-template)'s). Code is refactored to meet
 the gates; relaxing a threshold, rule or contract needs the owner's explicit approval.
 
-| Gate               | Tool                                                           | Guarantees                                                                                         | Runs in                      |
-| ------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Lint and format    | ESLint (typescript-eslint strict, SonarJS, security), Prettier | Every rule an error, `--max-warnings 0`; a disable needs a reason.                                 | pre-commit, `lint`           |
-| Complexity         | ESLint                                                         | Complexity 5, nesting 2, 30 lines per function, 3 parameters, 300 lines per file; never disabled.  | pre-commit, `lint`           |
-| Types              | tsc 7 strict, plus the extra flags of `tsconfig.json`          | No `any`; the core type-checks without Node.js or DOM types.                                       | pre-commit, `quality`        |
-| Security           | eslint-plugin-security, no-unsanitized, `npm audit`            | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                              | pre-commit, `lint`/`quality` |
-| Dead code          | knip                                                           | No unused file, export or dependency, no stale configuration.                                      | pre-commit, `quality`        |
-| Tests and coverage | Vitest (Node.js; jsdom and Testing Library for the webview)    | 100% statements, branches, functions and lines, as a ratchet.                                      | pre-commit, `quality`        |
-| Integration        | Vitest against MySQL 8.4, PostgreSQL 18 and OpenSSH            | Drivers, tunnel and extension host behave on real servers.                                         | `integration`                |
-| Architecture       | dependency-cruiser                                             | The layer contracts of `.dependency-cruiser.mjs`.                                                  | pre-commit, `architecture`   |
-| Build and package  | esbuild, Vite, vsce, `scripts/package/`                        | The `.vsix` holds exactly what it should, with shippable licenses, under its budget.               | `package`                    |
-| Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.    | `smoke`                      |
-| Mutation testing   | Stryker on `src/core`                                          | The score stays above `MUTATION_MIN_SCORE` (95).                                                   | `mutation` workflow          |
-| Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage or mutation pragma, skipped or focused test. | pre-commit, `lint`           |
-| Risk label         | `scripts/risk.ts`                                              | Exactly one known `risk:<level>` label per PR.                                                     | `Risk label` workflow        |
-| Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                       | `quality-report`             |
+| Gate               | Tool                                                           | Guarantees                                                                                        | Runs in                      |
+| ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Lint and format    | ESLint (typescript-eslint strict, SonarJS, security), Prettier | Every rule an error, `--max-warnings 0`; a disable needs a reason; no JSDoc, readonly constants.  | pre-commit, `lint`           |
+| File hygiene       | `scripts/hygiene.ts`                                           | No trailing whitespace, one final newline per text file, no file above 500kb added.               | pre-commit, `lint`           |
+| Complexity         | ESLint                                                         | Complexity 5, nesting 2, 30 lines per function, 3 parameters, 300 lines per file; never disabled. | pre-commit, `lint`           |
+| Types              | tsc 7 strict, plus the extra flags of `tsconfig.json`          | No `any`; the core type-checks without Node.js or DOM types.                                      | pre-commit, `quality`        |
+| Security           | eslint-plugin-security, no-unsanitized, `scripts/audit.ts`     | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                             | pre-commit, `lint`/`quality` |
+| Dead code          | knip                                                           | No unused file, export or dependency, no stale configuration.                                     | pre-commit, `quality`        |
+| Duplication        | jscpd (`.jscpd.json`)                                          | No clone of 5 lines or 50 tokens in `src/` and `scripts/`, tests left out.                        | pre-commit, `lint`           |
+| Tests and coverage | Vitest (Node.js; jsdom and Testing Library for the webview)    | 100% statements, branches, functions and lines, as a ratchet.                                     | pre-commit, `quality`        |
+| Integration        | Vitest against MySQL 8.4, PostgreSQL 18 and OpenSSH            | Drivers, tunnel and extension host behave on real servers.                                        | `integration`                |
+| Architecture       | dependency-cruiser                                             | The layer contracts of `.dependency-cruiser.mjs`.                                                 | pre-commit, `architecture`   |
+| Build and package  | esbuild, Vite, vsce, `scripts/package/`                        | The `.vsix` holds exactly what it should, with shippable licenses, under its budget.              | `package`                    |
+| Smoke              | `@vscode/test-electron` (xvfb in CI)                           | The packaged `.vsix` installs, activates, registers every command and view, loads its webviews.   | `smoke`                      |
+| Contract           | `scripts/contract.ts`                                          | No contributed command, view or setting removed, renamed or narrowed against the base branch.     | `lint` (pull requests)       |
+| Mutation testing   | Stryker on `src/core`                                          | The changed declarations score above `MUTATION_MIN_SCORE` (95); the whole core weekly.            | `mutation` workflow          |
+| Suppressions       | `scripts/suppressions.ts`                                      | No new `eslint-disable`, `@ts-expect-error`, coverage, mutation or jscpd pragma, skipped test.    | pre-commit, `lint`           |
+| PR labels          | `scripts/pr-labels.ts`                                         | Exactly one known `risk:<level>` and one known `deploy:<kind>` label per PR.                      | `PR labels` workflow         |
+| Report             | `scripts/quality-report.ts`                                    | One Quality Report comment per pull request.                                                      | `quality-report`             |
 
-Git hooks run through [lefthook](https://lefthook.dev/): pre-commit formats the staged files and runs
-`make quality`'s checks (the tests without the `GIT_*` variables git exports to hooks; tests that
+Git hooks run through [lefthook](https://lefthook.dev/): pre-commit fixes the trailing whitespace and
+final newlines of the staged files, formats them and runs `make quality`'s checks (the tests without the `GIT_*` variables git exports to hooks; tests that
 need a repository create one with `test/support/git.ts`); commit-msg enforces Conventional Commits.
-Dependabot proposes grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5).
+Dependabot proposes grouped weekly updates after a cooldown (major 15 days, minor 10, patch 5,
+GitHub Actions 10), born `risk:low` and `deploy:none`.
+
+The contract check (`make contract`, the `lint` job on pull requests) compares the contributed
+commands, views, view containers and settings of `package.json` with the merge base of the base
+branch: a removed or renamed one, a setting whose type changed or that allows fewer values fails it;
+additions are listed. When a change does mean to remove one, the check stays red and the owner
+decides.
 
 ### Integration, packaging, smoke and mutation
 
@@ -124,7 +142,11 @@ Dependabot proposes grouped weekly updates after a cooldown (major 15 days, mino
   stable, or `SMOKE_VSCODE_VERSION`) with a fresh profile in the system temporary folder (macOS caps
   socket paths at 103 characters) and runs `test/smoke/suite.ts`.
 - **Mutation testing**: [Stryker](https://stryker-mutator.io/) mutates `src/core` and runs the unit
-  tests against each mutant. For each **survivor**, add the missing assertion; `MUTATION_MIN_SCORE`
+  tests against each mutant. On a pull request (`make mutation-changed`) it mutates only the
+  declarations that hold a changed line: `scripts/mutation/` reads the new side of every hunk of
+  `git diff --unified=0` against the merge base and hands Stryker the line ranges of the top-level
+  declarations, or class members, around them; a hunk that only deletes stands for the lines around
+  it, and a change that touches no declaration is skipped. For each **survivor**, add the missing assertion; `MUTATION_MIN_SCORE`
   only goes up. Mutants run through the command runner, one Vitest process each, until Stryker's
   Vitest runner supports Vitest 5
   ([stryker-js#6210](https://github.com/stryker-mutator/stryker-js/issues/6210)).
@@ -141,6 +163,7 @@ the committed `suppressions-baseline.json`:
 | `ts-ignore` / `ts-expect-error` / `ts-nocheck` | the TypeScript directives                                                       |
 | `coverage-ignore` / `stryker-disable`          | `v8`, `c8` and `istanbul ignore`; `Stryker disable`                             |
 | `prettier-ignore` / `knip-tag`                 | `prettier-ignore`; the JSDoc tags knip never reports (`@public`, `@beta`...)    |
+| `jscpd-ignore`                                 | `jscpd:ignore-start`, a block jscpd leaves out of the duplication check         |
 | `test-skip` / `test-fails` / `test-focus`      | `.skip`, `.skipIf`, `.runIf`, `.todo`, `xit`; `.fails`; `.only`, `fit`          |
 
 Comments and test calls are read with the TypeScript parser (`@typescript-eslint/typescript-estree`),
@@ -157,7 +180,22 @@ It runs in `make quality`, the pre-commit hook and the `lint` job, and prints a 
 line for the Quality Report. Configuration that disables a check for the whole project is not counted:
 call such a change out in the PR.
 
-### The risk label
+### Dependency audit
+
+`make audit` (`scripts/audit.ts`, in `make quality`, the pre-commit hook and the `quality` job) runs
+`npm audit --json` on every dependency, development ones included, and fails on any advisory of any
+severity. The only way past an advisory is an entry of `scripts/audit/exceptions.ts`, which needs the
+owner's explicit approval: it names the advisory id, the package and the vulnerable range npm reports,
+and lasts at most 30 days from its creation date. The check fails when an advisory has no exception,
+when an exception expired, when the advisory's range changed (a fixed release is usually out: upgrade
+and delete the exception), when an exception's advisory is no longer reported, or when an exception
+lasts longer than 30 days.
+
+One exception exists, approved once by the owner on 2026-11-17: `GHSA-fc5q-39xc-vjpf`, picomatch
+`<=4.0.7`, a ReDoS with no fixed release that only reaches development tools (typescript-eslint,
+dependency-cruiser, knip, Vite, Vitest, vsce), none of them in the `.vsix`. It expires on 2026-12-17.
+
+### The PR labels
 
 Every PR carries exactly one `risk:low`, `risk:medium`, `risk:high` or `risk:critical` label. The level
 is a judgment of the `pr-writer` agent (or the person opening the PR), following the rubric in
@@ -167,16 +205,23 @@ can run a destructive statement or weaken a safety lock (see "Critical surfaces"
 and critical need one concrete sentence in the Risk line naming what can break. Touching pipeline files is
 not by itself a reason for high.
 
-The **Risk label** workflow (`.github/workflows/risk-label.yml`) runs `scripts/risk.ts check` on every
-push and label change and fails when a PR has no risk label, more than one, or an unknown one. It lives
-outside `ci.yml` so that a label change does not re-run every analysis, and is not part of the Quality
-Report. `make risk-labels` creates the labels (idempotent); Dependabot's PRs get `risk:low`.
+It also carries exactly one `deploy:<kind>` label, what shipping it needs beyond the merge: `deploy:none`
+(it ships with the next release), `deploy:simple` (a repository variable, secret, label or setting),
+`deploy:migration` (stored data an older version cannot read back) or `deploy:coordinated` (another PR
+or repository first, or release steps in a given order). A PR with a `Deploy:` line is never
+`deploy:none`.
+
+The **PR labels** workflow (`.github/workflows/pr-labels.yml`, job `pr-labels`) runs
+`scripts/pr-labels.ts check` on every push and label change and fails when a PR misses a label of
+either group, has more than one, or an unknown one. It lives outside `ci.yml` so that a label change
+does not re-run every analysis, and is not part of the Quality Report. `make labels` creates the labels
+(idempotent); Dependabot's PRs get `risk:low` and `deploy:none`.
 
 ### Pull request flow
 
 Reading AI-written diffs is the bottleneck, so the PR description is short and says what changed in
 behavior, written by an agent that did not write the code (`CLAUDE.md`, "Workflow"); the risk label says
-how much attention the PR deserves:
+how much attention the PR deserves and the deploy label what shipping it needs:
 
 1. **`coder`** implements on a branch, runs the checks, commits one logical step per commit, pushes and
    writes handoff notes to `.handoff/<branch>.md` (gitignored), with an explicit **Not verified** list.
@@ -187,26 +232,53 @@ how much attention the PR deserves:
    Mermaid diagram, a before/after table of values or a short diff), a `Deploy:` line only when there is a
    real release step, a `Risk high: <what can break>` first line only for high or critical, and a
    `Divergence:` line only when the diff contradicts the notes. No empty headings, filler, file lists or
-   footer; at most 2,500 characters. It opens the PR with the label and stops.
-3. If `pr-writer` fails, `coder` opens the PR with a minimal body and no label; the Risk label check
-   stays red until a person sets one. Only the owner merges.
+   footer; at most 2,500 characters. It opens the PR with both labels and stops.
+3. If `pr-writer` fails, `coder` opens the PR with a minimal body and no label; the PR labels check
+   stays red until a person sets them. Only the owner merges.
 
 People opening PRs by hand get the same template from GitHub.
 
 ### Quality Report
 
-Each pull request gets **one** comment (marker `<!-- quality-report -->`, updated on every push) with
-the verdict and a section per analysis (✅ ok, ⚠️ warning, ❌ failed, ⏭️ not run). Each CI job runs
-its tool through `node scripts/quality-report.ts run <analysis> -- <command>`, which keeps the tool's
-exit code and saves a fragment uploaded as `quality-fragment-<job>`; the `quality-report` job renders
-them (also to the job summary, the fallback for forks). Render locally with
-`node scripts/quality-report.ts render --dir quality-fragments`.
+Each pull request gets **one** comment (marker `<!-- quality-report -->`, updated on every push). It
+only informs: each CI job is still the gate for its own checks. Top to bottom:
+
+1. **Verdict**, in a GitHub alert (`[!CAUTION]` when something failed, `[!WARNING]` for warnings only,
+   `[!TIP]` otherwise) with the counts: `❌ 1 failed · ✅ 12 passed · ⏭️ 1 skipped`. When the base
+   branch already failed the same checks it says so (`1 failed, inherited from main`).
+2. **What to fix, open**: one section per failed, then warning, check, with what its analyzer read
+   (failed tests, new suppressions by file and line, clones, survivors, breaking contract changes...)
+   and the local command that reproduces it (`**Reproduce**: make test`).
+3. **Table** by area (Code, Security and dependencies, Behavior, Architecture), one line per check.
+   Coverage, the suppression total and the mutation score show how they moved since the base branch:
+   `coverage 100.00% (=)`, `score 96.0% (↓1.2)`, `suppressions 9 (n/a)`.
+4. **One folded `<details>`** with the details of the passing checks (coverage per metric, mutated
+   files).
+5. **Footer**: the disclaimer, the commit, the time in UTC, the run and the base run compared with.
+
+Statuses: ✅ passed, ⚠️ warning, ❌ failed, ⏭️ not run.
+
+**Comparison with the base branch.** The `quality-report` job downloads the fragments of the last
+completed push run of `ci.yml` on the PR's base branch (`gh run list` and `gh run download`, with
+`actions: read`), passed or failed. A failed check is marked **inherited** when the same analysis
+failed there too (not necessarily on the same findings). Mutation testing and the contract check run
+only on pull requests, so their base is normally missing. Without a base (no run yet, artifacts past
+their 7 days, an API error) the deltas are `n/a`, nothing is inherited and the footer says so: the
+baseline never fails the report.
+
+**How it works.** Each CI job runs its tool through `node scripts/quality-report.ts run <analysis> --
+<command>`, which keeps the tool's exit code and saves a fragment uploaded as `quality-fragment-<job>`;
+the `quality-report` job renders them (also to the job summary, the fallback for forks). Render
+locally with `node scripts/quality-report.ts render --dir quality-fragments`, adding
+`--base-dir <fragments of a base run> --base-name main` to see the comparison.
 
 To add an analysis:
 
 1. Add a value to `Analysis` (`scripts/quality-report/analysis.ts`).
-2. Write its analyzer in `scripts/quality-report/analyzers/`, tested against real output of the tool.
-3. Add a `Check` to `SECTIONS` (`scripts/quality-report/sections.ts`).
+2. Write its analyzer in `scripts/quality-report/analyzers/`, tested against real output of the tool:
+   a status, a one-line summary, optional details and an optional `Metric` compared with the base.
+3. Add a `Check` to `SECTIONS` (`scripts/quality-report/sections.ts`), in a section with its area and
+   the command that reproduces it.
 4. Run the tool through the wrapper in its job, and upload `quality-fragments/` as
    `quality-fragment-<job>` with `if: ${{ !cancelled() }}`.
 5. Add the job to the `needs` of `quality-report`.

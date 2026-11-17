@@ -8,6 +8,8 @@ import {
   hasReachedMinScore,
   type MutationResult,
 } from '../shared/mutation-result.ts'
+import { mutateRange, touchedDeclarations } from './declarations.ts'
+import { touchedLines } from './hunks.ts'
 import { mutationTargets } from './scope.ts'
 import { scoreMutants, skippedResult } from './score.ts'
 import { renderSummary } from './summary.ts'
@@ -17,13 +19,18 @@ const DEFAULT_MIN_SCORE = 95
 const DEFAULT_BASE = 'origin/main'
 const USAGE_ERROR = 2
 const NOTHING_TO_MUTATE = 'No core file changed: nothing to mutate.'
+const NO_DECLARATION_CHANGED = 'The change touches no declaration of the core: nothing to mutate.'
+const JSX_EXTENSION = '.tsx'
 const USAGE = `usage:
-  mutation changed [--base <ref>]   mutate the core files changed since <ref> (default ${DEFAULT_BASE})
+  mutation changed [--base <ref>]   mutate the core declarations changed since <ref> (default ${DEFAULT_BASE})
   mutation full                     mutate the whole core`
 
 export interface MutationRunner {
   readonly runMutationTest: (mutate: string[] | undefined) => Promise<readonly MutantResult[]>
   readonly changedFiles: (baseRef: string) => Promise<readonly string[]>
+  // `git diff --unified=0` of the files between the merge base with the ref and HEAD.
+  readonly diff: (baseRef: string, files: readonly string[]) => Promise<string>
+  readonly readSource: (file: string) => Promise<string>
   readonly mutatePatterns: () => Promise<readonly string[]>
 }
 
@@ -46,18 +53,47 @@ export async function main(argv: readonly string[], context: MutationContext): P
   }
 }
 
+// Mutates the declarations (functions, methods, constants...) of the core that hold a changed
+// line, not the whole files: what did not change was mutated when it did.
 async function mutateChanged(args: readonly string[], context: MutationContext): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
     options: { base: { type: 'string', default: DEFAULT_BASE } },
   })
-  const files = await context.runner.changedFiles(values.base)
-  const targets = mutationTargets(files, await context.runner.mutatePatterns())
+  const { runner } = context
+  const files = await runner.changedFiles(values.base)
+  const targets = mutationTargets(files, await runner.mutatePatterns())
   if (targets.length === 0) {
-    return publish(skippedResult(NOTHING_TO_MUTATE, minScore(context.environment)), context)
+    return skip(NOTHING_TO_MUTATE, context)
   }
-  console.log(`Mutating:\n  ${targets.join('\n  ')}`)
-  return publish(await mutate(targets, context), context)
+  const ranges = await changedRanges(runner, values.base, targets)
+  if (ranges.length === 0) {
+    return skip(NO_DECLARATION_CHANGED, context)
+  }
+  console.log(`Mutating:\n  ${ranges.join('\n  ')}`)
+  return publish(await mutate(ranges, context), context)
+}
+
+async function skip(reason: string, context: MutationContext): Promise<number> {
+  return publish(skippedResult(reason, minScore(context.environment)), context)
+}
+
+async function changedRanges(
+  runner: MutationRunner,
+  baseRef: string,
+  targets: readonly string[],
+): Promise<string[]> {
+  const lines = touchedLines(await runner.diff(baseRef, targets))
+  const ranges = await Promise.all(
+    targets.map(async (file) =>
+      touchedDeclarations(
+        await runner.readSource(file),
+        lines.get(file) ?? [],
+        file.endsWith(JSX_EXTENSION),
+      ).map((range) => mutateRange(file, range)),
+    ),
+  )
+  return ranges.flat()
 }
 
 async function mutate(

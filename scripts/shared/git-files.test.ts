@@ -4,7 +4,13 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { commitFiles, createRepository, git } from '../../test/support/git.ts'
-import { changedFiles, workingTreeFiles } from './git-files.ts'
+import {
+  addedFiles,
+  changedFiles,
+  stagedAddedFiles,
+  unifiedDiff,
+  workingTreeFiles,
+} from './git-files.ts'
 import { compareText } from './text.ts'
 
 describe('git files', () => {
@@ -47,6 +53,36 @@ describe('git files', () => {
 
     it('should list nothing when the branch has no changes', async () => {
       expect(await changedFiles(repository, 'main')).toEqual([])
+    })
+  })
+
+  describe('unifiedDiff', () => {
+    it('should show the changes of the given files since the base, without context', async () => {
+      await changeTheBranch()
+
+      const sut = await unifiedDiff(repository, 'main', ['edited.ts'])
+
+      expect(sut).toContain('+++ b/edited.ts\n@@ -1 +1 @@\n-a\n\\ No newline at end of file\n+b')
+      expect(sut).not.toContain('renamed.ts')
+    })
+  })
+
+  describe('addedFiles', () => {
+    it('should list only the files added since the base, as git sees them: not a rename', async () => {
+      await changeTheBranch()
+
+      expect(await addedFiles(repository, 'main')).toEqual(['added café.ts'])
+    })
+  })
+
+  describe('stagedAddedFiles', () => {
+    it('should list only the files the index adds', async () => {
+      await writeFile(join(repository, 'staged.ts'), 'a')
+      await writeFile(join(repository, 'untracked.ts'), 'a')
+      await writeFile(join(repository, 'edited.ts'), 'b')
+      await git(repository, 'add', 'staged.ts', 'edited.ts')
+
+      expect(await stagedAddedFiles(repository)).toEqual(['staged.ts'])
     })
   })
 

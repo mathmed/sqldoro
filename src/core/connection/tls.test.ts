@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { DEFAULT_SSL, SslMode, type SslOptions } from './connection.ts'
-import { resolveTls } from './tls.ts'
+import { resolveTls, tlsMaterial } from './tls.ts'
 
 const FILES = { readText: async (path: string) => Promise.resolve(`PEM of ${path}`) }
 
@@ -92,5 +92,31 @@ describe('resolveTls', () => {
     await expect(
       resolveTls({ ...DEFAULT_SSL, mode: SslMode.Require, keyPath: '/k' }, 'db', files),
     ).rejects.toThrow('Could not read the client key file "/k": EACCES')
+  })
+})
+
+describe('tlsMaterial', () => {
+  const settings = {
+    serverName: 'db.example.com',
+    shouldVerifyCertificate: true,
+    shouldVerifyHostname: true,
+    ca: undefined,
+    cert: undefined,
+    key: undefined,
+  }
+
+  it('should present nothing when the profile names no certificate or key', () => {
+    expect(tlsMaterial(settings)).toStrictEqual({})
+  })
+
+  it('should present each certificate and key the profile names, and only those', () => {
+    expect(tlsMaterial({ ...settings, ca: 'CA' })).toStrictEqual({ ca: 'CA' })
+    expect(tlsMaterial({ ...settings, cert: 'CERT' })).toStrictEqual({ cert: 'CERT' })
+    expect(tlsMaterial({ ...settings, key: 'KEY' })).toStrictEqual({ key: 'KEY' })
+    expect(tlsMaterial({ ...settings, ca: 'CA', cert: 'CERT', key: 'KEY' })).toStrictEqual({
+      ca: 'CA',
+      cert: 'CERT',
+      key: 'KEY',
+    })
   })
 })

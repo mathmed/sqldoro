@@ -13,7 +13,7 @@ export interface WebviewPage {
   readonly bundle: WebviewBundle
 }
 
-const WEBVIEW_DIRECTORY = ['dist', 'webview']
+const WEBVIEW_DIRECTORY: readonly string[] = ['dist', 'webview']
 const NONCE_BYTES = 18
 
 // Where the bundles of the webviews are: the only files a webview may load.

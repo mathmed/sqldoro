@@ -3,6 +3,7 @@ import { checkServerIdentity, type ConnectionOptions } from 'node:tls'
 
 import pg, { type Client, type ClientConfig, type CustomTypesConfig } from 'pg'
 
+import { tlsMaterial } from '../../core/connection/tls.ts'
 import type { ConnectRequest, TlsSettings } from '../../core/engine/engine.ts'
 
 const CONNECT_TIMEOUT_MS = 15_000
@@ -101,8 +102,6 @@ function tlsOptions(tls: TlsSettings): ConnectionOptions {
     checkServerIdentity: (...[, certificate]: Parameters<typeof checkServerIdentity>) =>
       tls.shouldVerifyHostname ? checkServerIdentity(tls.serverName, certificate) : undefined,
     ...(isIP(tls.serverName) === 0 ? { servername: tls.serverName } : {}),
-    ...(tls.ca === undefined ? {} : { ca: tls.ca }),
-    ...(tls.cert === undefined ? {} : { cert: tls.cert }),
-    ...(tls.key === undefined ? {} : { key: tls.key }),
+    ...tlsMaterial(tls),
   }
 }

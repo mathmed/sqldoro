@@ -1,6 +1,8 @@
 import { BinaryLiteral, type Dialect, ParameterStyle } from '../../core/engine/dialect.ts'
 
-// Keywords and functions of MySQL beyond the standard ones, for the autocomplete.
+// Keywords and functions of MySQL beyond the standard ones, for the autocomplete and the colors of
+// the SQL the webviews show; the administration words among them are also those the editors color
+// (syntaxes/sql-keywords.injection.tmLanguage.json).
 const KEYWORDS: readonly string[] = [
   'AUTO_INCREMENT',
   'BINLOG',
@@ -28,6 +30,8 @@ const KEYWORDS: readonly string[] = [
   'GROUP_CONCAT',
   'HANDLER',
   'HELP',
+  'HOSTS',
+  'IDENTIFIED',
   'IF',
   'IFNULL',
   'IGNORE',
@@ -43,14 +47,17 @@ const KEYWORDS: readonly string[] = [
   'MODIFY',
   'NOW',
   'OPTIMIZE',
+  'OPTION',
   'PLUGIN',
   'PROCESSLIST',
   'PURGE',
   'REGEXP',
+  'RELOAD',
   'REPAIR',
   'REPLACE',
   'REPLICA',
   'RESTART',
+  'ROLE',
   'SHOW',
   'SHUTDOWN',
   'STATUS',

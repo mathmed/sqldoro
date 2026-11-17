@@ -1,5 +1,5 @@
-// The files the extension manifest (package.json) names: its entry point, its icons and the media
-// of its walkthrough steps. A .vsix that misses one of them installs, then breaks at run time.
+// The files the extension manifest (package.json) names: its entry point, its icons, its grammars
+// and the media of its walkthrough steps. A .vsix that misses one of them installs, then breaks at run time.
 const CODICON = /^\$\([\w~-]+\)$/u
 const EXTENSION_ROOT = 'extension/'
 const CURRENT_FOLDER = './'
@@ -40,6 +40,10 @@ function walkthroughMedia(value: unknown): string[] {
     })
 }
 
+function grammarFiles(value: unknown): string[] {
+  return listOf(value).flatMap((grammar) => pathsOf(recordOf(grammar).get('path')))
+}
+
 function commandIcons(value: unknown): string[] {
   return listOf(value).flatMap((command) => pathsOf(recordOf(command).get('icon')))
 }
@@ -60,6 +64,7 @@ export function manifestFiles(manifest: unknown): string[] {
     ...groupedIcons(contributes.get('viewsContainers')),
     ...groupedIcons(contributes.get('views')),
     ...commandIcons(contributes.get('commands')),
+    ...grammarFiles(contributes.get('grammars')),
     ...walkthroughMedia(contributes.get('walkthroughs')),
   ]
   return [...new Set(paths.map(inPackage))]

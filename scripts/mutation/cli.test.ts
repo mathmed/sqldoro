@@ -21,11 +21,36 @@ function mutant(status: MutantResult['status']): MutantResult {
   }
 }
 
+const GREETING = `const NAME = 'world'
+
+export function greet(): string {
+  return \`Hello, \${NAME}\`
+}
+
+export function farewell(): string {
+  return 'Bye'
+}
+`
+// greet() changed: its two first lines.
+const GREETING_DIFF = `--- a/src/core/greeting.ts
++++ b/src/core/greeting.ts
+@@ -3,2 +3,2 @@
+-export function greet(): string {
+-  return \`Hi, \${NAME}\`
++export function greet(): string {
++  return \`Hello, \${NAME}\``
+
 // Stryker and git are the external boundary of the script: these fakes replace them.
-function runner(changed: readonly string[], mutants: readonly MutantResult[]): MutationRunner {
+function runner(
+  changed: readonly string[],
+  mutants: readonly MutantResult[],
+  diff = GREETING_DIFF,
+): MutationRunner {
   return {
     runMutationTest: vi.fn(async () => Promise.resolve(mutants)),
     changedFiles: vi.fn(async () => Promise.resolve(changed)),
+    diff: vi.fn(async () => Promise.resolve(diff)),
+    readSource: vi.fn(async () => Promise.resolve(GREETING)),
     mutatePatterns: async () => Promise.resolve(PATTERNS),
   }
 }
@@ -50,7 +75,7 @@ describe('mutation command line', () => {
     }
   }
 
-  it('should mutate only the changed core files and pass at the default ratchet', async () => {
+  it('should mutate only the changed declarations of the core and pass at the default ratchet', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const sut = runner(
       ['README.md', 'src/core/greeting.ts', 'src/core/greeting.test.ts'],
@@ -61,7 +86,9 @@ describe('mutation command line', () => {
 
     expect(exitCode).toBe(0)
     expect(sut.changedFiles).toHaveBeenCalledWith('origin/develop')
-    expect(sut.runMutationTest).toHaveBeenCalledWith(['src/core/greeting.ts'])
+    expect(sut.diff).toHaveBeenCalledWith('origin/develop', ['src/core/greeting.ts'])
+    expect(sut.readSource).toHaveBeenCalledWith('src/core/greeting.ts')
+    expect(sut.runMutationTest).toHaveBeenCalledWith(['src/core/greeting.ts:3-5'])
     expect(printedResult(log)).toMatchObject({ isSkipped: false, score: 100, minScore: 95 })
     expect(await readFile(summaryFile, 'utf8')).toContain('**Score: 100.0%** (minimum 95%')
   })
@@ -85,6 +112,45 @@ describe('mutation command line', () => {
       isSkipped: true,
       reason: 'No core file changed: nothing to mutate.',
     })
+  })
+
+  it('should skip Stryker when the change touches no declaration of the core', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const sut = runner(['src/core/greeting.ts'], [], '+++ b/src/core/greeting.ts\n@@ -2 +2 @@')
+
+    expect(await main(['changed'], context(sut))).toBe(0)
+    expect(sut.runMutationTest).not.toHaveBeenCalled()
+    expect(printedResult(log)).toMatchObject({
+      isSkipped: true,
+      reason: 'The change touches no declaration of the core: nothing to mutate.',
+    })
+  })
+
+  it('should skip a changed core file the diff shows no line of, like a mode change', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const sut = runner(['src/core/greeting.ts'], [], '')
+
+    expect(await main(['changed'], context(sut))).toBe(0)
+    expect(sut.runMutationTest).not.toHaveBeenCalled()
+  })
+
+  it('should read a changed tsx file of the core as JSX', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const sut = runner(
+      ['src/core/view.tsx'],
+      [mutant('Killed')],
+      '+++ b/src/core/view.tsx\n@@ -2 +2 @@',
+    )
+    vi.mocked(sut.readSource).mockResolvedValue(
+      'export const View = (): unknown => (\n  <div>{1 + 1}</div>\n)\n',
+    )
+
+    await main(['changed'], {
+      ...context(sut),
+      runner: { ...sut, mutatePatterns: async () => Promise.resolve(['src/core/**/*.tsx']) },
+    })
+
+    expect(sut.runMutationTest).toHaveBeenCalledWith(['src/core/view.tsx:1-3'])
   })
 
   it('should fail below the ratchet set by the repository variable', async () => {

@@ -12,6 +12,8 @@ import {
   type ObjectRef,
   type ObjectScope,
   readDatabaseStats,
+  readForeignKeyColumn,
+  readReferenceColumn,
   readTableStats,
   type ReferenceInfo,
   type TableInfo,
@@ -170,17 +172,7 @@ export async function listForeignKeys(
   table: ObjectRef,
 ): Promise<ForeignKeyInfo[]> {
   const rows = await queryRows(connection, FOREIGN_KEYS, [table.schema, table.name])
-  return groupForeignKeyColumns(
-    rows.map((row) => ({
-      constraint: readString(row, 'constraintName'),
-      column: readString(row, 'columnName'),
-      referencedSchema: readString(row, 'referencedSchema'),
-      referencedTable: readString(row, 'referencedTable'),
-      referencedColumn: readString(row, 'referencedColumn'),
-      onUpdate: readString(row, 'onUpdate'),
-      onDelete: readString(row, 'onDelete'),
-    })),
-  )
+  return groupForeignKeyColumns(rows.map(readForeignKeyColumn))
 }
 
 export async function listReferences(
@@ -188,13 +180,5 @@ export async function listReferences(
   table: ObjectRef,
 ): Promise<ReferenceInfo[]> {
   const rows = await queryRows(connection, REFERENCES, [table.schema, table.name])
-  return groupReferenceColumns(
-    rows.map((row) => ({
-      schema: readString(row, 'tableSchema'),
-      table: readString(row, 'tableName'),
-      constraint: readString(row, 'constraintName'),
-      column: readString(row, 'columnName'),
-      referencedColumn: readString(row, 'referencedColumn'),
-    })),
-  )
+  return groupReferenceColumns(rows.map(readReferenceColumn))
 }

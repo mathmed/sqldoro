@@ -44,9 +44,8 @@ describe('analyzeMutation', () => {
     const sut = analyzeMutation(mutation(RESULT))
 
     expect(sut.status).toBe(Status.Ok)
-    expect(sut.summary).toBe(
-      'score 100.0% (ratchet 95%) · 4 of 4 mutants killed · 0 survivors in 1 mutated file',
-    )
+    expect(sut.summary).toBe('ratchet 95% · 4 of 4 mutants killed · 0 survivors in 1 mutated file')
+    expect(sut.metric).toStrictEqual({ label: 'score', value: 100, unit: '%', decimals: 1 })
     expect(sut.details?.body).toBe(
       [
         '| File | Mutants | Killed | Score |',

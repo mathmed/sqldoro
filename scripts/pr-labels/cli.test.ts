@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { main } from './cli.ts'
 
-describe('risk command line', () => {
+describe('pr-labels command line', () => {
   let log: MockInstance<typeof console.log>
   let error: MockInstance<typeof console.error>
 
@@ -11,26 +11,31 @@ describe('risk command line', () => {
     error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   })
 
-  it('should pass a PR with exactly one known risk label', () => {
-    const sut = main(['check', '--labels-json', '["dependencies","risk:low"]'])
+  it('should pass a PR with exactly one known risk label and one known deploy label', () => {
+    const sut = main(['check', '--labels-json', '["dependencies","risk:low","deploy:none"]'])
 
     expect(sut).toBe(0)
-    expect(log).toHaveBeenCalledWith('Risk label check passed.')
+    expect(log).toHaveBeenCalledWith('PR labels are set: one risk label and one deploy label.')
   })
 
-  it('should fail a PR without a risk label', () => {
-    const sut = main(['check', '--labels-json', '["dependencies"]'])
+  it('should fail a PR without a deploy label, naming the group', () => {
+    const sut = main(['check', '--labels-json', '["risk:low"]'])
 
     expect(sut).toBe(1)
     expect(error).toHaveBeenCalledWith(
-      'Risk label check failed: expected exactly one risk label (risk:low, risk:medium, risk:high, risk:critical), found: none.',
+      'PR label check failed: expected exactly one deploy label (deploy:none, deploy:simple, deploy:migration, deploy:coordinated), found: none.',
     )
+  })
+
+  it('should report every group that fails', () => {
+    expect(main(['check', '--labels-json', '[]'])).toBe(1)
+    expect(error).toHaveBeenCalledTimes(2)
   })
 
   it('should fail with a readable message on labels that are not a list of names', () => {
     expect(main(['check', '--labels-json', '{}'])).toBe(1)
     expect(error).toHaveBeenCalledWith(
-      'Risk label check failed: --labels-json must be a JSON list of strings, got: {}',
+      'PR label check failed: --labels-json must be a JSON list of strings, got: {}',
     )
   })
 

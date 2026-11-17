@@ -127,9 +127,11 @@ jobs:
       # The release commit; empty for a pushed tag, whose commit started the run.
       ref: ${{ needs.prepare.outputs.commit }}
     # A called workflow gets no more than this. ci.yml's quality-report job asks to comment on pull
-    # requests; it does not run here, but GitHub checks what it asks for anyway.
+    # requests and to read the runs of the base branch; it does not run here, but GitHub checks what
+    # it asks for anyway.
     permissions:
       contents: read
+      actions: read
       pull-requests: write
 
   draft:

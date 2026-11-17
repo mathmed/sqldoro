@@ -7,6 +7,7 @@ export const SuppressionKind = {
   CoverageIgnore: 'coverage-ignore',
   StrykerDisable: 'stryker-disable',
   PrettierIgnore: 'prettier-ignore',
+  JscpdIgnore: 'jscpd-ignore',
   KnipTag: 'knip-tag',
   TestSkip: 'test-skip',
   TestFails: 'test-fails',
@@ -41,6 +42,8 @@ export const COMMENT_RULES: readonly CommentRule[] = [
   { kind: SuppressionKind.CoverageIgnore, pattern: /\b(?:v8|c8|istanbul)\s+ignore\b/giu },
   { kind: SuppressionKind.StrykerDisable, pattern: /\bstryker\s+disable\b/giu },
   { kind: SuppressionKind.PrettierIgnore, pattern: /\bprettier-ignore\b/gu },
+  // A block jscpd leaves out of the duplication check opens with one start marker.
+  { kind: SuppressionKind.JscpdIgnore, pattern: /\bjscpd:ignore-start\b/gu },
   { kind: SuppressionKind.KnipTag, pattern: /@(?:public|beta|alias|internal)\b/gu },
 ]
 

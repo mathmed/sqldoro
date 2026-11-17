@@ -4,7 +4,7 @@ import manifest from '../../package.json' with { type: 'json' }
 import { manifestFiles } from './manifest-files.ts'
 
 describe('manifestFiles', () => {
-  it('should list the entry point, the icons and the walkthrough media, codicons aside', () => {
+  it('should list the entry point, the icons, the grammars and the walkthrough media, codicons aside', () => {
     expect(
       manifestFiles({
         main: './dist/extension.cjs',
@@ -15,6 +15,9 @@ describe('manifestFiles', () => {
           commands: [
             { command: 'c', icon: '$(add)' },
             { command: 'd', icon: { light: 'media/light.svg', dark: 'media/dark.svg' } },
+          ],
+          grammars: [
+            { scopeName: 'g', path: './syntaxes/g.tmLanguage.json', injectTo: ['source.sql'] },
           ],
           walkthroughs: [
             {
@@ -33,6 +36,7 @@ describe('manifestFiles', () => {
       'extension/media/a.svg',
       'extension/media/light.svg',
       'extension/media/dark.svg',
+      'extension/syntaxes/g.tmLanguage.json',
       'extension/media/walkthrough/one.md',
       'extension/media/l.png',
       'extension/media/d.png',
@@ -47,5 +51,8 @@ describe('manifestFiles', () => {
 
   it('should find every file sqldoro itself names', () => {
     expect(manifestFiles(manifest)).toContain('extension/media/icon.png')
+    expect(manifestFiles(manifest)).toContain(
+      'extension/syntaxes/sql-keywords.injection.tmLanguage.json',
+    )
   })
 })

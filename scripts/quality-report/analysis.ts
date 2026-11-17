@@ -1,15 +1,18 @@
 export const Analysis = {
   Eslint: 'eslint',
   Prettier: 'prettier',
+  Hygiene: 'hygiene',
   Tsc: 'tsc',
   NpmAudit: 'npm-audit',
   Knip: 'knip',
+  Jscpd: 'jscpd',
   Vitest: 'vitest',
   Integration: 'integration',
   DependencyCruiser: 'dependency-cruiser',
   Build: 'build',
   Package: 'package',
   Smoke: 'smoke',
+  Contract: 'contract',
   Mutation: 'mutation',
   Suppressions: 'suppressions',
 } as const

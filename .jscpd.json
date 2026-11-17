@@ -1,0 +1,12 @@
+{
+  "pattern": "{src,scripts}/**/*.{ts,tsx}",
+  "format": ["typescript", "tsx"],
+  "ignore": ["**/*.test.ts", "**/*.test.tsx"],
+  "ignorePattern": ["(?m)^(?:import|export) (?:type )?(?:\\{[^}]*\\}|[^\\n]*?) from '[^']+'$"],
+  "minLines": 5,
+  "minTokens": 50,
+  "threshold": 0,
+  "reporters": ["console"],
+  "noColors": true,
+  "noTips": true
+}

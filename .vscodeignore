@@ -7,6 +7,7 @@
 !dist/webview/results.css
 !dist/webview/connection-form.js
 !dist/webview/connection-form.css
+!syntaxes/sql-keywords.injection.tmLanguage.json
 !media/icon.png
 !media/sqldoro.svg
 !media/explorer/*.svg

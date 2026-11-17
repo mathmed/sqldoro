@@ -74,6 +74,13 @@ against the database host name, also through the tunnel. Errors are redacted of 
 secrets. Each SQL editor and each table panel has its own session; the explorer and the autocomplete
 share one per connection.
 
+SQL editors are documents of VS Code's own `sql` language, colored by its SQL grammar. sqldoro adds
+the words of MySQL administration that grammar leaves plain (`FLUSH`, `PRIVILEGES`, `SHOW`,
+`IDENTIFIED`...) through a grammar injected into it (`syntaxes/sql-keywords.injection.tmLanguage.json`,
+`contributes.grammars`), outside strings, comments and qualified names. The SQL the webviews show is
+colored by the core (`src/core/sql/highlight.ts`) with the keywords of the connection's dialect,
+which hold the same words.
+
 ## Cancelling a statement
 
 Cancel stops the statement of a run and always ends its wait. The core `Cancellation`
@@ -255,14 +262,14 @@ failing keyring leaves nothing half saved.
 flowchart LR
   pr["pull request / main"] --> lint & quality & integration & architecture & package
   package["package: build, pack and check the .vsix<br/>(artifact sqldoro-vsix)"] --> smoke["smoke: install that .vsix<br/>in a real VS Code"]
-  pr --> mutation["mutation (changed core files)"]
+  pr --> mutation["mutation (changed core declarations)"]
   lint & quality & integration & architecture & package & smoke & mutation --> report["quality-report: one PR comment"]
-  pr --> risk["Risk label workflow:<br/>exactly one known risk label"]
+  pr --> labels["PR labels workflow:<br/>one known risk and one known deploy label"]
   run["Run workflow: Release<br/>(patch, minor, major or X.Y.Z)"] --> prepare["prepare: version, CHANGELOG,<br/>commit to release/v1.2.3"] --> gates["every gate of ci.yml<br/>on the release commit"] --> draft["fast-forward main, tag v1.2.3,<br/>draft GitHub release with the .vsix"]
   tag["tag v1.2.3 pushed by hand"] --> check["check tag / package.json / CHANGELOG"] --> gates
   draft -->|"owner publishes it"| publish["Marketplace and Open VSX<br/>(off: PUBLISH_EXTENSION)"]
 ```
 
 The `lint` job also runs the suppression ratchet (`suppressions-baseline.json`). See
-[CONTRIBUTING.md](../CONTRIBUTING.md#the-pipeline) for each gate, the risk label and the pull request
+[CONTRIBUTING.md](../CONTRIBUTING.md#the-pipeline) for each gate, the PR labels and the pull request
 flow (`coder`, then `pr-writer`), and [RELEASING.md](RELEASING.md) for releases.

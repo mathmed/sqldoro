@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   appendText,
   fileSize,
+  isSymbolicLink,
   listFiles,
   makeTemporaryDirectory,
   readOptionalText,
@@ -49,6 +50,15 @@ describe('files', () => {
     await writeText(path, 'abcdé')
 
     expect(await fileSize(path)).toBe(6)
+  })
+
+  it('should tell a symbolic link from the file it points to', async () => {
+    const path = join(directory, 'CLAUDE.md')
+    await writeText(path, 'rules')
+    await symlink('CLAUDE.md', join(directory, 'AGENTS.md'))
+
+    expect(await isSymbolicLink(join(directory, 'AGENTS.md'))).toBe(true)
+    expect(await isSymbolicLink(path)).toBe(false)
   })
 
   it('should list the files of a folder', async () => {

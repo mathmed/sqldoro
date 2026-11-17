@@ -9,12 +9,13 @@ updates:
       time: "09:00"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 100
-    # Dependency bumps are born low (.claude/agents/pr-writer.md, step 5); a reviewer raises the label
-    # when a bump changes behavior. Dependabot ignores labels that do not exist: `make risk-labels`
-    # creates them.
+    # Dependency bumps are born risk:low and deploy:none (.claude/agents/pr-writer.md, steps 5 and 7); a
+    # reviewer relabels a bump that changes behavior. Dependabot ignores labels that do not exist:
+    # `make labels` creates them.
     labels:
       - "dependencies"
       - "risk:low"
+      - "deploy:none"
     # Supply-chain safety: give the community time to detect malicious or broken releases.
     cooldown:
       default-days: 10
@@ -49,10 +50,11 @@ updates:
       time: "09:00"
       timezone: "America/Sao_Paulo"
     open-pull-requests-limit: 50
-    # Action bumps are born low, like the npm ones
+    # Action bumps are born risk:low and deploy:none, like the npm ones
     labels:
       - "dependencies"
       - "risk:low"
+      - "deploy:none"
     # Supply-chain safety: give the community time to detect malicious or broken releases.
     cooldown:
       default-days: 10

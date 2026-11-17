@@ -2,7 +2,7 @@ import { stripVTControlCharacters } from 'node:util'
 
 const TRUNCATION_NOTE = '[...truncated...]'
 // npm echoes the script it runs ("> sqldoro@0.0.1 lint") and adds a trailer when it fails.
-const NOISE_PREFIXES = ['> ', 'npm error ', 'npm ERR! ']
+const NOISE_PREFIXES: readonly string[] = ['> ', 'npm error ', 'npm ERR! ']
 
 export function plural(count: number, singular: string, pluralForm: string): string {
   return `${String(count)} ${count === 1 ? singular : pluralForm}`

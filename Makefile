@@ -1,6 +1,6 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed contract labels risk-labels deploy-labels all
 
-# Base branch of mutation-changed
+# Base branch of mutation-changed and contract
 BASE ?= origin/main
 
 # VS Code needs a display: on headless Linux the smoke test runs inside xvfb-run when it is installed.
@@ -21,6 +21,7 @@ package: build
 
 # Format every file and apply the fixes ESLint can make on its own
 format:
+	npm run hygiene:fix
 	npm run format
 	npm run lint:fix
 
@@ -45,9 +46,20 @@ lint-arch:
 dead-code:
 	npm run dead-code
 
-# Known vulnerabilities in the dependencies
+# Duplicated code in src/ and scripts/: zero clones of 5 lines or 50 tokens, tests and imports left out
+# (jscpd, see .jscpd.json)
+duplication:
+	npm run duplication
+
+# File hygiene (pre-commit's trailing-whitespace, end-of-file-fixer and check-added-large-files): no
+# trailing whitespace, one newline at the end of every text file, no file above 500kb added
+hygiene:
+	npm run hygiene
+
+# Known vulnerabilities in the dependencies (npm audit), short of a temporary exception that has not
+# expired (scripts/audit/exceptions.ts)
 audit:
-	npm audit
+	npm run audit
 
 # Suppression ratchet: fails when the suppressions (eslint-disable, @ts-expect-error, skipped tests...)
 # in the source and the tests differ from suppressions-baseline.json
@@ -59,7 +71,7 @@ suppressions-update:
 	npm run suppressions:update
 
 # Every check of the pre-commit hook and of the lint, quality and architecture CI jobs
-quality: lint typecheck test lint-arch dead-code audit suppressions
+quality: lint typecheck test lint-arch dead-code duplication hygiene audit suppressions
 
 # Integration tests: the drivers and the SSH tunnel against real MySQL, PostgreSQL and SSH servers,
 # started with Docker Compose (test/integration/compose.yaml) and left running for the next run
@@ -84,8 +96,15 @@ mutation:
 mutation-changed:
 	npm run mutation:changed -- --base $(BASE)
 
-# Create (or update) the risk:<level> labels, and the dependencies label Dependabot's PRs carry with
-# risk:low, on the GitHub repository (needs an authenticated gh)
+# Fail when package.json removes or renames a contributed command, view, view container or setting, or
+# narrows a setting, against the merge base with BASE: the extension's public contract
+contract:
+	npm run contract -- --base $(BASE)
+
+# Create (or update) every label the PR labels check requires, risk:<level> and deploy:<kind>, and the
+# dependencies label Dependabot's PRs carry with them, on the GitHub repository (needs an authenticated gh)
+labels: risk-labels deploy-labels
+
 risk-labels:
 	gh label create "risk:low" --color 0E8A16 --description "Low risk: no behavior change" --force
 	gh label create "risk:medium" --color FBCA04 --description "Medium risk: new behavior or release steps" --force
@@ -93,5 +112,11 @@ risk-labels:
 	gh label create "risk:critical" --color B60205 --description "Critical risk: can run destructive SQL or weaken a safety lock" --force
 	gh label create "dependencies" --color 0366D6 --description "Pull requests that update a dependency file" --force
 
+deploy-labels:
+	gh label create "deploy:none" --color BFBFBF --description "Deploy: nothing beyond the merge" --force
+	gh label create "deploy:simple" --color C5DEF5 --description "Deploy: a repository variable, secret, label or setting" --force
+	gh label create "deploy:migration" --color F28C28 --description "Deploy: stored data an older version cannot read" --force
+	gh label create "deploy:coordinated" --color 7A0000 --description "Deploy: another PR or repository, or release steps in order" --force
+
 # Everything CI runs on a pull request
-all: quality integration smoke mutation-changed
+all: quality integration smoke mutation-changed contract

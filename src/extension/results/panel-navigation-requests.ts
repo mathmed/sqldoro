@@ -89,7 +89,7 @@ const openInEditor = route(WebviewMessageType.OpenInEditor, async (requests, mes
 
 // What the query box of a table panel asks: to run its text, to open it in an SQL editor, to keep
 // its height.
-const queryBoxRoutes = [
+const queryBoxRoutes: readonly (readonly [string, Route])[] = [
   route(WebviewMessageType.RunQuery, async (requests, message) =>
     requests.actions.runQuery(message.sql),
   ),

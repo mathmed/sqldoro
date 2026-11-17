@@ -6,12 +6,13 @@ import {
   type Survivor,
 } from '../../shared/mutation-result.ts'
 import { cleanOutput, plural } from '../../shared/text.ts'
-import { finding, type Finding, markdownDetails, textDetails } from '../finding.ts'
+import { finding, type Finding, markdownDetails, textDetails, withMetric } from '../finding.ts'
 import type { Fragment } from '../fragment.ts'
 import { Status } from '../status.ts'
 
 const MAX_SURVIVORS_LISTED = 30
 const MAX_CELL_LENGTH = 80
+const SCORE_DECIMALS = 1
 
 export function analyzeMutation(fragment: Fragment): Finding {
   const output = cleanOutput(fragment.output)
@@ -24,14 +25,16 @@ export function analyzeMutation(fragment: Fragment): Finding {
     return finding(Status.Skipped, result.reason)
   }
   const status = hasReachedMinScore(result) ? Status.Ok : Status.Failed
-  return finding(status, summarize(result), markdownDetails('Mutated files', details(result)))
+  const metric = { label: 'score', value: result.score, unit: '%', decimals: SCORE_DECIMALS }
+  const mutated = markdownDetails('Mutated files', details(result))
+  return withMetric(finding(status, summarize(result), mutated), metric)
 }
 
 function summarize(result: MutationResult): string {
   const survivors = plural(result.survivors.length, 'survivor', 'survivors')
   const files = plural(result.files.length, 'mutated file', 'mutated files')
   const parts = [
-    `score ${result.score.toFixed(1)}% (ratchet ${String(result.minScore)}%)`,
+    `ratchet ${String(result.minScore)}%`,
     `${String(result.killed)} of ${String(result.total)} mutants killed`,
     `${survivors} in ${files}`,
   ]

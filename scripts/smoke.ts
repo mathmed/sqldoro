@@ -39,7 +39,7 @@ const USER_SETTINGS = {
   'telemetry.telemetryLevel': 'off',
   'workbench.startupEditor': 'none',
 }
-const PROFILE = [
+const PROFILE: readonly string[] = [
   `--extensions-dir=${EXTENSIONS_DIRECTORY}`,
   `--user-data-dir=${USER_DATA_DIRECTORY}`,
 ]
