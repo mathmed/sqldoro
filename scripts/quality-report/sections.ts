@@ -7,6 +7,7 @@ import {
   LINT_FAMILY,
   SECURITY_FAMILY,
 } from './analyzers/eslint.ts'
+import { analyzeHygiene } from './analyzers/hygiene.ts'
 import { analyzeIntegration } from './analyzers/integration.ts'
 import { analyzeJscpd } from './analyzers/jscpd.ts'
 import { analyzeKnip } from './analyzers/knip.ts'
@@ -49,7 +50,7 @@ export interface Section {
 
 export const SECTIONS: readonly Section[] = [
   {
-    title: 'Lint and format (ESLint, Prettier)',
+    title: 'Lint and format (ESLint, Prettier, file hygiene)',
     checks: [
       {
         analysis: Analysis.Eslint,
@@ -58,6 +59,7 @@ export const SECTIONS: readonly Section[] = [
         analyze: eslintAnalyzer(LINT_FAMILY),
       },
       { analysis: Analysis.Prettier, job: Job.Lint, label: 'format', analyze: analyzePrettier },
+      { analysis: Analysis.Hygiene, job: Job.Lint, label: 'hygiene', analyze: analyzeHygiene },
     ],
   },
   {

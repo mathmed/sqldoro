@@ -1,6 +1,7 @@
 export const Analysis = {
   Eslint: 'eslint',
   Prettier: 'prettier',
+  Hygiene: 'hygiene',
   Tsc: 'tsc',
   NpmAudit: 'npm-audit',
   Knip: 'knip',

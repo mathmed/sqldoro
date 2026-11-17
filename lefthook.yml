@@ -3,6 +3,11 @@
 pre-commit:
   piped: true
   jobs:
+    # pre-commit's trailing-whitespace and end-of-file-fixer: fixes the staged files and stages them.
+    - name: hygiene
+      file_types: not symlink
+      run: node scripts/hygiene.ts fix {staged_files}
+      stage_fixed: true
     - name: format
       glob: "*.{ts,mjs,json,jsonc,md,yml,yaml}"
       # AGENTS.md is a symlink to CLAUDE.md, and Prettier refuses symlinks given by name.
@@ -28,6 +33,9 @@ pre-commit:
             run: npm run dead-code
           - name: duplication
             run: npm run duplication
+          # Every text file, and pre-commit's check-added-large-files on the files the index adds.
+          - name: hygiene
+            run: npm run hygiene
           - name: architecture
             run: npm run lint:arch
           - name: suppressions

@@ -11,6 +11,16 @@ export async function changedFiles(repository: string, baseRef: string): Promise
   return gitPaths(repository, 'diff', ['--name-only', '--diff-filter=d', `${baseRef}...HEAD`])
 }
 
+// Files added between the merge base with `baseRef` and HEAD.
+export async function addedFiles(repository: string, baseRef: string): Promise<string[]> {
+  return gitPaths(repository, 'diff', ['--name-only', '--diff-filter=A', `${baseRef}...HEAD`])
+}
+
+// Files the index adds to the next commit.
+export async function stagedAddedFiles(repository: string): Promise<string[]> {
+  return gitPaths(repository, 'diff', ['--cached', '--name-only', '--diff-filter=A'])
+}
+
 // The files of the working tree git knows or would add: tracked or untracked, never ignored, and
 // still on disk.
 export async function workingTreeFiles(repository: string): Promise<string[]> {

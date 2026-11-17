@@ -1,4 +1,4 @@
-.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
+.PHONY: setup build package format lint typecheck test lint-arch dead-code duplication hygiene audit suppressions suppressions-update quality integration integration-down smoke mutation mutation-changed risk-labels all
 
 # Base branch of mutation-changed
 BASE ?= origin/main
@@ -21,6 +21,7 @@ package: build
 
 # Format every file and apply the fixes ESLint can make on its own
 format:
+	npm run hygiene:fix
 	npm run format
 	npm run lint:fix
 
@@ -50,6 +51,11 @@ dead-code:
 duplication:
 	npm run duplication
 
+# File hygiene (pre-commit's trailing-whitespace, end-of-file-fixer and check-added-large-files): no
+# trailing whitespace, one newline at the end of every text file, no file above 500kb added
+hygiene:
+	npm run hygiene
+
 # Known vulnerabilities in the dependencies
 audit:
 	npm audit
@@ -64,7 +70,7 @@ suppressions-update:
 	npm run suppressions:update
 
 # Every check of the pre-commit hook and of the lint, quality and architecture CI jobs
-quality: lint typecheck test lint-arch dead-code duplication audit suppressions
+quality: lint typecheck test lint-arch dead-code duplication hygiene audit suppressions
 
 # Integration tests: the drivers and the SSH tunnel against real MySQL, PostgreSQL and SSH servers,
 # started with Docker Compose (test/integration/compose.yaml) and left running for the next run

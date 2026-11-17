@@ -1,5 +1,6 @@
 import {
   appendFile,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -51,6 +52,10 @@ export async function listFiles(directory: string): Promise<string[]> {
     }
     throw error
   }
+}
+
+export async function isSymbolicLink(path: string): Promise<boolean> {
+  return (await lstat(path)).isSymbolicLink()
 }
 
 export async function fileSize(path: string): Promise<number> {

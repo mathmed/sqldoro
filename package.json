@@ -948,6 +948,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "hygiene": "node scripts/hygiene.ts check",
+    "hygiene:fix": "node scripts/hygiene.ts fix",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.core.json && tsc -p src/webview/tsconfig.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
