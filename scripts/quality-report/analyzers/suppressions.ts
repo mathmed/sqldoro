@@ -4,7 +4,7 @@ import {
   type SuppressionsResult,
 } from '../../shared/suppressions-result.ts'
 import { cleanOutput, plural } from '../../shared/text.ts'
-import { finding, type Finding, markdownDetails, textDetails } from '../finding.ts'
+import { finding, type Finding, markdownDetails, textDetails, withMetric } from '../finding.ts'
 import type { Fragment } from '../fragment.ts'
 import { Status } from '../status.ts'
 
@@ -17,26 +17,28 @@ export function analyzeSuppressions(fragment: Fragment): Finding {
     const summary = 'the suppression check failed before producing a result'
     return finding(Status.Failed, summary, textDetails('Output', output))
   }
+  const metric = { label: 'suppressions', value: result.total, unit: '', decimals: 0 }
   if (result.changes.length === 0) {
-    return finding(Status.Ok, `${totals(result)} · matches the baseline`)
+    return withMetric(finding(Status.Ok, `matches the baseline${kindsOf(result)}`), metric)
   }
-  return finding(Status.Failed, failedSummary(result), markdownDetails('Changes', table(result)))
+  const changes = markdownDetails('Changes', table(result))
+  return withMetric(finding(Status.Failed, failedSummary(result), changes), metric)
 }
 
-function totals(result: SuppressionsResult): string {
+// The count of each kind, in parentheses; the total is the metric.
+function kindsOf(result: SuppressionsResult): string {
   const kinds = result.totals.map(({ kind, count }) => `${kind} ${String(count)}`)
-  const total = plural(result.total, 'suppression', 'suppressions')
-  return kinds.length === 0 ? total : `${total} (${kinds.join(', ')})`
+  return kinds.length === 0 ? '' : ` (${kinds.join(', ')})`
 }
 
 function failedSummary(result: SuppressionsResult): string {
   const added = sumOf(result.changes, (change) => Math.max(change.current - change.baseline, 0))
   const removed = sumOf(result.changes, (change) => Math.max(change.baseline - change.current, 0))
   if (added > 0) {
-    return `${plural(added, 'new suppression', 'new suppressions')} above the baseline · ${totals(result)}`
+    return `${plural(added, 'new suppression', 'new suppressions')} above the baseline${kindsOf(result)}`
   }
   const lowered = plural(removed, 'suppression', 'suppressions')
-  return `${lowered} removed: lower the baseline with \`make suppressions-update\` · ${totals(result)}`
+  return `${lowered} removed${kindsOf(result)}: lower the baseline with \`make suppressions-update\``
 }
 
 function sumOf(

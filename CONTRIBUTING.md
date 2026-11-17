@@ -202,18 +202,45 @@ People opening PRs by hand get the same template from GitHub.
 
 ### Quality Report
 
-Each pull request gets **one** comment (marker `<!-- quality-report -->`, updated on every push) with
-the verdict and a section per analysis (✅ ok, ⚠️ warning, ❌ failed, ⏭️ not run). Each CI job runs
-its tool through `node scripts/quality-report.ts run <analysis> -- <command>`, which keeps the tool's
-exit code and saves a fragment uploaded as `quality-fragment-<job>`; the `quality-report` job renders
-them (also to the job summary, the fallback for forks). Render locally with
-`node scripts/quality-report.ts render --dir quality-fragments`.
+Each pull request gets **one** comment (marker `<!-- quality-report -->`, updated on every push). It
+only informs: each CI job is still the gate for its own checks. Top to bottom:
+
+1. **Verdict**, in a GitHub alert (`[!CAUTION]` when something failed, `[!WARNING]` for warnings only,
+   `[!TIP]` otherwise) with the counts: `❌ 1 failed · ✅ 12 passed · ⏭️ 1 skipped`. When the base
+   branch already failed the same checks it says so (`1 failed, inherited from main`).
+2. **What to fix, open**: one section per failed, then warning, check, with what its analyzer read
+   (failed tests, new suppressions by file and line, clones, survivors, breaking contract changes...)
+   and the local command that reproduces it (`**Reproduce**: make test`).
+3. **Table** by area (Code, Security and dependencies, Behavior, Architecture), one line per check.
+   Coverage, the suppression total and the mutation score show how they moved since the base branch:
+   `coverage 100.00% (=)`, `score 96.0% (↓1.2)`, `suppressions 9 (n/a)`.
+4. **One folded `<details>`** with the details of the passing checks (coverage per metric, mutated
+   files).
+5. **Footer**: the disclaimer, the commit, the time in UTC, the run and the base run compared with.
+
+Statuses: ✅ passed, ⚠️ warning, ❌ failed, ⏭️ not run.
+
+**Comparison with the base branch.** The `quality-report` job downloads the fragments of the last
+completed push run of `ci.yml` on the PR's base branch (`gh run list` and `gh run download`, with
+`actions: read`), passed or failed. A failed check is marked **inherited** when the same analysis
+failed there too (not necessarily on the same findings). Mutation testing and the contract check run
+only on pull requests, so their base is normally missing. Without a base (no run yet, artifacts past
+their 7 days, an API error) the deltas are `n/a`, nothing is inherited and the footer says so: the
+baseline never fails the report.
+
+**How it works.** Each CI job runs its tool through `node scripts/quality-report.ts run <analysis> --
+<command>`, which keeps the tool's exit code and saves a fragment uploaded as `quality-fragment-<job>`;
+the `quality-report` job renders them (also to the job summary, the fallback for forks). Render
+locally with `node scripts/quality-report.ts render --dir quality-fragments`, adding
+`--base-dir <fragments of a base run> --base-name main` to see the comparison.
 
 To add an analysis:
 
 1. Add a value to `Analysis` (`scripts/quality-report/analysis.ts`).
-2. Write its analyzer in `scripts/quality-report/analyzers/`, tested against real output of the tool.
-3. Add a `Check` to `SECTIONS` (`scripts/quality-report/sections.ts`).
+2. Write its analyzer in `scripts/quality-report/analyzers/`, tested against real output of the tool:
+   a status, a one-line summary, optional details and an optional `Metric` compared with the base.
+3. Add a `Check` to `SECTIONS` (`scripts/quality-report/sections.ts`), in a section with its area and
+   the command that reproduces it.
 4. Run the tool through the wrapper in its job, and upload `quality-fragments/` as
    `quality-fragment-<job>` with `if: ${{ !cancelled() }}`.
 5. Add the job to the `needs` of `quality-report`.

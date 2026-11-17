@@ -1,9 +1,13 @@
 // Consolidated Quality Report (see "Quality Report" in CONTRIBUTING.md).
 //   run <analysis> -- <command>   runs a CI analysis, keeps its exit code and stores its fragment
-//   render                        builds the single PR comment from the fragments
+//   render                        builds the single PR comment from the fragments, compared with
+//                                 the fragments of the last run on the base branch (--base-dir)
 import { main } from './quality-report/cli.ts'
 
 // process.argv starts with the node binary and this script.
 const ARGUMENTS_START = 2
 
-process.exitCode = await main(process.argv.slice(ARGUMENTS_START), process.env)
+process.exitCode = await main(process.argv.slice(ARGUMENTS_START), {
+  environment: process.env,
+  now: new Date(),
+})

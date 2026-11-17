@@ -3,12 +3,15 @@ import type { Analysis } from './analysis.ts'
 import { finding, type Finding, textDetails } from './finding.ts'
 import { type Fragment, hasPassed } from './fragment.ts'
 import { JobResult, type JobResults } from './job-results.ts'
+import { renderMetric } from './metric.ts'
 import type { Check, Job, Section } from './sections.ts'
 import { Status, worst } from './status.ts'
 
 export interface CheckResult {
   readonly check: Check
   readonly finding: Finding
+  // The same check on the last run of the base branch, when that run left its fragment.
+  readonly base: Finding | undefined
   readonly seconds: number
 }
 
@@ -21,6 +24,7 @@ export interface SectionResult {
 export interface Evidence {
   readonly fragments: ReadonlyMap<Analysis, Fragment>
   readonly jobResults: JobResults
+  readonly baseFragments: ReadonlyMap<Analysis, Fragment>
 }
 
 export function evaluate(section: Section, evidence: Evidence): SectionResult {
@@ -28,12 +32,32 @@ export function evaluate(section: Section, evidence: Evidence): SectionResult {
   return { section, status: worst(results.map((result) => result.finding.status)), results }
 }
 
-function evaluateCheck(check: Check, { fragments, jobResults }: Evidence): CheckResult {
-  const fragment = fragments.get(check.analysis)
+function evaluateCheck(check: Check, evidence: Evidence): CheckResult {
+  const fragment = evidence.fragments.get(check.analysis)
+  const baseFragment = evidence.baseFragments.get(check.analysis)
+  const base = baseFragment === undefined ? undefined : analyzeSafely(check, baseFragment)
   if (fragment === undefined) {
-    return { check, finding: missingFinding(check.job, jobResults), seconds: 0 }
+    return { check, finding: missingFinding(check.job, evidence.jobResults), base, seconds: 0 }
   }
-  return { check, finding: analyzeSafely(check, fragment), seconds: fragment.seconds }
+  return { check, finding: analyzeSafely(check, fragment), base, seconds: fragment.seconds }
+}
+
+// A failure the base branch also had: the same analysis failed there (maybe on other findings).
+export function isInherited({ finding: current, base }: CheckResult): boolean {
+  return current.status === Status.Failed && base?.status === Status.Failed
+}
+
+export function isSectionInherited({ results }: SectionResult): boolean {
+  const failed = results.filter((result) => result.finding.status === Status.Failed)
+  return failed.length > 0 && failed.every(isInherited)
+}
+
+// The one-line detail of a check: its summary, and its metric compared with the base branch.
+export function checkDetail({ finding: current, base }: CheckResult): string {
+  if (current.metric === undefined) {
+    return current.summary
+  }
+  return `${current.summary} · ${renderMetric(current.metric, base?.metric)}`
 }
 
 function missingFinding(job: Job, jobResults: JobResults): Finding {

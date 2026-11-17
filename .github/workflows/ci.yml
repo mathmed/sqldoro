@@ -22,7 +22,8 @@ permissions:
 # Every analysis runs through `node scripts/quality-report.ts run <analysis> -- <command>`, which
 # keeps the tool's exit code (the job is still the gate) and stores its output as a fragment. Each
 # job uploads its fragments as the `quality-fragment-<job>` artifact, and the `quality-report` job
-# at the end turns them into the single PR comment (marker <!-- quality-report -->). Later steps use
+# at the end turns them into the single PR comment (marker <!-- quality-report -->), compared with
+# the fragments of the last push run of this workflow on the PR's base branch. Later steps use
 # `if: !cancelled()` so that one failure does not hide the results of the other analyses; the job
 # still fails. See "Quality Report" in CONTRIBUTING.md to add an analysis.
 jobs:
@@ -262,8 +263,11 @@ jobs:
     if: always() && github.event_name == 'pull_request'
     needs: [lint, quality, integration, architecture, package, smoke, mutation]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+      # Reads the fragments of the last run on the base branch (deltas and "inherited from" marks).
+      actions: read
       # Minimum needed to upsert the PR comment. The token is read-only on PRs from forks: the
       # comment step then warns instead of failing, and the report stays in the job summary.
       pull-requests: write
@@ -282,12 +286,38 @@ jobs:
           merge-multiple: true
           path: quality-fragments
 
+      # Best effort: the fragments of the last completed push run of this workflow on the base
+      # branch, passed or failed. Without them (no run yet, artifacts past their 7 days, API error)
+      # the report shows the deltas as n/a and marks no failure as inherited; it never fails
+      # because of the baseline.
+      - name: Download the base branch fragments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --branch "$BASE_REF" \
+            --event push --status completed --limit 20 --json databaseId,conclusion \
+            --jq '[.[] | select(.conclusion == "success" or .conclusion == "failure")][0].databaseId // empty') || run_id=""
+          if [ -z "$run_id" ]; then
+            echo "::notice::No completed run on $BASE_REF: the Quality Report has no baseline."
+            exit 0
+          fi
+          if ! gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'quality-fragment-*' --dir base-artifacts; then
+            echo "::notice::Could not download the fragments of run $run_id (expired?): the Quality Report has no baseline."
+            exit 0
+          fi
+          mkdir -p base-fragments
+          find base-artifacts -name '*.json' -exec cp {} base-fragments/ \;
+          echo "QUALITY_REPORT_BASE_RUN_ID=$run_id" >> "$GITHUB_ENV"
+
       - name: Build report
         env:
           NEEDS_JSON: ${{ toJSON(needs) }}
           QUALITY_REPORT_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          node scripts/quality-report.ts render --needs-json "$NEEDS_JSON" --output quality-report.md
+          node scripts/quality-report.ts render --needs-json "$NEEDS_JSON" \
+            --base-dir base-fragments --base-name "$BASE_REF" --output quality-report.md
           cat quality-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post report on the PR

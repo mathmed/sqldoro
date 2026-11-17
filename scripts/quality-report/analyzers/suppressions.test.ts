@@ -54,16 +54,15 @@ describe('analyzeSuppressions', () => {
 
     expect(sut).toEqual({
       status: Status.Ok,
-      summary: '10 suppressions (eslint-disable 9, test-skip 1) · matches the baseline',
+      summary: 'matches the baseline (eslint-disable 9, test-skip 1)',
+      metric: { label: 'suppressions', value: 10, unit: '', decimals: 0 },
     })
   })
 
   it('should say when there is no suppression at all', () => {
     const none = { total: 0, baselineTotal: 0, totals: [], changes: [] }
 
-    expect(analyzeSuppressions(suppressions(none, 0)).summary).toBe(
-      '0 suppressions · matches the baseline',
-    )
+    expect(analyzeSuppressions(suppressions(none, 0)).summary).toBe('matches the baseline')
   })
 
   it('should fail on new suppressions and list them by file, kind and line', () => {
@@ -73,7 +72,7 @@ describe('analyzeSuppressions', () => {
 
     expect(sut.status).toBe(Status.Failed)
     expect(sut.summary).toBe(
-      '2 new suppressions above the baseline · 11 suppressions (eslint-disable 9, test-skip 1)',
+      '2 new suppressions above the baseline (eslint-disable 9, test-skip 1)',
     )
     expect(sut.details?.body).toBe(
       [
@@ -93,7 +92,7 @@ describe('analyzeSuppressions', () => {
 
     expect(sut.status).toBe(Status.Failed)
     expect(sut.summary).toBe(
-      '1 suppression removed: lower the baseline with `make suppressions-update` · 9 suppressions (eslint-disable 9)',
+      '1 suppression removed (eslint-disable 9): lower the baseline with `make suppressions-update`',
     )
   })
 
