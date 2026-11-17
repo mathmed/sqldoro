@@ -966,6 +966,7 @@
     "lint:arch": "depcruise src scripts test",
     "dead-code": "knip --treat-config-hints-as-errors",
     "duplication": "jscpd",
+    "audit": "node scripts/audit.ts check",
     "suppressions": "node scripts/suppressions.ts check",
     "suppressions:update": "node scripts/suppressions.ts update",
     "pr-labels": "node scripts/pr-labels.ts",

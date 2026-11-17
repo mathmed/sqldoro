@@ -41,7 +41,7 @@ pre-commit:
           - name: suppressions
             run: npm run suppressions
           - name: audit
-            run: npm audit
+            run: npm run audit
 
 commit-msg:
   jobs:

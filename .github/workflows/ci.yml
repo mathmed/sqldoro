@@ -100,7 +100,7 @@ jobs:
         run: node scripts/quality-report.ts run knip -- npm run dead-code
       - name: Dependency vulnerabilities (npm audit)
         if: ${{ !cancelled() }}
-        run: node scripts/quality-report.ts run npm-audit -- npm audit
+        run: node scripts/quality-report.ts run npm-audit -- npm run audit
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}

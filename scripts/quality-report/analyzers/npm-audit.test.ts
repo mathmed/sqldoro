@@ -30,6 +30,18 @@ describe('analyzeNpmAudit', () => {
     })
   })
 
+  it('should say how many vulnerabilities a temporary exception accepts', () => {
+    const output = [
+      'Accepted by a temporary exception: GHSA-fc5q-39xc-vjpf picomatch <=4.0.7, high',
+      '0 audit problems, 1 vulnerability accepted by a temporary exception.',
+    ].join('\n')
+
+    expect(analyzeNpmAudit(audit(output, 0))).toStrictEqual({
+      status: Status.Ok,
+      summary: '0 audit problems, 1 vulnerability accepted by a temporary exception.',
+    })
+  })
+
   it('should summarise the vulnerabilities and keep the advisories', () => {
     const sut = analyzeNpmAudit(audit(ADVISORIES, 1))
 

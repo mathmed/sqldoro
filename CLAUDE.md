@@ -23,7 +23,7 @@ make lint-arch         # architecture contracts (dependency-cruiser)
 make dead-code         # unused files, exports and dependencies (knip)
 make duplication       # duplicated code in src/ and scripts/: zero clones (jscpd, .jscpd.json)
 make hygiene           # trailing whitespace, final newlines, large files added (pre-commit-hooks' checks)
-make audit             # known vulnerabilities in the dependencies (npm audit)
+make audit             # known vulnerabilities in the dependencies (npm audit), short of a dated, owner-approved exception
 make suppressions      # suppression ratchet: fails when eslint-disable, @ts-expect-error, skipped tests... differ from the baseline
 make quality           # all of the above: what the pre-commit hook and the CI static jobs run
 make suppressions-update # lower suppressions-baseline.json after removing suppressions (never raises it)
@@ -49,7 +49,8 @@ src/tunnel/     the SSH tunnel (ssh2) implementing the core tunnel interface
 src/extension/  VS Code extension host: activation, commands, views, SecretStorage; factories/ wires drivers
 src/webview/    React webviews, browser bundles built by Vite: the result grid (TanStack), connection-form/
 scripts/        CI tooling: build, packaging, smoke launcher, release checks, mutation runner, Quality Report,
-                suppression ratchet, file hygiene, contract check, PR labels check, local ESLint rules
+                suppression ratchet, dependency audit, file hygiene, contract check, PR labels check,
+                local ESLint rules
 test/           test support: the vscode and webview fakes for unit tests and the suite that runs inside VS Code
 ```
 
@@ -223,6 +224,11 @@ lists no violation: it counts the justified suppressions the rules allow, and on
 - **Contract**: on a PR, `make contract` (`scripts/contract.ts`) fails when `package.json` removes or
   renames a contributed command, view, view container or setting, changes a setting's type or allows
   it fewer values, against the merge base.
+- **Dependency audit**: `make audit` (`scripts/audit.ts`) fails on any advisory `npm audit` reports,
+  development dependencies included. An entry of `scripts/audit/exceptions.ts` (advisory id, package,
+  vulnerable range) needs the owner's explicit approval and expires within 30 days; the check also fails
+  once its advisory's range changes or it is no longer reported. Never use `--omit`, `--audit-level` or
+  another option that hides advisories.
 - **Suppressions**: `make suppressions` (`scripts/suppressions.ts`, in `make quality`, the pre-commit
   hook and the `lint` job) counts per file and kind every `eslint-disable` and inline `/* eslint */`
   config, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `v8`/`c8`/`istanbul ignore`,

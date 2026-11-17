@@ -50,7 +50,7 @@ Extension Development Host with `--password-store=basic`. `make smoke` needs a d
 | `make dead-code`           | Unused files, exports and dependencies (knip).                            |
 | `make duplication`         | Duplicated code in `src/` and `scripts/`: zero clones (jscpd).            |
 | `make hygiene`             | Trailing whitespace, final newlines and large added files.                |
-| `make audit`               | Known vulnerabilities in the dependencies.                                |
+| `make audit`               | Known vulnerabilities in the dependencies, short of a dated exception.    |
 | `make suppressions`        | Suppression ratchet against `suppressions-baseline.json`.                 |
 | `make quality`             | All of the above but the build: what the pre-commit hook runs.            |
 | `make integration`         | Start the test servers (Docker Compose) and run the integration tests.    |
@@ -95,7 +95,7 @@ the gates; relaxing a threshold, rule or contract needs the owner's explicit app
 | File hygiene       | `scripts/hygiene.ts`                                           | No trailing whitespace, one final newline per text file, no file above 500kb added.               | pre-commit, `lint`           |
 | Complexity         | ESLint                                                         | Complexity 5, nesting 2, 30 lines per function, 3 parameters, 300 lines per file; never disabled. | pre-commit, `lint`           |
 | Types              | tsc 7 strict, plus the extra flags of `tsconfig.json`          | No `any`; the core type-checks without Node.js or DOM types.                                      | pre-commit, `quality`        |
-| Security           | eslint-plugin-security, no-unsanitized, `npm audit`            | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                             | pre-commit, `lint`/`quality` |
+| Security           | eslint-plugin-security, no-unsanitized, `scripts/audit.ts`     | No shell, `eval` or unsanitized HTML; no known vulnerable dependency.                             | pre-commit, `lint`/`quality` |
 | Dead code          | knip                                                           | No unused file, export or dependency, no stale configuration.                                     | pre-commit, `quality`        |
 | Duplication        | jscpd (`.jscpd.json`)                                          | No clone of 5 lines or 50 tokens in `src/` and `scripts/`, tests left out.                        | pre-commit, `lint`           |
 | Tests and coverage | Vitest (Node.js; jsdom and Testing Library for the webview)    | 100% statements, branches, functions and lines, as a ratchet.                                     | pre-commit, `quality`        |
@@ -179,6 +179,21 @@ so the same text in a string does not count; files that hold none of the words a
 It runs in `make quality`, the pre-commit hook and the `lint` job, and prints a `SUPPRESSIONS_RESULT`
 line for the Quality Report. Configuration that disables a check for the whole project is not counted:
 call such a change out in the PR.
+
+### Dependency audit
+
+`make audit` (`scripts/audit.ts`, in `make quality`, the pre-commit hook and the `quality` job) runs
+`npm audit --json` on every dependency, development ones included, and fails on any advisory of any
+severity. The only way past an advisory is an entry of `scripts/audit/exceptions.ts`, which needs the
+owner's explicit approval: it names the advisory id, the package and the vulnerable range npm reports,
+and lasts at most 30 days from its creation date. The check fails when an advisory has no exception,
+when an exception expired, when the advisory's range changed (a fixed release is usually out: upgrade
+and delete the exception), when an exception's advisory is no longer reported, or when an exception
+lasts longer than 30 days.
+
+One exception exists, approved once by the owner on 2026-11-17: `GHSA-fc5q-39xc-vjpf`, picomatch
+`<=4.0.7`, a ReDoS with no fixed release that only reaches development tools (typescript-eslint,
+dependency-cruiser, knip, Vite, Vitest, vsce), none of them in the `.vsix`. It expires on 2026-12-17.
 
 ### The PR labels
 

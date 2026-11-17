@@ -56,9 +56,10 @@ duplication:
 hygiene:
 	npm run hygiene
 
-# Known vulnerabilities in the dependencies
+# Known vulnerabilities in the dependencies (npm audit), short of a temporary exception that has not
+# expired (scripts/audit/exceptions.ts)
 audit:
-	npm audit
+	npm run audit
 
 # Suppression ratchet: fails when the suppressions (eslint-disable, @ts-expect-error, skipped tests...)
 # in the source and the tests differ from suppressions-baseline.json
