@@ -74,6 +74,13 @@ against the database host name, also through the tunnel. Errors are redacted of 
 secrets. Each SQL editor and each table panel has its own session; the explorer and the autocomplete
 share one per connection.
 
+SQL editors are documents of VS Code's own `sql` language, colored by its SQL grammar. sqldoro adds
+the words of MySQL administration that grammar leaves plain (`FLUSH`, `PRIVILEGES`, `SHOW`,
+`IDENTIFIED`...) through a grammar injected into it (`syntaxes/sql-keywords.injection.tmLanguage.json`,
+`contributes.grammars`), outside strings, comments and qualified names. The SQL the webviews show is
+colored by the core (`src/core/sql/highlight.ts`) with the keywords of the connection's dialect,
+which hold the same words.
+
 ## Cancelling a statement
 
 Cancel stops the statement of a run and always ends its wait. The core `Cancellation`

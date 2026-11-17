@@ -6,6 +6,16 @@ All notable changes to sqldoro are documented in this file. The format is based 
 
 ## [Unreleased]
 
+### Fixed
+
+- **`FLUSH PRIVILEGES` and the other MySQL administration words are colored as keywords in SQL
+  editors.** `flush privileges;` used to stay in the plain text color after a `GRANT` that was
+  colored. SQL editors now also color `FLUSH`, `PRIVILEGES`, `TABLES`, `LOGS`, `HOSTS`, `SHOW`,
+  `GRANTS`, `PROCESSLIST`, `VARIABLES`, `DATABASES`, `USER`, `IDENTIFIED`, `RELOAD`, `LOCK`,
+  `ANALYZE`, `OPTIMIZE`, `REPAIR`, `PURGE`, `INSTALL`, `UNINSTALL` and `PLUGIN`, in any case, but
+  not inside strings, comments or names like `mysql.user`. The query box of a table panel and the
+  autocomplete of MySQL connections also know `HOSTS`, `IDENTIFIED`, `OPTION`, `RELOAD` and `ROLE`.
+
 ## [0.1.5] - 2026-11-03
 
 ### Changed

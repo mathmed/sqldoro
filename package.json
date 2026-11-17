@@ -810,6 +810,15 @@
         "mac": "cmd+alt+t"
       }
     ],
+    "grammars": [
+      {
+        "scopeName": "sqldoro.sql-keywords.injection",
+        "path": "./syntaxes/sql-keywords.injection.tmLanguage.json",
+        "injectTo": [
+          "source.sql"
+        ]
+      }
+    ],
     "configuration": {
       "title": "sqldoro",
       "properties": {
@@ -1015,7 +1024,9 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.72.0",
     "vite": "^8.3.5",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
   },
   "overrides": {
     "@azure/msal-node": "^7.1.0",
